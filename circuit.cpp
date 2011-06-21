@@ -427,10 +427,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 			diff = solve_iteration(my_id, num_procs, start_task, end_task);
 			iter++;
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
-			if( diff < EPSILON ){
-				successful = true;
-				break;
-			}
+			//if( diff < EPSILON ){
+				//successful = true;
+				//break;
+			//}
 		}
 		t2 = MPI_Wtime();
 		time = t2-t1;
@@ -467,6 +467,60 @@ void Circuit::node_voltage_init(){
 // solve blocks with mpi: multi-core
 // after each block solves, send solution back to id_0
 void Circuit::solve_CK_mpi(int &my_id, int &num_procs, int&start_task, int &end_task){
+	/*MPI_Status status;
+	size_t x_base=0;
+
+	size_t total_n =0;
+	for(size_t i=0;i<block_info.size();i++){
+		if (i == start_task)
+			x_base = total_n;
+		total_n += block_info[i].count;
+	}
+
+	float *x_new_info;
+	x_new_info = new float [total_n];
+	float *x_new_root;
+	x_new_root = new float [total_n];
+	for(size_t i=0;i<total_n;i++){
+		x_new_info[i]=0;
+		x_new_root[i]=0;
+	}
+
+	//if(my_id < block_info.size()){
+	size_t base = x_base;
+	for(int k=start_task;k<end_task;k++){
+		Block &block = block_info[start_task];
+		if(block.count ==0) continue;
+		block.update_rhs();
+		// backup the old voltage value	
+		for(size_t k=0; k<block.count;k++){
+			block.x_old[k] = block.x_new[k];
+		}
+		block.solve_CK(cm);
+		block.xp = static_cast<double *>(block.x_ck->x);
+		for(size_t i=0;i<block.count;i++){
+			block.x_new[i] = block.xp[i];
+			x_new_info[base+i] = block.xp[i];
+		}
+		base += block.count;
+	}*/
+	//}
+		
+	//if(my_id==0){
+		//clog<<"=======my_id==== "<<my_id<<endl;
+		//clog<<"mpi sending and recving time is: "<<mpi_t2-mpi_t1<<endl;
+	//}
+}
+
+// One iteration during solving the circuit, for any block B:
+// 1. update the righthand-side of the matrix of B
+// 2. solve the matrix
+// 3. update node voltages
+// 4. track the maximum error of solution
+double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task){	
+	float diff = .0, max_diff = .0;
+	float max_diff_root=0;
+
 	MPI_Status status;
 	size_t x_base=0;
 
@@ -481,88 +535,70 @@ void Circuit::solve_CK_mpi(int &my_id, int &num_procs, int&start_task, int &end_
 	x_new_info = new float [total_n];
 	float *x_new_root;
 	x_new_root = new float [total_n];
+	for(size_t i=0;i<total_n;i++){
+		x_new_info[i]=0;
+		x_new_root[i]=0;
+	}
 
-	if(my_id < block_info.size()){
-		size_t base = x_base;
-		for(int k=start_task;k<end_task;k++){
-			Block &block = block_info[start_task];
-			if(block.count ==0) continue;
-			block.solve_CK(cm);
-			block.xp = static_cast<double *>(block.x_ck->x);
-			for(size_t i=0;i<block.count;i++){
-				block.x_new[i] = block.xp[i];
-				x_new_info[base+i] = block.xp[i];
-			}
-			base += block.count;
+	//if(my_id < block_info.size()){
+	size_t base = x_base;
+	for(int i=start_task;i<end_task;i++){
+		Block &block = block_info[start_task];
+		if(block.count ==0) continue;
+		block.update_rhs();
+		// backup the old voltage value	
+		for(size_t j=0; j<block.count;j++){
+			block.x_old[j] = block.x_new[j];
 		}
+		block.solve_CK(cm);
+		block.xp = static_cast<double *>(block.x_ck->x);
+		for(size_t j=0;j<block.count;j++){
+			block.x_new[j] = block.xp[j];
+			x_new_info[base+j] = block.xp[j];
+		}
+		base += block.count;
+
+		// modify node voltage with OMEGA and old voltage value
+		diff = modify_voltage(block, block.x_old);
+
+		if( max_diff < diff ) max_diff = diff;
 	}
 	// communication
 	double mpi_t1, mpi_t2;
 	mpi_t1 = MPI_Wtime();
-	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0,
-			MPI_COMM_WORLD);
 
-	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0,
-		MPI_COMM_WORLD);
+	MPI_Reduce(&max_diff_root, &max_diff, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	MPI_Barrier(MPI_COMM_WORLD);
-	mpi_t2 = MPI_Wtime();
-	//if(my_id ==10)
-	//for(size_t i=0;i<block_info[11].count;i++)
-		//clog<<i<<" "<<block_info[11].x_new[i]<<endl;
-	if(my_id==0){
-		clog<<"=======my_id==== "<<my_id<<endl;
-		clog<<"mpi sending and recving time is: "<<mpi_t2-mpi_t1<<endl;
-	}
-}
-// One iteration during solving the circuit, for any block B:
-// 1. update the righthand-side of the matrix of B
-// 2. solve the matrix
-// 3. update node voltages
-// 4. track the maximum error of solution
-double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task){	
-	double diff = .0, max_diff = .0;
-	// update_rhs can be modified for mpi
-	for(size_t i=0;i<block_info.size();i++){
-		Block &block = block_info[i];
-		if( block.count == 0 ) continue;
-
-		block.update_rhs();
-		// backup the old voltage value
 		
-		//double *x_old;
-		//x_old = new double [block.count];
-		for(size_t k=0; k<block.count;k++){
-			block.x_old[k] = block.x_new[k];
+	size_t count = 0;
+	for(size_t i=0;i<block_info.size();i++){
+		if(i>=start_task && i<end_task) {
+			count += block_info[i].count;	
+			continue;
+		}
+		for(size_t j=0;j<block_info[i].count;j++){
+			block_info[i].x_new[j] = x_new_root[count];
+			count++;
 		}
 	}
+	mpi_t2 = MPI_Wtime();
 
-	// solve blocks with mpi: multi-core
-	solve_CK_mpi(my_id, num_procs, start_task, end_task);
-		//cout<<"Matrix A for block: "<<block.bid<<endl;
-		//block.solve_CK(cm);
+	// update nodes value in nodelist
 	for(size_t i=0;i<block_info.size();i++){
-		Block &block = block_info[i];
-		if(block.count ==0) continue;
-		//block.xp = static_cast<double *>(block.x_ck->x); 
-		//cout<<"block_index: "<<block.bid<<endl;
-		//for(size_t j=0;j<block_info[i].count;j++)
-			//cout<<j<<" "<<block_info[i].bp[j]<<" "<<block_info[i].xp[j]<<endl;
-
-		// modify node voltage with OMEGA and old voltage value
-		diff = modify_voltage(block, block.x_old);
-		//delete [] x_old;
-
-		//diff = distance_inf( block.x, x_old );
-		if( max_diff < diff ) max_diff = diff;
+		for(size_t j=0;j<block_info[i].count;j++)
+			block_info[i].nodes[j]->value = block_info[i].x_new[j];
 	}
-	return max_diff;
+	return max_diff_root;
 }
 
 double Circuit::modify_voltage(Block & block, double * x_old){
 	double max_diff = 0.0;
 	for(size_t i=0;i<block.count;i++){
 		block.x_new[i] = (1-OMEGA) * x_old[i] + OMEGA * block.x_new[i];
-		block.nodes[i]->value = block.x_new[i];
+		//block.nodes[i]->value = block.x_new[i];
 		double diff = fabs(x_old[i] - block.x_new[i]);
 		if( diff > max_diff ) max_diff = diff;
 	}
