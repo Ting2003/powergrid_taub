@@ -36,7 +36,7 @@ using namespace std;
 double Circuit::EPSILON = 1e-5;
 size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
-double Circuit::OVERLAP_RATIO = 0.2;
+double Circuit::OVERLAP_RATIO = 0.;//0.2;
 int    Circuit::MODE = 0;
 const int MAX_ITERATION = 1;//1000;
 const int SAMPLE_INTERVAL = 5;
@@ -512,7 +512,6 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 
 	// solve blocks with mpi: multi-core
 	solve_CK_mpi(my_id, num_procs);
-	return 0;
 		//cout<<"Matrix A for block: "<<block.bid<<endl;
 		//block.solve_CK(cm);
 	for(size_t i=0;i<block_info.size();i++){

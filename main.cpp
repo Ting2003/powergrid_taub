@@ -104,19 +104,20 @@ int main(int argc, char * argv[]){
 	t1 = clock();
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="GND"){
+		if(ckt->get_name()=="GND"){
 		//clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
 		// DEBUG: output each circuit to separate file
 		//char ofname[MAX_BUF];
 		//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
 		//freopen(ofname,"w", stdout);
+		if(my_id ==0)
 		cktlist[i]->print();
 		//clog<<(*ckt)<<endl;
 		clog<<endl;
 		// after that, this circuit can be released
 		delete ckt;
-		//}
+		}
 	}
 	t2 = clock();
 	//clog<<"solve using: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
