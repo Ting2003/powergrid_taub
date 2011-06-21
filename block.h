@@ -51,7 +51,7 @@ public:
 	double *bp, *bnewp, *xp, *x_old;
 	// x_new is the double array of xp
 	// for the transfer of mpi
-	double *x_new;
+	float *x_new;
 	// solution
 	cholmod_dense *x_ck;
 

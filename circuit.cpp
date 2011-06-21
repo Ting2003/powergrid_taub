@@ -243,7 +243,7 @@ void Circuit::partition_circuit(){
 		if( X_BLOCKS * Y_BLOCKS < num_blocks ) Y_BLOCKS+=1; 
 		num_blocks = X_BLOCKS * Y_BLOCKS;
 	}
-	clog<<"num_blocks: "<<X_BLOCKS<<" / "<<Y_BLOCKS <<endl;
+	//clog<<"num_blocks: "<<X_BLOCKS<<" / "<<Y_BLOCKS <<endl;
 	block_info.X_BLOCKS = X_BLOCKS;
 	block_info.Y_BLOCKS = Y_BLOCKS;
 	block_info.resize(X_BLOCKS * Y_BLOCKS);
@@ -463,22 +463,110 @@ void Circuit::node_voltage_init(){
 // after each block solves, send solution back to id_0
 void Circuit::solve_CK_mpi(int &my_id, int &num_procs){
 	MPI_Status status;
+	size_t *x_base;
+	x_base = new size_t [block_info.size()];
+
+	size_t total_n =0;
+	for(size_t i=0;i<block_info.size();i++){
+		total_n += block_info[i].count;
+		if(i==0) x_base[i]=0;
+		else	
+			x_base[i] = x_base[i-1]+block_info[i-1].count;
+	}
+
+	float *x_new_info;
+	x_new_info = new float [total_n];
+	float *x_new_root;
+	x_new_root = new float [total_n];
+
 	if(my_id < block_info.size()){
 		Block &block = block_info[my_id];
 		if(block.count ==0) return;
 		//clog<<"count is: "<<block.count<<endl;
-		block.solve_CK(cm);
+		for(int i=0;i<3;i++){
+			block.solve_CK(cm);
 		block.xp = static_cast<double *>(block.x_ck->x);
-		for(size_t i=0;i<block.count;i++)
+		size_t base = x_base[my_id];
+		for(size_t i=0;i<block.count;i++){
 			block.x_new[i] = block.xp[i];
+			x_new_info[base+i] = block.xp[i];
+		}
+		}
 	}
-	// communication
+		// communication
 	double mpi_t1, mpi_t2;
-	mpi_t1 = MPI_Wtime();	
-	for (int id = 0; id <block_info.size();id++){
-		MPI_Bcast(block_info[id].x_new, block_info[id].count, MPI_DOUBLE, id,
+	mpi_t1 = MPI_Wtime();
+	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0,
 			MPI_COMM_WORLD);
-	}
+
+	/*for(int i=0;i<1000000;i++)
+	if(my_id==0)
+		MPI_Send(block_info[my_id].x_new, block_info[my_id].count,
+		MPI_FLOAT, 4, 0, MPI_COMM_WORLD);
+	else if(my_id==4)
+		MPI_Recv(block_info[0].x_new,block_info[0].count,
+			MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &status);
+	*/
+	
+	/*if(my_id<block_info.size()){
+		const int dx_s[] = {-1, 1,  0, 0};
+		const int dy_s[] = { 0, 0, -1, 1};
+
+		const int dx_r[] = {1, -1,  0, 0};
+		const int dy_r[] = { 0, 0, 1, -1};
+
+		// first, odd rank processor will send data to neighbors
+		// second, odd rank processor will recv data from neighbors
+		//int k=1;{
+		for(int k=0;k<2;k++){
+			//clog<<my_id<<" k iter: "<<k<<endl;
+		if(my_id%2!=0){
+			for(int i=0;i<4;i++){
+				int id;
+				if(k==0)
+					id = my_id + dy_s[i]*block_info.X_BLOCKS+dx_s[i];
+				else if(k==1)
+					id = my_id + dy_r[i]*block_info.X_BLOCKS+dx_r[i];
+				if(id <0 || id >= block_info.size()) continue;
+				//clog<<"sending from "<<my_id<<" to: "<<id<<endl;
+				// send solution to 4 neighboring blocks
+				if(k==0)
+					MPI_Send(block_info[my_id].x_new, 
+						block_info[my_id].count,
+						MPI_FLOAT, id, 0, MPI_COMM_WORLD);
+				else if(k==1)
+					MPI_Recv(block_info[id].x_new,
+						block_info[id].count,
+						MPI_FLOAT, id, 0, MPI_COMM_WORLD, 
+						&status);
+			}
+		}
+		else if(my_id%2==0){
+			for(int i=0;i<4;i++){
+				int id;
+				if(k==0)
+					id = my_id + dy_r[i]*block_info.X_BLOCKS+dx_r[i];
+				else if(k==1)
+					id = my_id + dy_s[i]*block_info.X_BLOCKS+dx_s[i];
+				if(id <0 || id >= block_info.size()) continue;
+				//clog<<"recv from "<<my_id<<" to: "<<id<<endl;
+				// recv solution from 4 neighboring blocks
+				if(k==0)
+					MPI_Recv(block_info[id].x_new,
+						block_info[id].count,
+						MPI_FLOAT, id, 0, MPI_COMM_WORLD, 
+						&status);
+				else if(k==1)
+					MPI_Send(block_info[my_id].x_new, 
+						block_info[my_id].count,
+						MPI_FLOAT, id, 0, MPI_COMM_WORLD);
+			}
+		}
+		}
+	}*/
+	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0,
+		MPI_COMM_WORLD);
+	MPI_Barrier(MPI_COMM_WORLD);
 	mpi_t2 = MPI_Wtime();
 	//if(my_id ==10)
 	//for(size_t i=0;i<block_info[11].count;i++)

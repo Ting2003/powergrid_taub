@@ -62,7 +62,7 @@ void Block::allocate_resource(cholmod_common *cm){
 	b_new_ck = cholmod_zeros(count, 1, CHOLMOD_REAL, cm);
 	bnewp = static_cast<double*>(b_new_ck->x);
 	x_old = new double [count];
-	x_new = new double [count];
+	x_new = new float [count];
 }
 
 // return the relative position of this block to another block
