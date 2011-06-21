@@ -97,7 +97,8 @@ private:
 	bool solve_IT(int &my_id, int&num_procs);
 	void solve_block_LU();
 
-	void solve_CK_mpi(int &my_id, int &num_procs);
+	void MPI_Assign_Task(int &num_tasks, int &num_procs, int &start_task, int &end_task, int &my_id);
+	void solve_CK_mpi(int &my_id, int &num_procs, int &start_task, int &end_task);
 
 	bool solve_pcg();
 	//bool solve_block_pcg();
@@ -107,7 +108,7 @@ private:
 	void solve_init();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs);
+	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task);
 	void block_init();
 	void update_block_geometry();
 
@@ -264,4 +265,5 @@ bool compare_node_ptr(const Node *a, const Node *b);
 ostream & operator << (ostream & os, const NodePtrVector & nodelist);
 ostream & operator << (ostream & os, const NetList & nets);
 //ostream & operator << (ostream & os, const vector<Block > & block_info);
+
 #endif

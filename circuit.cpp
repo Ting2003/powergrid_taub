@@ -414,12 +414,17 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	double diff=0;
 	bool successful = false;
 
+	int num_tasks = block_info.size();
+	int start_task, end_task;
+
+	MPI_Assign_Task(num_tasks, num_procs, start_task, 
+			end_task, my_id);
 	float time=0;
 	if(my_id<block_info.size()){
 		double t1, t2;
 		t1= MPI_Wtime();
 		while( iter < MAX_ITERATION ){
-			diff = solve_iteration(my_id, num_procs);
+			diff = solve_iteration(my_id, num_procs, start_task, end_task);
 			iter++;
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 			if( diff < EPSILON ){
@@ -461,17 +466,15 @@ void Circuit::node_voltage_init(){
 
 // solve blocks with mpi: multi-core
 // after each block solves, send solution back to id_0
-void Circuit::solve_CK_mpi(int &my_id, int &num_procs){
+void Circuit::solve_CK_mpi(int &my_id, int &num_procs, int&start_task, int &end_task){
 	MPI_Status status;
-	size_t *x_base;
-	x_base = new size_t [block_info.size()];
+	size_t x_base=0;
 
 	size_t total_n =0;
 	for(size_t i=0;i<block_info.size();i++){
+		if (i == start_task)
+			x_base = total_n;
 		total_n += block_info[i].count;
-		if(i==0) x_base[i]=0;
-		else	
-			x_base[i] = x_base[i-1]+block_info[i-1].count;
 	}
 
 	float *x_new_info;
@@ -480,20 +483,20 @@ void Circuit::solve_CK_mpi(int &my_id, int &num_procs){
 	x_new_root = new float [total_n];
 
 	if(my_id < block_info.size()){
-		Block &block = block_info[my_id];
-		if(block.count ==0) return;
-		//clog<<"count is: "<<block.count<<endl;
-		for(int i=0;i<3;i++){
+		size_t base = x_base;
+		for(int k=start_task;k<end_task;k++){
+			Block &block = block_info[start_task];
+			if(block.count ==0) continue;
 			block.solve_CK(cm);
-		block.xp = static_cast<double *>(block.x_ck->x);
-		size_t base = x_base[my_id];
-		for(size_t i=0;i<block.count;i++){
-			block.x_new[i] = block.xp[i];
-			x_new_info[base+i] = block.xp[i];
-		}
+			block.xp = static_cast<double *>(block.x_ck->x);
+			for(size_t i=0;i<block.count;i++){
+				block.x_new[i] = block.xp[i];
+				x_new_info[base+i] = block.xp[i];
+			}
+			base += block.count;
 		}
 	}
-		// communication
+	// communication
 	double mpi_t1, mpi_t2;
 	mpi_t1 = MPI_Wtime();
 	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0,
@@ -581,7 +584,7 @@ void Circuit::solve_CK_mpi(int &my_id, int &num_procs){
 // 2. solve the matrix
 // 3. update node voltages
 // 4. track the maximum error of solution
-double Circuit::solve_iteration(int &my_id, int&num_procs){	
+double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task){	
 	double diff = .0, max_diff = .0;
 	// update_rhs can be modified for mpi
 	for(size_t i=0;i<block_info.size();i++){
@@ -599,7 +602,7 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 	}
 
 	// solve blocks with mpi: multi-core
-	solve_CK_mpi(my_id, num_procs);
+	solve_CK_mpi(my_id, num_procs, start_task, end_task);
 		//cout<<"Matrix A for block: "<<block.bid<<endl;
 		//block.solve_CK(cm);
 	for(size_t i=0;i<block_info.size();i++){
@@ -1280,3 +1283,25 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 	node->nbr[dir] = other->nbr[ops] = net;
 	this->add_net(net);
 }
+
+// assgign tasks
+void Circuit::MPI_Assign_Task(int &num_tasks,
+		        int & num_procs, int &start_task, int &end_task, int & my_id){
+	int * num_tasks_per_proc;
+	num_tasks_per_proc = new int [num_procs];
+	size_t base = 0;
+	for(int i=0;i<num_procs;i++){
+		num_tasks_per_proc[i] = num_tasks / (num_procs);
+		if(num_tasks % (num_procs) != 0) {
+			if(i < num_tasks % (num_procs))
+				num_tasks_per_proc[i] += 1;
+		}
+		if(my_id == i){
+			start_task = base;
+			end_task = base + num_tasks_per_proc[i];
+		}
+		base += num_tasks_per_proc[i]; 
+	}
+	delete [] num_tasks_per_proc;
+}
+	  
