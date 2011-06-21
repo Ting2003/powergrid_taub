@@ -98,7 +98,6 @@ private:
 	void solve_block_LU();
 
 	void MPI_Assign_Task(int &num_tasks, int &num_procs, int &start_task, int &end_task, int &my_id);
-	void solve_CK_mpi(int &my_id, int &num_procs, int &start_task, int &end_task);
 
 	bool solve_pcg();
 	//bool solve_block_pcg();

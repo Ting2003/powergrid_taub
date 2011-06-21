@@ -465,53 +465,6 @@ void Circuit::node_voltage_init(){
 }
 
 // solve blocks with mpi: multi-core
-// after each block solves, send solution back to id_0
-void Circuit::solve_CK_mpi(int &my_id, int &num_procs, int&start_task, int &end_task){
-	/*MPI_Status status;
-	size_t x_base=0;
-
-	size_t total_n =0;
-	for(size_t i=0;i<block_info.size();i++){
-		if (i == start_task)
-			x_base = total_n;
-		total_n += block_info[i].count;
-	}
-
-	float *x_new_info;
-	x_new_info = new float [total_n];
-	float *x_new_root;
-	x_new_root = new float [total_n];
-	for(size_t i=0;i<total_n;i++){
-		x_new_info[i]=0;
-		x_new_root[i]=0;
-	}
-
-	//if(my_id < block_info.size()){
-	size_t base = x_base;
-	for(int k=start_task;k<end_task;k++){
-		Block &block = block_info[start_task];
-		if(block.count ==0) continue;
-		block.update_rhs();
-		// backup the old voltage value	
-		for(size_t k=0; k<block.count;k++){
-			block.x_old[k] = block.x_new[k];
-		}
-		block.solve_CK(cm);
-		block.xp = static_cast<double *>(block.x_ck->x);
-		for(size_t i=0;i<block.count;i++){
-			block.x_new[i] = block.xp[i];
-			x_new_info[base+i] = block.xp[i];
-		}
-		base += block.count;
-	}*/
-	//}
-		
-	//if(my_id==0){
-		//clog<<"=======my_id==== "<<my_id<<endl;
-		//clog<<"mpi sending and recving time is: "<<mpi_t2-mpi_t1<<endl;
-	//}
-}
-
 // One iteration during solving the circuit, for any block B:
 // 1. update the righthand-side of the matrix of B
 // 2. solve the matrix
