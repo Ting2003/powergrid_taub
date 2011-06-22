@@ -418,13 +418,32 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 
 	MPI_Assign_Task(num_tasks, num_procs, start_task, 
 			end_task, my_id);
+	//MPI_Status status;
+	size_t x_base=0;
+
+	size_t total_n =0;
+	for(size_t i=0;i<block_info.size();i++){
+		if (i == start_task)
+			x_base = total_n;
+		total_n += block_info[i].count;
+	}
+
+	float *x_new_info;
+	x_new_info = new float [total_n];
+	float *x_new_root;
+	x_new_root = new float [total_n];
+	for(size_t i=0;i<total_n;i++){
+		x_new_info[i]=0;
+		x_new_root[i]=0;
+	}
+
 	//clog<<"start and end_task for: "<<my_id<<" "<<start_task<<" "<<end_task<<endl;
 	float time=0;
 	double t1, t2;
 	t1= MPI_Wtime();
 	//if(my_id < block_info.size()){
 		while( iter < MAX_ITERATION ){
-			diff = solve_iteration(my_id, num_procs, start_task, end_task);
+			diff = solve_iteration(my_id, num_procs, start_task, end_task, total_n, x_base, x_new_root, x_new_info);
 			iter++;
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 			if( diff < EPSILON ){
@@ -470,29 +489,10 @@ void Circuit::node_voltage_init(){
 // 2. solve the matrix
 // 3. update node voltages
 // 4. track the maximum error of solution
-double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task){	
+double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info){	
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
-
-	MPI_Status status;
-	size_t x_base=0;
-
-	size_t total_n =0;
-	for(size_t i=0;i<block_info.size();i++){
-		if (i == start_task)
-			x_base = total_n;
-		total_n += block_info[i].count;
-	}
-
-	float *x_new_info;
-	x_new_info = new float [total_n];
-	float *x_new_root;
-	x_new_root = new float [total_n];
-	for(size_t i=0;i<total_n;i++){
-		x_new_info[i]=0;
-		x_new_root[i]=0;
-	}
-
+	
 	if(my_id < block_info.size()){
 		size_t base = x_base;
 		for(int i=start_task;i<end_task;i++){
