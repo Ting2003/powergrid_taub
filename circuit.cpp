@@ -34,11 +34,11 @@
 using namespace std;
 
 double Circuit::EPSILON = 1e-5;
-size_t Circuit::MAX_BLOCK_NODES =8;//5500;
+size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
-double Circuit::OVERLAP_RATIO = 0.;//0.2;
+double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1;//1000;
+const int MAX_ITERATION = 100;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -441,18 +441,17 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	float time=0;
 	double t1, t2;
 	t1= MPI_Wtime();
-	//if(my_id < block_info.size()){
-		while( iter < MAX_ITERATION ){
-			diff = solve_iteration(my_id, num_procs, start_task, 
+	while( iter < MAX_ITERATION ){
+		diff = solve_iteration(my_id, num_procs, start_task, 
 				end_task, total_n, x_base, x_new_root, x_new_info);
-			iter++;
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
-			if( diff < EPSILON ){
-				successful = true;
-				break;
-			}
+		iter++;
+		if(my_id ==0)
+			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if( diff < EPSILON ){
+			successful = true;
+			break;
 		}
-	//}
+	}
 	delete [] x_new_root;
 	delete [] x_new_info;
 	t2 = MPI_Wtime();
@@ -513,12 +512,12 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 			for(size_t j=0;j<block.count;j++){
 				block.x_new[j] = block.xp[j];
 				x_new_info[base+j] = block.xp[j];
+				//clog<<"id: "<<my_id<<" block: "<<i<<" id: "<<j<<" x: "<<block.x_new[j]<<endl;
 			}
 			base += block.count;
 
 			// modify node voltage with OMEGA and old voltage value
 			diff = modify_voltage(block, block.x_old);
-
 			if( max_diff < diff ) max_diff = diff;
 		}
 	}
@@ -526,7 +525,7 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 	double mpi_t1, mpi_t2;
 	mpi_t1 = MPI_Wtime();
 
-	MPI_Reduce(&max_diff_root, &max_diff, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
@@ -542,16 +541,23 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 			for(size_t j=0;j<block_info[i].count;j++){
 				block_info[i].x_new[j] = x_new_root[count];
 				count++;
+				//clog<<my_id<<" receive: "<<"block: "<<i<<" id: "<<j<<" x: "<<block_info[i].x_new[j]<<endl;
 			}
+
 		}
 	}
 	mpi_t2 = MPI_Wtime();
 
 	// update nodes value in nodelist
+	// overlap is allowed here
 	for(size_t i=0;i<block_info.size();i++){
-		for(size_t j=0;j<block_info[i].count;j++)
+		for(size_t j=0;j<block_info[i].count;j++){
 			block_info[i].nodes[j]->value = block_info[i].x_new[j];
+			//if(my_id ==0) clog<<"value: "<<block_info[i].nodes[j]->name<<" "<<
+				//block_info[i].nodes[j]->value<<endl;
+		}
 	}
+	//if(my_id ==0) clog<<"diff: "<<max_diff_root<<endl;
 	return max_diff_root;
 }
 
