@@ -423,7 +423,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 
 	size_t total_n =0;
 	for(size_t i=0;i<block_info.size();i++){
-		if (i == start_task)
+		if ((int)i == start_task)
 			x_base = total_n;
 		total_n += block_info[i].count;
 	}
@@ -443,7 +443,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	t1= MPI_Wtime();
 	//if(my_id < block_info.size()){
 		while( iter < MAX_ITERATION ){
-			diff = solve_iteration(my_id, num_procs, start_task, end_task, total_n, x_base, x_new_root, x_new_info);
+			diff = solve_iteration(my_id, num_procs, start_task, 
+				end_task, total_n, x_base, x_new_root, x_new_info);
 			iter++;
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 			if( diff < EPSILON ){
@@ -452,6 +453,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 			}
 		}
 	//}
+	delete [] x_new_root;
+	delete [] x_new_info;
 	t2 = MPI_Wtime();
 	time = t2-t1;
 	if(my_id==0){
@@ -489,11 +492,13 @@ void Circuit::node_voltage_init(){
 // 2. solve the matrix
 // 3. update node voltages
 // 4. track the maximum error of solution
-double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info){	
+double Circuit::solve_iteration(int &my_id, int&num_procs, 
+		int &start_task, int &end_task, size_t &total_n, 
+		size_t &x_base, float *x_new_root, float *x_new_info){	
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
 	
-	if(my_id < block_info.size()){
+	if(my_id < (int)block_info.size()){
 		size_t base = x_base;
 		for(int i=start_task;i<end_task;i++){
 			Block &block = block_info[start_task];
@@ -527,10 +532,10 @@ double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int 
 	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	if(my_id < block_info.size()){
+	if(my_id < (int)block_info.size()){
 		size_t count = 0;
 		for(size_t i=0;i<block_info.size();i++){
-			if(i>=start_task && i<end_task) {
+			if((int)i>=start_task && (int)i<end_task) {
 				count += block_info[i].count;	
 				continue;
 			}
