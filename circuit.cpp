@@ -34,7 +34,7 @@
 using namespace std;
 
 double Circuit::EPSILON = 1e-5;
-size_t Circuit::MAX_BLOCK_NODES =5500;
+size_t Circuit::MAX_BLOCK_NODES =8;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.;//0.2;
 int    Circuit::MODE = 0;
@@ -388,7 +388,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	*/
 	select_omega();
 	partition_circuit();
-
 	// Only one block, use direct LU instead
 	if( block_info.size() == 1 ){
 		clog<<"Block size = 1, use direct LU instead."<<endl;
@@ -419,22 +418,23 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 
 	MPI_Assign_Task(num_tasks, num_procs, start_task, 
 			end_task, my_id);
+	//clog<<"start and end_task for: "<<my_id<<" "<<start_task<<" "<<end_task<<endl;
 	float time=0;
-	if(my_id<block_info.size()){
-		double t1, t2;
-		t1= MPI_Wtime();
+	double t1, t2;
+	t1= MPI_Wtime();
+	//if(my_id < block_info.size()){
 		while( iter < MAX_ITERATION ){
 			diff = solve_iteration(my_id, num_procs, start_task, end_task);
 			iter++;
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
-			//if( diff < EPSILON ){
-				//successful = true;
-				//break;
-			//}
+			if( diff < EPSILON ){
+				successful = true;
+				break;
+			}
 		}
-		t2 = MPI_Wtime();
-		time = t2-t1;
-	}
+	//}
+	t2 = MPI_Wtime();
+	time = t2-t1;
 	if(my_id==0){
 		clog<<"solve iteration time for "<<my_id<<" is "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
@@ -493,28 +493,29 @@ double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int 
 		x_new_root[i]=0;
 	}
 
-	//if(my_id < block_info.size()){
-	size_t base = x_base;
-	for(int i=start_task;i<end_task;i++){
-		Block &block = block_info[start_task];
-		if(block.count ==0) continue;
-		block.update_rhs();
-		// backup the old voltage value	
-		for(size_t j=0; j<block.count;j++){
-			block.x_old[j] = block.x_new[j];
-		}
-		block.solve_CK(cm);
-		block.xp = static_cast<double *>(block.x_ck->x);
-		for(size_t j=0;j<block.count;j++){
-			block.x_new[j] = block.xp[j];
-			x_new_info[base+j] = block.xp[j];
-		}
-		base += block.count;
+	if(my_id < block_info.size()){
+		size_t base = x_base;
+		for(int i=start_task;i<end_task;i++){
+			Block &block = block_info[start_task];
+			if(block.count ==0) continue;
+			block.update_rhs();
+			// backup the old voltage value	
+			for(size_t j=0; j<block.count;j++){
+				block.x_old[j] = block.x_new[j];
+			}
+			block.solve_CK(cm);
+			block.xp = static_cast<double *>(block.x_ck->x);
+			for(size_t j=0;j<block.count;j++){
+				block.x_new[j] = block.xp[j];
+				x_new_info[base+j] = block.xp[j];
+			}
+			base += block.count;
 
-		// modify node voltage with OMEGA and old voltage value
-		diff = modify_voltage(block, block.x_old);
+			// modify node voltage with OMEGA and old voltage value
+			diff = modify_voltage(block, block.x_old);
 
-		if( max_diff < diff ) max_diff = diff;
+			if( max_diff < diff ) max_diff = diff;
+		}
 	}
 	// communication
 	double mpi_t1, mpi_t2;
@@ -525,16 +526,18 @@ double Circuit::solve_iteration(int &my_id, int&num_procs, int &start_task, int 
 	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	MPI_Barrier(MPI_COMM_WORLD);
-		
-	size_t count = 0;
-	for(size_t i=0;i<block_info.size();i++){
-		if(i>=start_task && i<end_task) {
-			count += block_info[i].count;	
-			continue;
-		}
-		for(size_t j=0;j<block_info[i].count;j++){
-			block_info[i].x_new[j] = x_new_root[count];
-			count++;
+	
+	if(my_id < block_info.size()){
+		size_t count = 0;
+		for(size_t i=0;i<block_info.size();i++){
+			if(i>=start_task && i<end_task) {
+				count += block_info[i].count;	
+				continue;
+			}
+			for(size_t j=0;j<block_info[i].count;j++){
+				block_info[i].x_new[j] = x_new_root[count];
+				count++;
+			}
 		}
 	}
 	mpi_t2 = MPI_Wtime();
