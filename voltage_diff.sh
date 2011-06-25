@@ -15,4 +15,4 @@ if [[ $n1 != $n2 ]];then
 	echo "Two files have different line numbers!"
 	exit 1
 fi
-join $FILE1 $FILE2 | awk -f voltage_diff.awk
+join $FILE1 $FILE2 #| awk -f voltage_diff.awk

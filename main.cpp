@@ -102,10 +102,13 @@ int main(int argc, char * argv[]){
 	//if( mode == 0 ) clog<<"Solve using block-iterative."<<endl;
 	//else clog<<"Solve using direct LU."<<endl;
 	t1 = clock();
+	double mpi_t11, mpi_t12;
+	mpi_t11 = MPI_Wtime();
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="GND"){
-		//clog<<"Solving "<<ckt->get_name()<<endl;
+		//if(ckt->get_name()=="VDD"){
+		if(my_id ==0)
+			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
 		// DEBUG: output each circuit to separate file
 		//char ofname[MAX_BUF];
@@ -120,7 +123,9 @@ int main(int argc, char * argv[]){
 		//}
 	}
 	t2 = clock();
-	//clog<<"solve using: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	mpi_t12 = MPI_Wtime();
+	if(my_id ==0)
+	clog<<"solve using: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<" "<<1.0*(mpi_t12-mpi_t11)<<endl;
 	
 	//fclose(stdout);
 	// output a single ground node
@@ -130,8 +135,8 @@ int main(int argc, char * argv[]){
 
 	mpi_t2 = MPI_Wtime();
 
-	
-	//clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(t2-t1)<<endl;
+	if(my_id ==0)	
+	clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(mpi_t2-mpi_t1)<<endl;
 	MPI_Finalize();
 	
 	return 0;

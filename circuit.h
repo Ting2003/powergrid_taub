@@ -107,7 +107,7 @@ private:
 	void solve_init();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info);
+	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info, int &iter);
 	void block_init();
 	void update_block_geometry();
 

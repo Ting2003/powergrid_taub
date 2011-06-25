@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 100;//1000;
+const int MAX_ITERATION = 1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -390,7 +390,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	partition_circuit();
 	// Only one block, use direct LU instead
 	if( block_info.size() == 1 ){
-		clog<<"Block size = 1, use direct LU instead."<<endl;
+		//clog<<"Block size = 1, use direct LU instead."<<endl;
 		solve_LU_core();
 		return true;
 	}
@@ -418,6 +418,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 
 	MPI_Assign_Task(num_tasks, num_procs, start_task, 
 			end_task, my_id);
+	//clog<<"my_id, start_task, end_task: "<<my_id<<" "<<start_task<<" "<<end_task<<endl;
 	//MPI_Status status;
 	size_t x_base=0;
 
@@ -443,10 +444,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, num_procs, start_task, 
-				end_task, total_n, x_base, x_new_root, x_new_info);
+				end_task, total_n, x_base, x_new_root, x_new_info,
+				iter);
 		iter++;
-		if(my_id ==0)
-			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
@@ -462,12 +464,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		get_voltages_from_block_LU_sol();
 		get_vol_mergelist();
 	}
-	//clog<<"before free. "<<endl;
 	for(size_t i=0;i<block_info.size();i++){
 		if(block_info[i].count > 0)
 			block_info[i].free_block_cholmod(cm);
 	}
-	//clog<<"after free. "<<endl;
 	
 	cholmod_finish(cm);
 	return successful;
@@ -493,16 +493,21 @@ void Circuit::node_voltage_init(){
 // 4. track the maximum error of solution
 double Circuit::solve_iteration(int &my_id, int&num_procs, 
 		int &start_task, int &end_task, size_t &total_n, 
-		size_t &x_base, float *x_new_root, float *x_new_info){	
+		size_t &x_base, float *x_new_root, float *x_new_info,
+		int &iter){	
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
 	
 	if(my_id < (int)block_info.size()){
 		size_t base = x_base;
 		for(int i=start_task;i<end_task;i++){
-			Block &block = block_info[start_task];
+			Block &block = block_info[i];
 			if(block.count ==0) continue;
+			//if(my_id ==0) clog<<"start / end"<<i<<endl;
 			block.update_rhs();
+			//if(my_id==0)
+			//for(size_t j=0;j<block.count;j++)
+				//clog<<my_id<<" "<<i<<" "<<block.bnewp[j]<<endl;
 			// backup the old voltage value	
 			for(size_t j=0; j<block.count;j++){
 				block.x_old[j] = block.x_new[j];
@@ -512,11 +517,13 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 			for(size_t j=0;j<block.count;j++){
 				block.x_new[j] = block.xp[j];
 				x_new_info[base+j] = block.xp[j];
-				//clog<<"id: "<<my_id<<" block: "<<i<<" id: "<<j<<" x: "<<block.x_new[j]<<endl;
+				//if(my_id ==0)
+				//clog<<"id: "<<my_id<<" block: "<<i<<" id: "<<j<<" x: "<<block.x_new[j]<<" "<<x_new_info[base+j]<<endl;
 			}
 			base += block.count;
 
 			// modify node voltage with OMEGA and old voltage value
+			//if(my_id==0)
 			diff = modify_voltage(block, block.x_old);
 			if( max_diff < diff ) max_diff = diff;
 		}
@@ -545,6 +552,15 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 			}
 
 		}
+		/*if(my_id==0){
+			size_t count=0;
+			for(size_t i=start_task;i<end_task;i++){
+				Block &block = block_info[i];
+				for(size_t j=0;j<block.count;j++)
+					clog<<"solution: "<<i<<" "<<j<<" "<<block.x_new[j]<<" "<<x_new_root[count++]<<endl;
+			}
+		}*/
+				
 	}
 	mpi_t2 = MPI_Wtime();
 
@@ -553,7 +569,7 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 	for(size_t i=0;i<block_info.size();i++){
 		for(size_t j=0;j<block_info[i].count;j++){
 			block_info[i].nodes[j]->value = block_info[i].x_new[j];
-			//if(my_id ==0) clog<<"value: "<<block_info[i].nodes[j]->name<<" "<<
+			//if(my_id ==0) clog<<"value: "<<i<<" "<<block_info[i].nodes[j]->name<<" "<<
 				//block_info[i].nodes[j]->value<<endl;
 		}
 	}
@@ -564,8 +580,10 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 double Circuit::modify_voltage(Block & block, double * x_old){
 	double max_diff = 0.0;
 	for(size_t i=0;i<block.count;i++){
+		//if(block.bid ==1)
+			//clog<<block.bid<<" x_old / x_new: "<<x_old[i]<<" "<<block.x_new[i]<<endl;
 		block.x_new[i] = (1-OMEGA) * x_old[i] + OMEGA * block.x_new[i];
-		//block.nodes[i]->value = block.x_new[i];
+		block.nodes[i]->value = block.x_new[i];
 		double diff = fabs(x_old[i] - block.x_new[i]);
 		if( diff > max_diff ) max_diff = diff;
 	}
@@ -666,10 +684,12 @@ void Circuit::get_voltages_from_block_LU_sol(){
 		block_id = node->rep->blocklist[0];
 		Block &block = block_info[block_id];
 		size_t id = node->rep->id_in_block[0];
+		//if(node->name == "n7_9690300_60300") clog<<node->rep->name<<" "<<block.x_new[id]<<endl;
 		//Vec &p = block.x;
 		//double v = p[id];		// get its rep's value
 		double v = block.x_new[id];
 		node->value = v;
+		//if(i<10) clog<<node->name<<" "<<node->rep->name<<" "<<node->value<<endl;
 	}
 }
 
