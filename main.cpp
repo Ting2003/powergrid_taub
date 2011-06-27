@@ -17,13 +17,6 @@ const char * usage="Usage: %s [-eorbILifl] benchmark\n\
 const char * usage2="Usage: %s -i input -f output\n";
 
 int main(int argc, char * argv[]){
-	int my_id;
-	int num_procs;
-
-	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
-	
 	double mpi_t1, mpi_t2;
 
 	mpi_t1 = MPI_Wtime();
@@ -94,7 +87,7 @@ int main(int argc, char * argv[]){
 	t1=clock();
 	parser.parse(input);
 	t2=clock();
-	//clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	//if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 	
 	// do the job
@@ -104,12 +97,56 @@ int main(int argc, char * argv[]){
 	t1 = clock();
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
+
+	//clog<<"start mpi init process. "<<endl;
+	//return 0;
+	int my_id;
+	int num_procs;
+
+	int new_rank;
+	MPI_Group orig_group, new_group;
+	MPI_Comm new_comm;
+	MPI_Comm comm;
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
+	MPI_Comm_group(MPI_COMM_WORLD, &orig_group);
+
+	// divide tasks into 2 distinct groups based upon rank
+	size_t base = 0;
+	int ranks1[12]={0,1,2,3,4,5, 6, 7,8,9,10,11};
+	int ranks2[12]={12,13,14,15,16,17,18,19,20,21, 22, 23};
+	/*int ** ranks;
+	ranks = new int *[cktlist.size()];
+	for(size_t i=0;i<cktlist.size();i++)
+		ranks[i]= new int [num_procs/cktlist.size()];
+	//clog<<"start to assign. "<<endl;
 	for(size_t i=0;i<cktlist.size();i++){
+		for(size_t j=0;j<num_procs/cktlist.size();j++){
+			ranks[i][j] = j+base;
+			//if(my_id==0)
+			//clog<<"j, ranks: "<<j<<" "<<ranks[j]<<endl;
+		}
+		base += num_procs/cktlist.size();
+	}*/
+	if(my_id <12)
+		MPI_Group_incl(orig_group, num_procs/cktlist.size(), ranks1, &new_group);
+	else
+		MPI_Group_incl(orig_group, num_procs/cktlist.size(), ranks2, &new_group);
+	
+	MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm);
+	MPI_Group_rank(new_group, &new_rank);
+	//clog<<"old_rank: "<<my_id<<" new_rank: "<<new_rank<<endl;
+	//for(size_t i=0;i<cktlist.size();i++){
+		size_t i=0;
+		if(my_id<12) i = 0;
+		else	i=1;
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
-		if(my_id ==0)
+		if(new_rank ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
-		ckt->solve(my_id, num_procs);
+		int new_num_procs = num_procs / cktlist.size();
+		ckt->solve(new_rank, new_num_procs, new_comm);
 		// DEBUG: output each circuit to separate file
 		//char ofname[MAX_BUF];
 		//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
@@ -121,7 +158,7 @@ int main(int argc, char * argv[]){
 		// after that, this circuit can be released
 		delete ckt;
 		//}
-	}
+	//}
 	t2 = clock();
 	mpi_t12 = MPI_Wtime();
 	if(my_id ==0)
@@ -134,7 +171,6 @@ int main(int argc, char * argv[]){
 	close_logfile();
 
 	mpi_t2 = MPI_Wtime();
-
 	if(my_id ==0)	
 	clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(mpi_t2-mpi_t1)<<endl;
 	MPI_Finalize();

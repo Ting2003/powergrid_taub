@@ -28,6 +28,8 @@
 #include "vec.h"
 #include "triplet.h"
 #include "block.h"
+
+#include "mpi.h"
 using namespace std;
 using namespace std::tr1;
 
@@ -74,7 +76,7 @@ public:
 	void sort_nodes();
 
 	// solve for node voltage
-	void solve(int &my_id, int &num_procs);
+	void solve(int &my_id, int &num_procs, MPI_Comm &comm);
 	
 	void set_blocklist(Node * nd);
 
@@ -94,7 +96,7 @@ private:
 	void solve_LU();
 	void solve_LU_core();
 
-	bool solve_IT(int &my_id, int&num_procs);
+	bool solve_IT(int &my_id, int&num_procs, MPI_Comm &comm);
 	void solve_block_LU();
 
 	void MPI_Assign_Task(int &num_tasks, int &num_procs, int &start_task, int &end_task, int &my_id);
@@ -107,7 +109,7 @@ private:
 	void solve_init();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info, int &iter);
+	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info, int &iter, MPI_Comm &comm);
 	void block_init();
 	void update_block_geometry();
 

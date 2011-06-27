@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1000;
+const int MAX_ITERATION = 100;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -366,15 +366,15 @@ void Circuit::find_block_size(){
 	}
 }
 
-void Circuit::solve(int &my_id, int&num_procs){
+void Circuit::solve(int &my_id, int&num_procs, MPI_Comm &comm){
 	if( MODE == 0 )
-		solve_IT(my_id, num_procs);
+		solve_IT(my_id, num_procs, comm);
 	else
 		solve_LU();
 }
 
 // solve Circuit
-bool Circuit::solve_IT(int &my_id, int&num_procs){
+bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_Comm &comm){
 	// did not find any `X' node
 	if( circuit_type == UNKNOWN )
 		circuit_type = C4;
@@ -419,7 +419,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	MPI_Assign_Task(num_tasks, num_procs, start_task, 
 			end_task, my_id);
 	//clog<<"my_id, start_task, end_task: "<<my_id<<" "<<start_task<<" "<<end_task<<endl;
-	//MPI_Status status;
 	size_t x_base=0;
 
 	size_t total_n =0;
@@ -445,7 +444,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, num_procs, start_task, 
 				end_task, total_n, x_base, x_new_root, x_new_info,
-				iter);
+				iter, comm);
 		iter++;
 		//if(my_id ==0)
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
@@ -494,7 +493,7 @@ void Circuit::node_voltage_init(){
 double Circuit::solve_iteration(int &my_id, int&num_procs, 
 		int &start_task, int &end_task, size_t &total_n, 
 		size_t &x_base, float *x_new_root, float *x_new_info,
-		int &iter){	
+		int &iter, MPI_Comm &comm){	
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
 	
@@ -532,11 +531,11 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 	double mpi_t1, mpi_t2;
 	mpi_t1 = MPI_Wtime();
 
-	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
-	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, comm);
+	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, comm);
+	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0, comm);
+	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, comm);
+	MPI_Barrier(comm);
 	
 	if(my_id < (int)block_info.size()){
 		size_t count = 0;
