@@ -94,10 +94,7 @@ int main(int argc, char * argv[]){
 	//clog<<"number of layers: "<<Circuit::get_total_num_layer()<<endl;
 	//if( mode == 0 ) clog<<"Solve using block-iterative."<<endl;
 	//else clog<<"Solve using direct LU."<<endl;
-	t1 = clock();
-	double mpi_t11, mpi_t12;
-	mpi_t11 = MPI_Wtime();
-
+	
 	//clog<<"start mpi init process. "<<endl;
 	//return 0;
 	int my_id;
@@ -137,30 +134,33 @@ int main(int argc, char * argv[]){
 	MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm);
 	MPI_Group_rank(new_group, &new_rank);
 	//clog<<"old_rank: "<<my_id<<" new_rank: "<<new_rank<<endl;
-	//for(size_t i=0;i<cktlist.size();i++){
-		size_t i=0;
-		if(my_id<12) i = 0;
-		else	i=1;
-		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="VDD"){
-		if(new_rank ==0)
-			clog<<"Solving "<<ckt->get_name()<<endl;
-		int new_num_procs = num_procs / cktlist.size();
-		ckt->solve(new_rank, new_num_procs, new_comm);
-		// DEBUG: output each circuit to separate file
-		//char ofname[MAX_BUF];
-		//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
-		//freopen(ofname,"w", stdout);
-		if(my_id ==0)
+	
+	t1 = clock();
+	double mpi_t11, mpi_t12;
+	mpi_t11 = MPI_Wtime();
+
+	size_t i=0;
+	if(my_id<12) i = 0;
+	else	i=1;
+	Circuit * ckt = cktlist[i];
+	if(new_rank ==0)
+		clog<<"Solving "<<ckt->get_name()<<endl;
+	int new_num_procs = num_procs / cktlist.size();
+	ckt->solve(new_rank, new_num_procs, new_comm);
+	// DEBUG: output each circuit to separate file
+	//char ofname[MAX_BUF];
+	//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
+	//freopen(ofname,"w", stdout);
+	if(my_id ==0)
 		cktlist[i]->print();
-		//clog<<(*ckt)<<endl;
-		clog<<endl;
-		// after that, this circuit can be released
-		delete ckt;
-		//}
-	//}
+	//clog<<(*ckt)<<endl;
+	clog<<endl;
+	// after that, this circuit can be released
+	delete ckt;
 	t2 = clock();
 	mpi_t12 = MPI_Wtime();
+	// sync all the processors
+
 	if(my_id ==0)
 	clog<<"solve using: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<" "<<1.0*(mpi_t12-mpi_t11)<<endl;
 	
