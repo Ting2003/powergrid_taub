@@ -97,14 +97,15 @@ private:
 	bool solve_IT(int &my_id, int&num_procs);
 	void solve_block_LU();
 
-	void MPI_Assign_Task(int &num_tasks, int &num_procs, int *start_task, int *end_task);
-
 	bool solve_pcg();
 	//bool solve_block_pcg();
-
 	
 	// initialize things before solve_iteration
 	void solve_init();
+
+	// mpi function
+	void MPI_Assign_Task(int *num_tasks_per_proc, int &num_tasks, int &num_procs, int *start_task, int *end_task);
+	void block_mpi_setup(float *b_new_info, float *L_h, int *L_nz_d, int *L_n_d, size_t *base_nz_d, size_t *base_n_d, long *send_nz, long *send_n);
 
 	// updates nodes value in each iteration
 	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info, int &iter);
@@ -171,6 +172,10 @@ private:
 	void merge_node(Node * node);
 
 	// ************** member variables *******************
+	// mpi variables
+	size_t total_n;
+	size_t total_nz;
+
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
 	NodePtrVector mergelist;	// nodes for merging

@@ -135,6 +135,47 @@ void Algebra::factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz, 
 	L_h_nz = (count)/3;                                      
 }  
 
+// substitution for only 1 block
+// L_nz is the total number of non-zeros in L
+void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, int &base_n){
+	size_t i=0, j=0;
+	size_t index_col=0, index_row=0;
+	// forward substitution
+	while(i<L_nz){
+		// xi=bi/Aii
+		index_row = L[base_nz+i];
+		b[base_n+i] /= L[base_nz+i+2];
+		j=i+3;
+		if(j>=L_nz-2) break;
+		while(L[base_nz+j]!=L[base_nz+j+1]){
+			// bi = bi - Aij*xj
+			index_row = L[base_nz+j];
+			index_col = L[base_nz+j+1];
+			b[base_n+index_row] -= L[base_nz+j+2]*b[base_n+index_col];
+			j +=3;
+		}
+		i=j;
+	}
+
+	// backward substitution
+	i = L_nz-3;
+	while(i>=0){
+		index_row = L[base_nz+i];
+		// xi = bi / Aii
+		b_x_s[base_n+index_row] /= L[base_nz+i+2];
+		j=i-3;
+		if(j<0) break;
+		while(L[base_nz+j]!=L[base_nz+j+1]){
+			// bi = bi - Aij *xj
+			index_row = L[base_nz+j];
+			index_col = L[base_nz+j+1];
+			b[base_n+index_col] -= L[base_nz+j+2]*b_x_s[index_row];
+			j -= 3;
+		}
+		i = j;
+	}
+}
+
 // Given column compressed form of matrix A
 // perform LU decomposition and store the result in Numeric
 // n is the dimension of matrix A

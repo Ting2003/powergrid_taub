@@ -197,4 +197,3 @@ void BlockInfo::set_len_per_block(size_t x_min, size_t x_max,
 	//clog<<"len_ovr_x, len_ovr_y: "<<len_ovr_x
 		//<<" / "<<len_ovr_y<<endl;
 }
-
