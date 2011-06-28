@@ -20,6 +20,8 @@ Block::Block(size_t _count):
 	b_new_ck(NULL),
 	x_old(NULL),
 	x_new(NULL),
+	L_h(NULL),
+	L_h_nz(_count),
 	//bp(NULL),
 	//bnewp(NULL),
 	//xp(NULL),
@@ -36,6 +38,7 @@ Block::~Block(){
 }
 
 void Block::free_block_cholmod(cholmod_common *cm){
+    delete [] L_h;
     cholmod_free_factor(&L, cm);
     cholmod_free_dense(&b_ck, cm);
     cholmod_free_dense(&b_new_ck, cm);
@@ -49,6 +52,11 @@ void Block::CK_decomp(Matrix & A, cholmod_common *cm, size_t &peak_mem,
 
 void Block::solve_CK(cholmod_common *cm){
 	x_ck = cholmod_solve(CHOLMOD_A, L, b_new_ck, cm);
+}
+
+void Block::solve_CK_setup(cholmod_common *cm){
+	L_h_nz=0;
+	Algebra::factor_to_triplet(L, L_h, L_h_nz, cm);
 }
 
 void Block::allocate_resource(cholmod_common *cm){

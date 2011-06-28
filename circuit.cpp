@@ -331,12 +331,14 @@ void Circuit::stamp_block_matrix(){
 		}
 	}
 	make_A_symmetric_block();
+	size_t count = 0;
 	// after stamping, convert A to column compressed form
 	for(size_t i=0;i<num_blocks;i++){
 		if(block_info[i].count>0){
-			A[i].set_row(block_info[i].count);		
-			//A[i].merge();
+			A[i].set_row(block_info[i].count);
 			block_info[i].CK_decomp(A[i], cm, peak_mem, CK_mem);
+			block_info[i].solve_CK_setup(cm);
+			count += block_info[i].L_h_nz;
 		}
 	}
 	//clog<<"peak memory for cholmod: "<<peak_mem / 1e9<<" e+06"<<endl;
@@ -369,39 +371,44 @@ void Circuit::find_block_size(){
 void Circuit::solve(int &my_id, int&num_procs){
 	if( MODE == 0 )
 		solve_IT(my_id, num_procs);
-	else
-		solve_LU();
+	else{   // only 1 cpu will do direct method
+		if(my_id==0)
+			solve_LU();
+	}
 }
 
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs){
-	// did not find any `X' node
-	if( circuit_type == UNKNOWN )
-		circuit_type = C4;
-	solve_init();
+	// only 0 rank cpu will do preprocess job
+	if(my_id==0){
+		// did not find any `X' node
+		if( circuit_type == UNKNOWN )
+			circuit_type = C4;
+		solve_init();
 
-	/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
-		clog<<"Replist is small, use direct LU instead."<<endl;
-		solve_LU_core();
-		return true;
-	}
-	*/
-	select_omega();
-	partition_circuit();
-	// Only one block, use direct LU instead
-	if( block_info.size() == 1 ){
-		//clog<<"Block size = 1, use direct LU instead."<<endl;
-		solve_LU_core();
-		return true;
-	}
+		/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
+		  clog<<"Replist is small, use direct LU instead."<<endl;
+		  solve_LU_core();
+		  return true;
+		  }
+		  */
+		select_omega();
+		partition_circuit();
+		// Only one block, use direct LU instead
+		if( block_info.size() == 1 ){
+			//clog<<"Block size = 1, use direct LU instead."<<endl;
+			solve_LU_core();
+			return true;
+		}
 
-	// cm declared in circuit class
-	//cholmod_common c, *cm;
-	cm = &c;
-	cholmod_start(cm);
-	cm->print = 5;
-	//cm->final_ll = true;
-	block_init();
+		// cm declared in circuit class
+		//cholmod_common c, *cm;
+		cm = &c;
+		cholmod_start(cm);
+		cm->print = 5;
+		cm->final_ll = true;
+		block_init();
+	}
 
 	/*clog<<"e="<<EPSILON
 	    <<"\to="<<OMEGA

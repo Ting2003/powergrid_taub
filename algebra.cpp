@@ -113,6 +113,28 @@ void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, cholmod_
 	
 }
 
+// transform factor matrix from column to triplet                // output is column-wise triplet expression of L 
+void Algebra::factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz, cholmod_common *cm){
+	int *L_nz, *L_p, *L_i;
+	double *L_x;
+	L_nz = static_cast<int *> (L->nz);                           
+	L_p = static_cast<int *> (L->p);
+	L_i = static_cast<int *> (L->i);                             
+	L_x = static_cast<double *> (L->x);                          
+	size_t n = L->n;
+	L_h = new float [3 *L->nzmax];                               
+	size_t count = 0;  //index for L_h
+		size_t base = 0;
+	for(size_t i=0; i< n; i++){                                  		 //L_h_nz += L_nz[i];
+		for(int j=L_p[i]; j< L_nz[i]+L_p[i]; j++){           
+			L_h[count++] = L_i[j];
+			L_h[count++] = i;
+			L_h[count++] = L_x[j];                   
+		}       
+	}       
+	L_h_nz = (count)/3;                                      
+}  
+
 // Given column compressed form of matrix A
 // perform LU decomposition and store the result in Numeric
 // n is the dimension of matrix A
@@ -176,9 +198,9 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm, size_
 	// free the triplet pointer
 	cholmod_free_triplet(&T, cm);
 
-	//cm->supernodal = -1;
+	cm->supernodal = -1;
 	L = cholmod_analyze(A_cholmod, cm);
-	//L->ordering = CHOLMOD_NATURAL;
+	L->ordering = CHOLMOD_NATURAL;
 	cholmod_factorize(A_cholmod, L, cm);
 	//cholmod_print_factor(L, "L", cm);
 	if(peak_mem < cm->memory_usage)

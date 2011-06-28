@@ -90,11 +90,15 @@ int main(int argc, char * argv[]){
 	// start to parfile
 	vector<Circuit *> cktlist;
 	Parser parser(&cktlist);
+	if(my_id ==0) clog<<"start parsing. "<<endl;
 	clock_t t1,t2;
 	t1=clock();
-	parser.parse(input);
+	// only 0 rank cpu will parse input file
+	if(my_id==0)
+		parser.parse(input); 
 	t2=clock();
-	//clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	if(my_id==0)
+		clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 	
 	// do the job
