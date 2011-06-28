@@ -97,7 +97,7 @@ private:
 	bool solve_IT(int &my_id, int&num_procs);
 	void solve_block_LU();
 
-	void MPI_Assign_Task(int &num_tasks, int &num_procs, int &start_task, int &end_task, int &my_id);
+	void MPI_Assign_Task(int &num_tasks, int &num_procs, int *start_task, int *end_task);
 
 	bool solve_pcg();
 	//bool solve_block_pcg();

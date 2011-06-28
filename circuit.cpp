@@ -408,7 +408,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		cm->print = 5;
 		cm->final_ll = true;
 		block_init();
-	}
 
 	/*clog<<"e="<<EPSILON
 	    <<"\to="<<OMEGA
@@ -416,25 +415,28 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	    <<"\tb="<<MAX_BLOCK_NODES
 	    <<"\tmode="<<MODE<<endl;
 	*/
-	int iter = 0;	
-	double diff=0;
-	bool successful = false;
-
+	
 	int num_tasks = block_info.size();
-	int start_task, end_task;
+	int *start_task, *end_task;
+	start_task = new int [num_procs];
+	end_task = new int [num_procs];
 
+	// 0 rank cpu has all other cpu's start_task and end_task id
 	MPI_Assign_Task(num_tasks, num_procs, start_task, 
-			end_task, my_id);
-	//clog<<"my_id, start_task, end_task: "<<my_id<<" "<<start_task<<" "<<end_task<<endl;
-	//MPI_Status status;
-	size_t x_base=0;
+			end_task);
 
+	// calculate 4 index arrays: L_h_nz_base, L_n_base, L_h_nz, L_n
+	
+		
+	size_t x_base=0;
 	size_t total_n =0;
 	for(size_t i=0;i<block_info.size();i++){
 		if ((int)i == start_task)
 			x_base = total_n;
 		total_n += block_info[i].count;
 	}
+
+	// scatter L into corresponding processors
 
 	float *x_new_info;
 	x_new_info = new float [total_n];
@@ -444,6 +446,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		x_new_info[i]=0;
 		x_new_root[i]=0;
 	}
+
+	}
+
+	int iter = 0;	
+	double diff=0;
+	bool successful = false;
 
 	//clog<<"start and end_task for: "<<my_id<<" "<<start_task<<" "<<end_task<<endl;
 	float time=0;
@@ -541,6 +549,9 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 
 	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	// gather solution together
+	// then update rhs of all blocks, and 
+	// scatter rhs to all processors
 	MPI_Reduce(x_new_info, x_new_root, total_n, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Bcast(x_new_root, total_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -1251,7 +1262,7 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 
 // assgign tasks
 void Circuit::MPI_Assign_Task(int &num_tasks,
-		        int & num_procs, int &start_task, int &end_task, int & my_id){
+		        int & num_procs, int *start_task, int *end_task){
 	int * num_tasks_per_proc;
 	num_tasks_per_proc = new int [num_procs];
 	size_t base = 0;
@@ -1261,10 +1272,8 @@ void Circuit::MPI_Assign_Task(int &num_tasks,
 			if(i < num_tasks % (num_procs))
 				num_tasks_per_proc[i] += 1;
 		}
-		if(my_id == i){
-			start_task = base;
-			end_task = base + num_tasks_per_proc[i];
-		}
+		start_task[i] = base;
+		end_task[i] = base + num_tasks_per_proc[i];
 		base += num_tasks_per_proc[i]; 
 	}
 	delete [] num_tasks_per_proc;
