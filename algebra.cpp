@@ -162,14 +162,14 @@ void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, 
 	while(i>=0){
 		index_row = L[base_nz+i];
 		// xi = bi / Aii
-		b_x_s[base_n+index_row] /= L[base_nz+i+2];
+		b[base_n+index_row] /= L[base_nz+i+2];
 		j=i-3;
 		if(j<0) break;
 		while(L[base_nz+j]!=L[base_nz+j+1]){
 			// bi = bi - Aij *xj
 			index_row = L[base_nz+j];
 			index_col = L[base_nz+j+1];
-			b[base_n+index_col] -= L[base_nz+j+2]*b_x_s[index_row];
+			b[base_n+index_col] -= L[base_nz+j+2]*b[index_row];
 			j -= 3;
 		}
 		i = j;

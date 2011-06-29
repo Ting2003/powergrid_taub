@@ -28,6 +28,8 @@
 #include "vec.h"
 #include "triplet.h"
 #include "block.h"
+#include "mpi_class.h"
+
 using namespace std;
 using namespace std::tr1;
 
@@ -104,15 +106,12 @@ private:
 	void solve_init();
 
 	// mpi function
-	void MPI_Assign_Task(int *num_tasks_per_proc, int &num_tasks, int &num_procs, int *start_task, int *end_task);
-	void block_mpi_setup(float *b_new_info, float *L_h, int *L_nz_d, int *L_n_d, int *base_nz_d, int *base_n_d, int *send_nz, int *send_n);
+	void MPI_Assign_Task(int &num_tasks, int &num_procs, MPI_CLASS &mpi_class);
+	void block_mpi_setup(MPI_CLASS &mpi_class);
 
 	// updates nodes value in each iteration
 	double solve_iteration(int &my_id, int&num_procs, 
-		int *send_nz, int *send_n, int *base_n_d, 
-		float *b_x_d, int &L_n,
-		int *L_nz_dd, float *L_d, 
-		float *b_new_info, int &iter);
+		MPI_CLASS &mpi_class, int &L_n, int &num_blocks, int &block_size, int &iter);
 
 	void block_init();
 	void update_block_geometry();

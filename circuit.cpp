@@ -29,6 +29,7 @@
 #include "util.h"
 #include "algebra.h"
 #include "node.h"
+#include "mpi_class.h"
 
 #include "mpi.h"
 using namespace std;
@@ -420,45 +421,44 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		  */
 	}
 	int num_tasks = block_info.size();
-	int *start_task, *end_task;
+
+	MPI_CLASS mpi_class;
+	//int *start_task, *end_task;
 	// number of blocks for each processor
-	int *tasks_n;
-	start_task = new int [num_procs];
-	end_task = new int [num_procs];
-	tasks_n = new int [num_procs];
+	//int *tasks_n;
+	mpi_class.start_task = new int [num_procs];
+	mpi_class.end_task = new int [num_procs];
+	mpi_class.tasks_n = new int [num_procs];
 
 	// b_new_info and L_h are the global big array
-	float *b_new_info; float *L_h;
+	//float *b_new_info; float *L_h;
 
-	int *L_nz_d = NULL; int *base_nz_d = NULL;
-	int *L_n_d = NULL; int *base_n_d = NULL;
-	int *send_nz = NULL; int *send_n = NULL;
-	send_nz = new int [num_procs];
-	send_n = new int [num_procs];
-	base_nz_d = new int [num_procs];
-	base_n_d = new int [num_procs];
+	//int *L_nz_d = NULL; int *base_nz_d = NULL;
+	//int *L_n_d = NULL; int *base_n_d = NULL;
+	//int *send_nz = NULL; int *send_n = NULL;
+	mpi_class.send_nz = new int [num_procs];
+	mpi_class.send_n = new int [num_procs];
+	mpi_class.base_nz_d = new int [num_procs];
+	mpi_class.base_n_d = new int [num_procs];
 
-	int *base_disp;
-	base_disp = new int [num_procs];
+	//int *base_disp;
+	mpi_class.base_disp = new int [num_procs];
 		
 	// 0 rank cpu has all other cpu's start_task 
 	// and end_task id
 	if(my_id==0){
-		MPI_Assign_Task(tasks_n, num_tasks, num_procs, 
-				start_task, end_task);
+		MPI_Assign_Task(num_tasks, num_procs, mpi_class);
 
 		// calculate 4 index arrays: L_h_nz_base, 
 		// L_n_base, L_h_nz, L_n
-		block_mpi_setup(b_new_info, L_h, L_nz_d, 
-				L_n_d, base_nz_d, base_n_d, 
-				send_nz, send_n);
+		block_mpi_setup(mpi_class);
 		for(int i=0;i<num_procs;i++)
-			base_disp[i] = i;
+			mpi_class.base_disp[i] = i;
 	}
 
 	// L_d and b_x_d are actual array storing
 	// L and b for each processor
-	float *L_d, *b_x_d;
+	//float *L_d, *b_x_d;
 	// L_nz and L_n are # of nz in L and # of n in rhs
 	int L_nz; int L_n;
 	// block_size is the number of tasks for each cpu
@@ -468,30 +468,30 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	int num_blocks = block_info.size();
 	MPI_Bcast(&num_blocks, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-	MPI_Scatter(tasks_n, 1, MPI_INT, &block_size, 
+	MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, &block_size, 
 			1, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Scatter(send_nz, 1,  MPI_INT, &L_nz, 1, 
+	MPI_Scatter(mpi_class.send_nz, 1,  MPI_INT, &L_nz, 1, 
 			MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Scatter(send_n, 1, MPI_INT, &L_n, 1, 
+	MPI_Scatter(mpi_class.send_n, 1, MPI_INT, &L_n, 1, 
 			MPI_INT, 0, MPI_COMM_WORLD);
 
 	// L_nz here is the non-zero of triplet including coord
-	L_d = new float [L_nz];
-	b_x_d = new float [L_n];
+	mpi_class.L_d = new float [L_nz];
+	mpi_class.b_x_d = new float [L_n];
 
 	// scatter L into corresponding processors
-	MPI_Scatterv(L_h, send_nz, base_nz_d, MPI_FLOAT, 
-		L_d, L_nz, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Scatterv(mpi_class.L_h, mpi_class.send_nz, mpi_class.base_nz_d, MPI_FLOAT, 
+		mpi_class.L_d, L_nz, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	
 	// L_nz_dd and L_n_dd is array for storing nz in L for
 	// each block
-	int *L_nz_dd, *L_n_dd;
-	L_nz_dd = new int [block_size];
-	L_n_dd = new int [block_size];
-	MPI_Scatterv(L_nz_d, tasks_n, start_task, MPI_INT,
-	  L_nz_dd, block_size, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Scatterv(L_n_d, tasks_n, start_task, MPI_INT,
-	  L_n_dd, block_size, MPI_INT, 0, MPI_COMM_WORLD);
+	//int *L_nz_dd, *L_n_dd;
+	mpi_class.L_nz_dd = new int [block_size];
+	mpi_class.L_n_dd = new int [block_size];
+	MPI_Scatterv(mpi_class.L_nz_d, mpi_class.tasks_n, mpi_class.start_task, MPI_INT,
+	  mpi_class.L_nz_dd, block_size, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Scatterv(mpi_class.L_n_d, mpi_class.tasks_n, mpi_class.start_task, MPI_INT,
+	  mpi_class.L_n_dd, block_size, MPI_INT, 0, MPI_COMM_WORLD);
 
 	int iter = 0;	
 	double diff=0;
@@ -503,7 +503,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	double t1, t2;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
-		diff = solve_iteration(my_id, num_procs, send_nz, send_n, base_n_d, b_x_d, L_n, L_nz_dd, L_d, b_new_info, iter);
+		diff = solve_iteration(my_id, num_procs, mpi_class, L_n, num_blocks, block_size, iter);
 		iter++;
 		//if(my_id ==0)
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
@@ -549,10 +549,7 @@ void Circuit::node_voltage_init(){
 // 3. update node voltages
 // 4. track the maximum error of solution
 double Circuit::solve_iteration(int &my_id, int&num_procs, 
-		int *send_nz, int *send_n, int *base_n_d, 
-		float *b_x_d, int &L_n,
-		int *L_nz_dd, float *L_d, 
-		float *b_new_info, int &iter){	
+		MPI_CLASS &mpi_class, int &L_n, int &num_blocks, int &block_size, int &iter){	
 	float diff = .0, max_diff = .0;
 
 	// 0 rank cpu update all the rhs
@@ -564,7 +561,7 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 			block.update_rhs();
 			// backup the old voltage value	
 			for(size_t j=0; j<block.count;j++){
-				b_new_info[base+j] = block.bnewp[j];
+				mpi_class.b_new_info[base+j] = block.bnewp[j];
 				block.x_old[j] = block.x_new[j];
 			}
 			base += block.count;
@@ -572,34 +569,37 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 	}
 
 	// 0 rank cpu scatter rhs to all other processors
-	MPI_Scatterv(b_new_info, send_n, base_n_d, MPI_FLOAT, 
-		b_x_d, L_n, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Scatterv(mpi_class.b_new_info, mpi_class.send_n, 
+		mpi_class.base_n_d, MPI_FLOAT, 
+		mpi_class.b_x_d, L_n, MPI_FLOAT, 0, 
+		MPI_COMM_WORLD);
 
 	// the main part for all the processors to solve matrix
 	if(my_id< num_blocks){
 		// there are in total 'block_size' blocks 
 		// in each processor
-		size_t base_nz = 0;
-		size_t base_n = 0;
+		int base_nz = 0;
+		int base_n = 0;
 		for(int i=0;i<block_size;i++){
-			Algebra::solve_CK_for_back_sub(L_nz_dd[i], L_d, b_x_d, base_nz, base_n);
-			base_nz += L_nz_dd[i];
-			base_n += L_n_dd[i];
+			Algebra::solve_CK_for_back_sub(mpi_class.L_nz_dd[i], mpi_class.L_d, mpi_class.b_x_d, base_nz, base_n);
+			base_nz += mpi_class.L_nz_dd[i];
+			base_n += mpi_class.L_n_dd[i];
 		}
 	}
 	
 	// 0 rank cpu will gather all the solution from b_x_d
 	// to b_new_info
-	MPI_Gatherv(b_x_d, L_n, MPI_FLOAT, b_new_info, send_n,
-		base_n_d, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Gatherv(mpi_class.b_x_d, L_n, MPI_FLOAT, mpi_class.b_new_info, mpi_class.send_n,
+		mpi_class.base_n_d, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
 	// modify node voltage with OMEGA and old voltage value
 	if(my_id==0){
 		size_t base = 0;
 		for(size_t i=0;i<block_info.size();i++){
+			Block &block = block_info[i];
 		// copy block.x_new from large b_new_info
 			for(size_t j=0;j<block_info[i].count;j++){
-				block_info[i].x_new[j] = b_new_info[base+j];
+				block_info[i].x_new[j] = mpi_class.b_new_info[base+j];
 			}
 			base += block_info[i].count;
 			diff = modify_voltage(block, block.x_old);
@@ -1282,67 +1282,66 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 }
 
 // assgign tasks
-void Circuit::MPI_Assign_Task(int *num_tasks_per_proc, 
-		int &num_tasks,int & num_procs, 
-		int *start_task, int *end_task){
+void Circuit::MPI_Assign_Task(int &num_tasks,int & num_procs, 
+		MPI_CLASS &mpi_class){
 	size_t base = 0;
 	for(int i=0;i<num_procs;i++){
-		num_tasks_per_proc[i] = num_tasks / (num_procs);
+		mpi_class.tasks_n[i] = num_tasks / (num_procs);
 		if(num_tasks % (num_procs) != 0) {
 			if(i < num_tasks % (num_procs))
-				num_tasks_per_proc[i] += 1;
+				mpi_class.tasks_n[i] += 1;
 		}
-		start_task[i] = base;
-		end_task[i] = base + num_tasks_per_proc[i];
-		base += num_tasks_per_proc[i]; 
+		mpi_class.start_task[i] = base;
+		mpi_class.end_task[i] = base + mpi_class.tasks_n[i];
+		base += mpi_class.tasks_n[i]; 
 	}
 }
 
-void Circuit::block_mpi_setup(float *b_new_info, float *L_h, int *L_nz_d, int *L_n_d, int *base_nz_d, int *base_n_d, int *send_nz, int *send_n){
+void Circuit::block_mpi_setup(MPI_CLASS & mpi_class){
 	for(size_t i=0;i<block_info.size();i++){	
 		total_n += block_info[i].count;
 		total_nz += block_info[i].L_h_nz;
 	}
 
-	b_new_info = new float [total_n];
+	mpi_class.b_new_info = new float [total_n];
 	for(size_t i=0;i<total_n;i++){
-		b_new_info[i]=0;
+		mpi_class.b_new_info[i]=0;
 	}
 
 	// total_nz is the number of the triplet, length of L_h should be 3*total_nz;
-	L_h = new float [3*total_nz];
+	mpi_class.L_h = new float [3*total_nz];
 	size_t base =0;
 	for(size_t i=0;i<3*block_info[i].L_h_nz;i++){
-		L_h[base+i] = block_info[i].L_h[i];
+		mpi_class.L_h[base+i] = block_info[i].L_h[i];
 		base += 3*block_info[i].L_h_nz;
 	}
 
-	L_nz_d = new int [block_info.size()];
-	L_n_d = new int [block_info.size()];
+	mpi_class.L_nz_d = new int [block_info.size()];
+	mpi_class.L_n_d = new int [block_info.size()];
 
 	size_t base_nz = 0;
 	size_t base_n = 0;
 	size_t j=0;
 	size_t k=0;
 	for(size_t i=0;i<block_info.size();i++){
-		L_nz_d[i] = block_info[i].L_h_nz;
-		L_n_d[i] = block_info[i].count;
-		if((int)i == start_task[j]){
-			base_nz_d[j] = base_nz;
-			base_n_d[j] = base_n;
+		mpi_class.L_nz_d[i] = block_info[i].L_h_nz;
+		mpi_class.L_n_d[i] = block_info[i].count;
+		if((int)i == mpi_class.start_task[j]){
+			mpi_class.base_nz_d[j] = base_nz;
+			mpi_class.base_n_d[j] = base_n;
 			j++;
 		}
-		if((int) i == end_task[k]){
-			send_nz[k] = base_nz- base_nz_d[k];
-			send_n[k] = base_n - base_n_d[k];
+		if((int) i == mpi_class.end_task[k]){
+			mpi_class.send_nz[k] = base_nz- mpi_class.base_nz_d[k];
+			mpi_class.send_n[k] = base_n - mpi_class.base_n_d[k];
 			k++;
 		}
 		base_nz += 3*block_info[i].L_h_nz;
 		base_n += block_info[i].count;
 	}
 	// define the last send_nz and send_n
-	send_nz[k] = 3*total_nz - base_nz_d[k];
-	send_n[k] = total_n - base_n_d[k];
+	mpi_class.send_nz[k] = 3*total_nz - mpi_class.base_nz_d[k];
+	mpi_class.send_n[k] = total_n - mpi_class.base_n_d[k];
 }
 
 void delete_mpi_array(float *start_task, float *end_task, int *tasks_n, float *b_new_info, float *L_h, int *L_nz_d, int *base_nz_d, int *L_n_d, int *base_n_d, int *send_nz, int *send_n, int *base_disp, float *L_d, float *b_x_d, float *L_nz_dd, float *L_n_dd){
