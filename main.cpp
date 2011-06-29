@@ -94,13 +94,14 @@ int main(int argc, char * argv[]){
 	clock_t t1,t2;
 	t1=clock();
 	// only 0 rank cpu will parse input file
-	if(my_id==0)
-		parser.parse(input); 
+	//if(my_id==0)
+	parser.parse(input); 
 	t2=clock();
 	if(my_id==0)
 		clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
-	
+	return 0;
+
 	// do the job
 	//clog<<"number of layers: "<<Circuit::get_total_num_layer()<<endl;
 	//if( mode == 0 ) clog<<"Solve using block-iterative."<<endl;
@@ -141,6 +142,7 @@ int main(int argc, char * argv[]){
 
 	if(my_id ==0)	
 	clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(mpi_t2-mpi_t1)<<endl;
+	
 	MPI_Finalize();
 	
 	return 0;

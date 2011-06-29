@@ -261,6 +261,8 @@ void Parser::parse(char * filename){
 	// first time parse:
 	create_circuits();
 
+	//clog<<"finish first parse. "<<endl;
+	//return;
 	// second time parser:
 	char line[MAX_BUF];
 	string l;
@@ -287,6 +289,7 @@ void Parser::parse(char * filename){
 		}
 	}
 	fclose(f);
+	//clog<<"finish second time parser. "<<endl;
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
 		Circuit * ckt = (*p_ckts)[i];

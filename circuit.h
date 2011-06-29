@@ -105,10 +105,15 @@ private:
 
 	// mpi function
 	void MPI_Assign_Task(int *num_tasks_per_proc, int &num_tasks, int &num_procs, int *start_task, int *end_task);
-	void block_mpi_setup(float *b_new_info, float *L_h, int *L_nz_d, int *L_n_d, size_t *base_nz_d, size_t *base_n_d, long *send_nz, long *send_n);
+	void block_mpi_setup(float *b_new_info, float *L_h, int *L_nz_d, int *L_n_d, int *base_nz_d, int *base_n_d, int *send_nz, int *send_n);
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info, int &iter);
+	double solve_iteration(int &my_id, int&num_procs, 
+		int *send_nz, int *send_n, int *base_n_d, 
+		float *b_x_d, int &L_n,
+		int *L_nz_dd, float *L_d, 
+		float *b_new_info, int &iter);
+
 	void block_init();
 	void update_block_geometry();
 
