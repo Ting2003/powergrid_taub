@@ -341,7 +341,7 @@ void Circuit::stamp_block_matrix(){
 		if(block_info[i].count>0){
 			A[i].set_row(block_info[i].count);
 			block_info[i].CK_decomp(A[i], cm, peak_mem, CK_mem);
-			block_info[i].solve_CK_setup(cm);
+			block_info[i].solve_CK_setup();
 			count += block_info[i].L_h_nz;
 		}
 	}
@@ -423,75 +423,64 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	int num_tasks = block_info.size();
 
 	MPI_CLASS mpi_class;
-	//int *start_task, *end_task;
-	// number of blocks for each processor
-	//int *tasks_n;
 	mpi_class.start_task = new int [num_procs];
 	mpi_class.end_task = new int [num_procs];
-	mpi_class.tasks_n = new int [num_procs];
-
-	// b_new_info and L_h are the global big array
-	//float *b_new_info; float *L_h;
-
-	//int *L_nz_d = NULL; int *base_nz_d = NULL;
-	//int *L_n_d = NULL; int *base_n_d = NULL;
-	//int *send_nz = NULL; int *send_n = NULL;
+	mpi_class.tasks_n = new int [num_procs];	
 	mpi_class.send_nz = new int [num_procs];
 	mpi_class.send_n = new int [num_procs];
 	mpi_class.base_nz_d = new int [num_procs];
 	mpi_class.base_n_d = new int [num_procs];
-
-	//int *base_disp;
-	mpi_class.base_disp = new int [num_procs];
-		
-	// 0 rank cpu has all other cpu's start_task 
-	// and end_task id
+	
 	if(my_id==0){
-		MPI_Assign_Task(num_tasks, num_procs, mpi_class);
-
-		// calculate 4 index arrays: L_h_nz_base, 
-		// L_n_base, L_h_nz, L_n
+		MPI_Assign_Task(num_tasks, num_procs, 
+				mpi_class);
+		// calculate index arrays
 		block_mpi_setup(mpi_class);
-		for(int i=0;i<num_procs;i++)
-			mpi_class.base_disp[i] = i;
 	}
 
-	// L_d and b_x_d are actual array storing
-	// L and b for each processor
-	//float *L_d, *b_x_d;
 	// L_nz and L_n are # of nz in L and # of n in rhs
+	// L_nz here is the non-zero of triplet including coord
 	int L_nz; int L_n;
 	// block_size is the number of tasks for each cpu
 	int block_size;
 	
 	// first, scatter send_nz into processors to initialize
 	int num_blocks = block_info.size();
-	MPI_Bcast(&num_blocks, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+	// bcast total block numbers to others
+	MPI_Bcast(&num_blocks, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	// scatter total block numbers for each processor
 	MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, &block_size, 
 			1, MPI_INT, 0, MPI_COMM_WORLD);
+	// scatter total nz for each processor
 	MPI_Scatter(mpi_class.send_nz, 1,  MPI_INT, &L_nz, 1, 
 			MPI_INT, 0, MPI_COMM_WORLD);
+	// scatter total n for each processor
 	MPI_Scatter(mpi_class.send_n, 1, MPI_INT, &L_n, 1, 
 			MPI_INT, 0, MPI_COMM_WORLD);
 
-	// L_nz here is the non-zero of triplet including coord
 	mpi_class.L_d = new float [L_nz];
 	mpi_class.b_x_d = new float [L_n];
 
 	// scatter L into corresponding processors
-	MPI_Scatterv(mpi_class.L_h, mpi_class.send_nz, mpi_class.base_nz_d, MPI_FLOAT, 
-		mpi_class.L_d, L_nz, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Scatterv(mpi_class.L_h, mpi_class.send_nz, 
+		mpi_class.base_nz_d, MPI_FLOAT, 
+		mpi_class.L_d, L_nz, MPI_FLOAT, 0, 
+		MPI_COMM_WORLD);
 	
-	// L_nz_dd and L_n_dd is array for storing nz in L for
-	// each block
-	//int *L_nz_dd, *L_n_dd;
 	mpi_class.L_nz_dd = new int [block_size];
 	mpi_class.L_n_dd = new int [block_size];
-	MPI_Scatterv(mpi_class.L_nz_d, mpi_class.tasks_n, mpi_class.start_task, MPI_INT,
-	  mpi_class.L_nz_dd, block_size, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Scatterv(mpi_class.L_n_d, mpi_class.tasks_n, mpi_class.start_task, MPI_INT,
-	  mpi_class.L_n_dd, block_size, MPI_INT, 0, MPI_COMM_WORLD);
+	
+	// scatter nz of L of each block within each processor
+	MPI_Scatterv(mpi_class.L_nz_d, mpi_class.tasks_n, 
+		mpi_class.start_task, MPI_INT, 
+		mpi_class.L_nz_dd, block_size, MPI_INT, 
+		0, MPI_COMM_WORLD);
+	// scatter n of rhs of each block within each processor
+	MPI_Scatterv(mpi_class.L_n_d, mpi_class.tasks_n, 
+		mpi_class.start_task, MPI_INT, 
+		mpi_class.L_n_dd, block_size, MPI_INT, 
+		0, MPI_COMM_WORLD);
 
 	int iter = 0;	
 	double diff=0;
@@ -503,7 +492,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	double t1, t2;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
-		diff = solve_iteration(my_id, num_procs, mpi_class, L_n, num_blocks, block_size, iter);
+		diff = solve_iteration(my_id, num_procs, 
+			mpi_class, L_n, num_blocks, 
+			block_size, iter);
 		iter++;
 		//if(my_id ==0)
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
@@ -581,16 +572,23 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 		int base_nz = 0;
 		int base_n = 0;
 		for(int i=0;i<block_size;i++){
-			Algebra::solve_CK_for_back_sub(mpi_class.L_nz_dd[i], mpi_class.L_d, mpi_class.b_x_d, base_nz, base_n);
+			Algebra::solve_CK_for_back_sub(
+			mpi_class.L_nz_dd[i], mpi_class.L_d, 
+			mpi_class.b_x_d, base_nz, base_n);
+
 			base_nz += mpi_class.L_nz_dd[i];
 			base_n += mpi_class.L_n_dd[i];
 		}
 	}
 	
+	MPI_Barrier(MPI_COMM_WORLD);
+
 	// 0 rank cpu will gather all the solution from b_x_d
 	// to b_new_info
-	MPI_Gatherv(mpi_class.b_x_d, L_n, MPI_FLOAT, mpi_class.b_new_info, mpi_class.send_n,
-		mpi_class.base_n_d, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Gatherv(mpi_class.b_x_d, L_n, MPI_FLOAT, 
+		mpi_class.b_new_info, mpi_class.send_n,
+		mpi_class.base_n_d, MPI_FLOAT, 0, 
+		MPI_COMM_WORLD);
 
 	// modify node voltage with OMEGA and old voltage value
 	if(my_id==0){
@@ -599,20 +597,17 @@ double Circuit::solve_iteration(int &my_id, int&num_procs,
 			Block &block = block_info[i];
 		// copy block.x_new from large b_new_info
 			for(size_t j=0;j<block_info[i].count;j++){
-				block_info[i].x_new[j] = mpi_class.b_new_info[base+j];
+				block_info[i].x_new[j] = 
+				mpi_class.b_new_info[base+j];
 			}
 			base += block_info[i].count;
 			diff = modify_voltage(block, block.x_old);
 				if( max_diff < diff ) max_diff = diff;
 		}
 	}
-	// communication
-	double mpi_t1, mpi_t2;
-	mpi_t1 = MPI_Wtime();
-
-	//MPI_Barrier(MPI_COMM_WORLD);
-	
-	mpi_t2 = MPI_Wtime();
+	// double mpi_t1, mpi_t2;
+	// mpi_t1 = MPI_Wtime();
+	// mpi_t2 = MPI_Wtime();
 	
 	if(my_id ==0) clog<<"diff: "<<max_diff<<endl;
 	return max_diff;
@@ -1297,6 +1292,8 @@ void Circuit::MPI_Assign_Task(int &num_tasks,int & num_procs,
 	}
 }
 
+// 1. calculate total_n and total_nz for circuit
+// 2. init global array b_new_info
 void Circuit::block_mpi_setup(MPI_CLASS & mpi_class){
 	for(size_t i=0;i<block_info.size();i++){	
 		total_n += block_info[i].count;
@@ -1342,23 +1339,4 @@ void Circuit::block_mpi_setup(MPI_CLASS & mpi_class){
 	// define the last send_nz and send_n
 	mpi_class.send_nz[k] = 3*total_nz - mpi_class.base_nz_d[k];
 	mpi_class.send_n[k] = total_n - mpi_class.base_n_d[k];
-}
-
-void delete_mpi_array(float *start_task, float *end_task, int *tasks_n, float *b_new_info, float *L_h, int *L_nz_d, int *base_nz_d, int *L_n_d, int *base_n_d, int *send_nz, int *send_n, int *base_disp, float *L_d, float *b_x_d, float *L_nz_dd, float *L_n_dd){
-	delete [] start_task;
-	delete [] end_task;
-	delete [] tasks_n;
-	delete [] b_new_info;
-	delete [] L_h;
-	delete [] L_nz_d;
-	delete [] base_nz_d;
-	delete [] L_n_d;
-	delete [] base_n_d;
-	delete [] send_nz;
-	delete [] send_n;
-	delete [] base_disp;
-	delete [] L_d;
-	delete [] b_x_d;
-	delete [] L_nz_dd;
-	delete [] L_n_dd;
 }

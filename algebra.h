@@ -20,7 +20,7 @@ public:
 	static void solve(const Matrix & A, const Vec & b, Vec & x);
 	static void solve_CK(Matrix & A, cholmod_dense *&x, 
 			cholmod_dense *b, cholmod_common *cm, size_t &peak_mem, size_t &CK_mem);
-	static void factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz, cholmod_common *cm);
+	static void factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz);
 	static void solve_CK_for_back_sub(int &L_nz, float *L, float *b, int &base_nz, int &base_n);
 	static void LU_decomposition(int n, UF_long * Ap, UF_long * Ai, 
 			double * Ax,

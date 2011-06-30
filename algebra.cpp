@@ -114,7 +114,7 @@ void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, cholmod_
 }
 
 // transform factor matrix from column to triplet                // output is column-wise triplet expression of L 
-void Algebra::factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz, cholmod_common *cm){
+void Algebra::factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz){
 	int *L_nz, *L_p, *L_i;
 	double *L_x;
 	L_nz = static_cast<int *> (L->nz);                           
@@ -138,8 +138,8 @@ void Algebra::factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz, 
 // substitution for only 1 block
 // L_nz is the total number of non-zeros in L
 void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, int &base_n){
-	size_t i=0, j=0;
-	size_t index_col=0, index_row=0;
+	int i=0, j=0;
+	int index_col=0, index_row=0;
 	// forward substitution
 	while(i<L_nz){
 		// xi=bi/Aii
@@ -169,7 +169,7 @@ void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, 
 			// bi = bi - Aij *xj
 			index_row = L[base_nz+j];
 			index_col = L[base_nz+j+1];
-			b[base_n+index_col] -= L[base_nz+j+2]*b[index_row];
+			b[base_n+index_col] -= L[base_nz+j+2]*b[base_n+index_row];
 			j -= 3;
 		}
 		i = j;
