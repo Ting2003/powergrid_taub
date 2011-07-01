@@ -90,17 +90,15 @@ int main(int argc, char * argv[]){
 	// start to parfile
 	vector<Circuit *> cktlist;
 	Parser parser(&cktlist);
-	if(my_id ==0) clog<<"start parsing. "<<endl;
 	clock_t t1,t2;
 	t1=clock();
 	// only 0 rank cpu will parse input file
-	//if(my_id==0)
-	parser.parse(input); 
+	if(my_id==0)
+		parser.parse(input); 
 	t2=clock();
 	if(my_id==0)
 		clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
-	return 0;
 
 	// do the job
 	//clog<<"number of layers: "<<Circuit::get_total_num_layer()<<endl;
@@ -109,11 +107,18 @@ int main(int argc, char * argv[]){
 	t1 = clock();
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
-	for(size_t i=0;i<cktlist.size();i++){
+	
+	int cktlist_size=0;
+	if(my_id==0)
+		cktlist_size = cktlist.size();
+	MPI_Bcast(&cktlist_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	for(size_t i=0;i<cktlist_size;i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="VDD"){
+		if(ckt->get_name()=="VDD"){
 		if(my_id ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
+		clog<<"main_id: "<<my_id<<endl;
 		ckt->solve(my_id, num_procs);
 		// DEBUG: output each circuit to separate file
 		//char ofname[MAX_BUF];
@@ -125,7 +130,7 @@ int main(int argc, char * argv[]){
 		clog<<endl;
 		// after that, this circuit can be released
 		delete ckt;
-		//}
+		}
 	}
 	t2 = clock();
 	mpi_t12 = MPI_Wtime();

@@ -383,6 +383,7 @@ void Circuit::solve(int &my_id, int&num_procs){
 
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs){
+	clog<<"my_id is: "<<my_id<<endl;
 	// only 0 rank cpu will do preprocess job
 	if(my_id==0){
 		// did not find any `X' node
@@ -419,6 +420,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		  <<"\tb="<<MAX_BLOCK_NODES
 		  <<"\tmode="<<MODE<<endl;
 		  */
+		clog<<"finish block_init. "<<endl;
 	}
 	int num_tasks = block_info.size();
 
@@ -434,10 +436,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	if(my_id==0){
 		MPI_Assign_Task(num_tasks, num_procs, 
 				mpi_class);
+		clog<<"finish assign task. "<<endl;
 		// calculate index arrays
 		block_mpi_setup(mpi_class);
+		//clog<<"finish mpi setup. "<<endl;
 	}
-
+	
 	// L_nz and L_n are # of nz in L and # of n in rhs
 	// L_nz here is the non-zero of triplet including coord
 	int L_nz; int L_n;
@@ -458,6 +462,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	// scatter total n for each processor
 	MPI_Scatter(mpi_class.send_n, 1, MPI_INT, &L_n, 1, 
 			MPI_INT, 0, MPI_COMM_WORLD);
+			
+	clog<<my_id<<" "<<num_blocks<<" "<<block_size<<" "<<L_nz<<" "<<L_n<<endl;
+	return false;
 
 	mpi_class.L_d = new float [L_nz];
 	mpi_class.b_x_d = new float [L_n];
@@ -1299,20 +1306,22 @@ void Circuit::block_mpi_setup(MPI_CLASS & mpi_class){
 		total_n += block_info[i].count;
 		total_nz += block_info[i].L_h_nz;
 	}
-
+	
 	mpi_class.b_new_info = new float [total_n];
 	for(size_t i=0;i<total_n;i++){
 		mpi_class.b_new_info[i]=0;
 	}
 
-	// total_nz is the number of the triplet, length of L_h should be 3*total_nz;
+	// total_nz is the number of the triplet, 
+	// length of L_h should be 3*total_nz;
 	mpi_class.L_h = new float [3*total_nz];
 	size_t base =0;
-	for(size_t i=0;i<3*block_info[i].L_h_nz;i++){
-		mpi_class.L_h[base+i] = block_info[i].L_h[i];
+	for(size_t i=0;i<block_info.size();i++){
+		for(size_t j=0;j<3*block_info[i].L_h_nz;j++){
+		mpi_class.L_h[base+j] = block_info[i].L_h[j];
+		}
 		base += 3*block_info[i].L_h_nz;
 	}
-
 	mpi_class.L_nz_d = new int [block_info.size()];
 	mpi_class.L_n_d = new int [block_info.size()];
 
@@ -1326,17 +1335,21 @@ void Circuit::block_mpi_setup(MPI_CLASS & mpi_class){
 		if((int)i == mpi_class.start_task[j]){
 			mpi_class.base_nz_d[j] = base_nz;
 			mpi_class.base_n_d[j] = base_n;
+			//clog<<"start: "<<j<<" "<<mpi_class.base_nz_d[j]<<" "<<mpi_class.base_n_d[j]<<endl;
 			j++;
 		}
 		if((int) i == mpi_class.end_task[k]){
 			mpi_class.send_nz[k] = base_nz- mpi_class.base_nz_d[k];
 			mpi_class.send_n[k] = base_n - mpi_class.base_n_d[k];
+			//clog<<"end: "<<k<<" "<<mpi_class.send_nz[k]<<" "<<mpi_class.send_n[k]<<endl;
 			k++;
 		}
 		base_nz += 3*block_info[i].L_h_nz;
 		base_n += block_info[i].count;
 	}
+	//clog<<"before defing send_nz. "<<endl;
 	// define the last send_nz and send_n
 	mpi_class.send_nz[k] = 3*total_nz - mpi_class.base_nz_d[k];
 	mpi_class.send_n[k] = total_n - mpi_class.base_n_d[k];
+	//clog<<"end: "<<k<<" "<<mpi_class.send_nz[k]<<" "<<mpi_class.send_n[k]<<endl;
 }
