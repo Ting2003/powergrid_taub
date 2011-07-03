@@ -29,9 +29,7 @@
 #include "util.h"
 #include "algebra.h"
 #include "node.h"
-#include "mpi_class.h"
 
-#include "mpi.h"
 using namespace std;
 
 double Circuit::EPSILON = 1e-5;
@@ -39,7 +37,7 @@ size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1000;
+//const int MAX_ITERATION = 1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -62,9 +60,6 @@ Circuit::Circuit(string _name):name(_name),
 		layer_dir[i]=NA;
 	peak_mem = 0;
 	CK_mem = 0;
-
-	total_n=0;
-	total_nz=0;
 }
 
 // Trick: do not release memory to increase runtime
@@ -374,122 +369,50 @@ void Circuit::find_block_size(){
 
 void Circuit::solve(int &my_id, int&num_procs){
 	if( MODE == 0 )
-		solve_IT(my_id, num_procs);
-	else{   // only 1 cpu will do direct method
-		if(my_id==0)
-			solve_LU();
+		solve_IT_setup(my_id, num_procs);
+	else{
+		solve_LU();
 	}
 }
 
 // solve Circuit
-bool Circuit::solve_IT(int &my_id, int&num_procs){
-	clog<<"my_id is: "<<my_id<<endl;
-	// only 0 rank cpu will do preprocess job
-	if(my_id==0){
-		// did not find any `X' node
-		if( circuit_type == UNKNOWN )
-			circuit_type = C4;
-		solve_init();
+bool Circuit::solve_IT_setup(int &my_id, int&num_procs){
+	// did not find any `X' node
+	if( circuit_type == UNKNOWN )
+		circuit_type = C4;
+	solve_init();
 
-		/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
-		  clog<<"Replist is small, use direct LU instead."<<endl;
-		  solve_LU_core();
-		  return true;
-		  }
-		  */
-		select_omega();
-		partition_circuit();
-		// Only one block, use direct LU instead
-		if( block_info.size() == 1 ){
-			//clog<<"Block size = 1, use direct LU instead."<<endl;
-			solve_LU_core();
-			return true;
-		}
-
-		// cm declared in circuit class
-		//cholmod_common c, *cm;
-		cm = &c;
-		cholmod_start(cm);
-		cm->print = 5;
-		cm->final_ll = true;
-		block_init();
-
-		/*clog<<"e="<<EPSILON
-		  <<"\to="<<OMEGA
-		  <<"\tr="<<OVERLAP_RATIO
-		  <<"\tb="<<MAX_BLOCK_NODES
-		  <<"\tmode="<<MODE<<endl;
-		  */
-		clog<<"finish block_init. "<<endl;
+	/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
+	  clog<<"Replist is small, use direct LU instead."<<endl;
+	  solve_LU_core();
+	  return true;
+	  }
+	  */
+	select_omega();
+	partition_circuit();
+	// Only one block, use direct LU instead
+	if( block_info.size() == 1 ){
+		//clog<<"Block size = 1, use direct LU instead."<<endl;
+		solve_LU_core();
+		return true;
 	}
-	int num_tasks = block_info.size();
 
-	MPI_CLASS mpi_class;
-	mpi_class.start_task = new int [num_procs];
-	mpi_class.end_task = new int [num_procs];
-	mpi_class.tasks_n = new int [num_procs];	
-	mpi_class.send_nz = new int [num_procs];
-	mpi_class.send_n = new int [num_procs];
-	mpi_class.base_nz_d = new int [num_procs];
-	mpi_class.base_n_d = new int [num_procs];
-	
-	if(my_id==0){
-		MPI_Assign_Task(num_tasks, num_procs, 
-				mpi_class);
-		clog<<"finish assign task. "<<endl;
-		// calculate index arrays
-		block_mpi_setup(mpi_class);
-		//clog<<"finish mpi setup. "<<endl;
-	}
-	
-	// L_nz and L_n are # of nz in L and # of n in rhs
-	// L_nz here is the non-zero of triplet including coord
-	int L_nz; int L_n;
-	// block_size is the number of tasks for each cpu
-	int block_size;
-	
-	// first, scatter send_nz into processors to initialize
-	int num_blocks = block_info.size();
+	// cm declared in circuit class
+	// cholmod_common c, *cm;
+	cm = &c;
+	cholmod_start(cm);
+	cm->print = 5;
+	cm->final_ll = true;
+	block_init();
 
-	// bcast total block numbers to others
-	MPI_Bcast(&num_blocks, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	// scatter total block numbers for each processor
-	MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, &block_size, 
-			1, MPI_INT, 0, MPI_COMM_WORLD);
-	// scatter total nz for each processor
-	MPI_Scatter(mpi_class.send_nz, 1,  MPI_INT, &L_nz, 1, 
-			MPI_INT, 0, MPI_COMM_WORLD);
-	// scatter total n for each processor
-	MPI_Scatter(mpi_class.send_n, 1, MPI_INT, &L_n, 1, 
-			MPI_INT, 0, MPI_COMM_WORLD);
-			
-	clog<<my_id<<" "<<num_blocks<<" "<<block_size<<" "<<L_nz<<" "<<L_n<<endl;
-	return false;
-
-	mpi_class.L_d = new float [L_nz];
-	mpi_class.b_x_d = new float [L_n];
-
-	// scatter L into corresponding processors
-	MPI_Scatterv(mpi_class.L_h, mpi_class.send_nz, 
-		mpi_class.base_nz_d, MPI_FLOAT, 
-		mpi_class.L_d, L_nz, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
+	/*clog<<"e="<<EPSILON
+	  <<"\to="<<OMEGA
+	  <<"\tr="<<OVERLAP_RATIO
+	  <<"\tb="<<MAX_BLOCK_NODES
+	  <<"\tmode="<<MODE<<endl;
+	  */
 	
-	mpi_class.L_nz_dd = new int [block_size];
-	mpi_class.L_n_dd = new int [block_size];
-	
-	// scatter nz of L of each block within each processor
-	MPI_Scatterv(mpi_class.L_nz_d, mpi_class.tasks_n, 
-		mpi_class.start_task, MPI_INT, 
-		mpi_class.L_nz_dd, block_size, MPI_INT, 
-		0, MPI_COMM_WORLD);
-	// scatter n of rhs of each block within each processor
-	MPI_Scatterv(mpi_class.L_n_d, mpi_class.tasks_n, 
-		mpi_class.start_task, MPI_INT, 
-		mpi_class.L_n_dd, block_size, MPI_INT, 
-		0, MPI_COMM_WORLD);
-
-	int iter = 0;	
+	/*int iter = 0;	
 	double diff=0;
 	bool successful = false;
 
@@ -525,7 +448,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	}
 	
 	cholmod_finish(cm);
-	return successful;
+	return successful;*/
 }
 
 // TODO: add comment
@@ -538,86 +461,6 @@ void Circuit::node_voltage_init(){
 			block.nodes[i]->value = VDD;
 		}
 	}
-}
-
-// solve blocks with mpi: multi-core
-// One iteration during solving the circuit, for any block B:
-// 1. update the righthand-side of the matrix of B
-// 2. solve the matrix
-// 3. update node voltages
-// 4. track the maximum error of solution
-double Circuit::solve_iteration(int &my_id, int&num_procs, 
-		MPI_CLASS &mpi_class, int &L_n, int &num_blocks, int &block_size, int &iter){	
-	float diff = .0, max_diff = .0;
-
-	// 0 rank cpu update all the rhs
-	if(my_id == 0){
-		size_t base = 0;
-		for(int i=0;i<block_info.size();i++){
-			Block &block = block_info[i];
-			if(block.count ==0) continue;
-			block.update_rhs();
-			// backup the old voltage value	
-			for(size_t j=0; j<block.count;j++){
-				mpi_class.b_new_info[base+j] = block.bnewp[j];
-				block.x_old[j] = block.x_new[j];
-			}
-			base += block.count;
-		}
-	}
-
-	// 0 rank cpu scatter rhs to all other processors
-	MPI_Scatterv(mpi_class.b_new_info, mpi_class.send_n, 
-		mpi_class.base_n_d, MPI_FLOAT, 
-		mpi_class.b_x_d, L_n, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
-
-	// the main part for all the processors to solve matrix
-	if(my_id< num_blocks){
-		// there are in total 'block_size' blocks 
-		// in each processor
-		int base_nz = 0;
-		int base_n = 0;
-		for(int i=0;i<block_size;i++){
-			Algebra::solve_CK_for_back_sub(
-			mpi_class.L_nz_dd[i], mpi_class.L_d, 
-			mpi_class.b_x_d, base_nz, base_n);
-
-			base_nz += mpi_class.L_nz_dd[i];
-			base_n += mpi_class.L_n_dd[i];
-		}
-	}
-	
-	MPI_Barrier(MPI_COMM_WORLD);
-
-	// 0 rank cpu will gather all the solution from b_x_d
-	// to b_new_info
-	MPI_Gatherv(mpi_class.b_x_d, L_n, MPI_FLOAT, 
-		mpi_class.b_new_info, mpi_class.send_n,
-		mpi_class.base_n_d, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
-
-	// modify node voltage with OMEGA and old voltage value
-	if(my_id==0){
-		size_t base = 0;
-		for(size_t i=0;i<block_info.size();i++){
-			Block &block = block_info[i];
-		// copy block.x_new from large b_new_info
-			for(size_t j=0;j<block_info[i].count;j++){
-				block_info[i].x_new[j] = 
-				mpi_class.b_new_info[base+j];
-			}
-			base += block_info[i].count;
-			diff = modify_voltage(block, block.x_old);
-				if( max_diff < diff ) max_diff = diff;
-		}
-	}
-	// double mpi_t1, mpi_t2;
-	// mpi_t1 = MPI_Wtime();
-	// mpi_t2 = MPI_Wtime();
-	
-	if(my_id ==0) clog<<"diff: "<<max_diff<<endl;
-	return max_diff;
 }
 
 double Circuit::modify_voltage(Block & block, double * x_old){
@@ -1281,75 +1124,4 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 	Net * net = new Net(RESISTOR, node->eqvr[dir], node, other);
 	node->nbr[dir] = other->nbr[ops] = net;
 	this->add_net(net);
-}
-
-// assgign tasks
-void Circuit::MPI_Assign_Task(int &num_tasks,int & num_procs, 
-		MPI_CLASS &mpi_class){
-	size_t base = 0;
-	for(int i=0;i<num_procs;i++){
-		mpi_class.tasks_n[i] = num_tasks / (num_procs);
-		if(num_tasks % (num_procs) != 0) {
-			if(i < num_tasks % (num_procs))
-				mpi_class.tasks_n[i] += 1;
-		}
-		mpi_class.start_task[i] = base;
-		mpi_class.end_task[i] = base + mpi_class.tasks_n[i];
-		base += mpi_class.tasks_n[i]; 
-	}
-}
-
-// 1. calculate total_n and total_nz for circuit
-// 2. init global array b_new_info
-void Circuit::block_mpi_setup(MPI_CLASS & mpi_class){
-	for(size_t i=0;i<block_info.size();i++){	
-		total_n += block_info[i].count;
-		total_nz += block_info[i].L_h_nz;
-	}
-	
-	mpi_class.b_new_info = new float [total_n];
-	for(size_t i=0;i<total_n;i++){
-		mpi_class.b_new_info[i]=0;
-	}
-
-	// total_nz is the number of the triplet, 
-	// length of L_h should be 3*total_nz;
-	mpi_class.L_h = new float [3*total_nz];
-	size_t base =0;
-	for(size_t i=0;i<block_info.size();i++){
-		for(size_t j=0;j<3*block_info[i].L_h_nz;j++){
-		mpi_class.L_h[base+j] = block_info[i].L_h[j];
-		}
-		base += 3*block_info[i].L_h_nz;
-	}
-	mpi_class.L_nz_d = new int [block_info.size()];
-	mpi_class.L_n_d = new int [block_info.size()];
-
-	size_t base_nz = 0;
-	size_t base_n = 0;
-	size_t j=0;
-	size_t k=0;
-	for(size_t i=0;i<block_info.size();i++){
-		mpi_class.L_nz_d[i] = block_info[i].L_h_nz;
-		mpi_class.L_n_d[i] = block_info[i].count;
-		if((int)i == mpi_class.start_task[j]){
-			mpi_class.base_nz_d[j] = base_nz;
-			mpi_class.base_n_d[j] = base_n;
-			//clog<<"start: "<<j<<" "<<mpi_class.base_nz_d[j]<<" "<<mpi_class.base_n_d[j]<<endl;
-			j++;
-		}
-		if((int) i == mpi_class.end_task[k]){
-			mpi_class.send_nz[k] = base_nz- mpi_class.base_nz_d[k];
-			mpi_class.send_n[k] = base_n - mpi_class.base_n_d[k];
-			//clog<<"end: "<<k<<" "<<mpi_class.send_nz[k]<<" "<<mpi_class.send_n[k]<<endl;
-			k++;
-		}
-		base_nz += 3*block_info[i].L_h_nz;
-		base_n += block_info[i].count;
-	}
-	//clog<<"before defing send_nz. "<<endl;
-	// define the last send_nz and send_n
-	mpi_class.send_nz[k] = 3*total_nz - mpi_class.base_nz_d[k];
-	mpi_class.send_n[k] = total_n - mpi_class.base_n_d[k];
-	//clog<<"end: "<<k<<" "<<mpi_class.send_nz[k]<<" "<<mpi_class.send_n[k]<<endl;
 }

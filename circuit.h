@@ -28,7 +28,6 @@
 #include "vec.h"
 #include "triplet.h"
 #include "block.h"
-#include "mpi_class.h"
 
 using namespace std;
 using namespace std::tr1;
@@ -56,6 +55,7 @@ public:
 	~Circuit();
 	void check_sys() const;
 	friend class Block;
+	friend class MPI_CLASS;
 	// can be written as inline to speed up
 	Node * get_node(string name);
 	Net * get_net(string name);
@@ -96,7 +96,7 @@ private:
 	void solve_LU();
 	void solve_LU_core();
 
-	bool solve_IT(int &my_id, int&num_procs);
+	bool solve_IT_setup(int &my_id, int&num_procs);
 	void solve_block_LU();
 
 	bool solve_pcg();
@@ -104,14 +104,6 @@ private:
 	
 	// initialize things before solve_iteration
 	void solve_init();
-
-	// mpi function
-	void MPI_Assign_Task(int &num_tasks, int &num_procs, MPI_CLASS &mpi_class);
-	void block_mpi_setup(MPI_CLASS &mpi_class);
-
-	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs, 
-		MPI_CLASS &mpi_class, int &L_n, int &num_blocks, int &block_size, int &iter);
 
 	void block_init();
 	void update_block_geometry();
@@ -175,11 +167,7 @@ private:
 	Node * merge_along_dir_one_pass(Node *, DIRECTION dir, bool remove);
 	void merge_node(Node * node);
 
-	// ************** member variables *******************
-	// mpi variables
-	size_t total_n;
-	size_t total_nz;
-
+	// ************** member variables *******************	
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
 	NodePtrVector mergelist;	// nodes for merging
@@ -273,5 +261,6 @@ bool compare_node_ptr(const Node *a, const Node *b);
 ostream & operator << (ostream & os, const NodePtrVector & nodelist);
 ostream & operator << (ostream & os, const NetList & nets);
 //ostream & operator << (ostream & os, const vector<Block > & block_info);
+
 
 #endif
