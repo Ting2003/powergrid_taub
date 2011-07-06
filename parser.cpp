@@ -16,6 +16,7 @@
 #include <cstring>
 #include "util.h"
 #include "parser.h"
+#include "mpi.h"
 using namespace std;
 
 // store the pointer to circuits
@@ -203,13 +204,14 @@ int Parser::create_circuits(){
 	FILE * fp;		// used for popen/pclose
 	int status;		// return status of popen/pclose
 	const char grep[]="grep 'layer' ";
-	const char rest[]="|sort -t ',' -k 2 -r |cut -d ',' -f 2 |cut -d ' ' -f 1,3";
+	const char rest[]="|sort -t ',' -k 2 -r |cut -d ',' -f 2 |cut -d ' ' -f 1,3 >";
 	char cmd[MAX_BUF], name[MAX_BUF]="";
+	const char layerfile[] = "layer.txt";
 	int layer, n_circuit=0;
 
 	// extract useful information about layers
-	sprintf(cmd, "%s %s %s", grep, filename, rest);
-	if( (fp = popen(cmd, "r")) == NULL ) report_exit("popen error!\n");
+	sprintf(cmd, "%s %s %s %s", grep, filename, rest, layerfile);
+	if( (fp = fopen(layerfile, "r")) == NULL ) report_exit("fopen error!\n");
 
 	string prev_ckt_name("");
 	string name_string;
@@ -237,7 +239,6 @@ int Parser::create_circuits(){
 		layer_in_ckt[layer] = n_circuit-1; // map layer id to circuit id
 		this->n_layer++;
 	}
-	
 	if( (status = pclose(fp)) == -1 )    report_exit("pclose error!\n");
 
 	// now we know the correct number of layers
@@ -251,45 +252,69 @@ int Parser::create_circuits(){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(char * filename){
-	this->filename = filename;
+void Parser::parse(int &my_id, char * filename){
+	//if(my_id==0){
+		//{
+	/*ifstream fp;
+	fp.open(filename);
+	if(fp.is_open())
+		clog<<"File./"<<filename<<" is open.\n"<<endl;
+	else
+		clog<<"Error opening "<<filename<<".\n"<<endl;
+	*/
+	// first time parse:
+	create_circuits();
+	if(my_id==0) clog<<"after create circuits."<<endl;
 
 	FILE * f;
+	//char *p;
+	if(my_id==0) this->filename = filename;
+	else	filename="temp.txt";
+	//clog<<my_id<<" file_name: "<<this->filename<<endl;
+
 	f = fopen(filename, "r");
 	if( f == NULL ) 
 		report_exit("Input file not exist!\n");
-	// first time parse:
-	create_circuits();
-
-	//clog<<"finish first parse. "<<endl;
-	//return;
+	
 	// second time parser:
 	char line[MAX_BUF];
 	string l;
-	while( fgets(line, MAX_BUF, f) != NULL ){
+	size_t count=0;
+	//if(my_id==0){
+	while(fgets(line, MAX_BUF, f)!=NULL){
+		count++;
+		//p = fgets(line, MAX_BUF, f) ;
+		//if(p!= NULL){
+		//	clog<<"line_1. "<<line<<endl;
+		//}
+		//else {	clog<<"error. "<<endl;
+		//	break;}
 		char type = line[0];
-		switch(type){
-		case 'r': // resistor
-		case 'R':
-		case 'v': // VDD
-		case 'V':
-		case 'i': // current
-		case 'I':
-			insert_net_node(line);
-			break;
-		case '.': // command
-		case '*': // comment
-		case ' ':
-		case '\n':
-			break;
-		default:
-			printf("Unknown input line: ");
-			report_exit(line);
-			break;
-		}
+		  switch(type){
+		  case 'r': // resistor
+		  case 'R':
+		  case 'v': // VDD
+		  case 'V':
+		  case 'i': // current
+		  case 'I':
+		  insert_net_node(line);
+		  break;
+		  case '.': // command
+		  case '*': // comment
+		  case ' ':
+		  case '\n': //clog<<my_id<<" "<<line<<endl;
+				 //    clog<<"read braek. "<<endl;
+		  continue;
+		  default:
+		  printf("Unknown input line: ");
+		  report_exit(line);
+		  break;
+		  }
 	}
+	//fp.close();
 	fclose(f);
-	//clog<<"finish second time parser. "<<endl;
+	MPI_Barrier(MPI_COMM_WORLD);
+	clog<<my_id<<" count: "<<count<<endl;
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
 		Circuit * ckt = (*p_ckts)[i];

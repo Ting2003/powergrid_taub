@@ -92,8 +92,17 @@ int main(int argc, char * argv[]){
 	clock_t t1,t2;
 	t1=clock();
 	// only 0 rank cpu will parse input file
-	if(my_id==0)
-		parser.parse(input); 
+	//if(my_id==0){
+	if(my_id==0) clog<<"start parse. "<<endl;
+	parser.parse(my_id, input);
+	/*if(my_id==0){	
+		for(size_t i=0;i<cktlist.size();i++){
+			for(size_t j=0;j<cktlist[i]->nodelist.size();j++){
+				clog<<cktlist[i]->get_name()<<" "<<*(cktlist[i]->nodelist[j])<<endl;
+			}
+		}
+	}*/
+	return 0;
 	t2=clock();
 	if(my_id==0)
 		clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
@@ -101,7 +110,8 @@ int main(int argc, char * argv[]){
 
 	// do the job
 	int cktlist_size=0;
-	if(my_id==0) cktlist_size = cktlist.size();
+	if(my_id==0) {cktlist_size = cktlist.size();
+			clog<<cktlist.size()<<endl;}
 	MPI_Bcast(&cktlist_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 	//clog<<"number of layers: "<<Circuit::get_total_num_layer()<<endl;
@@ -111,29 +121,31 @@ int main(int argc, char * argv[]){
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
+	MPI_CLASS mpi_class;
 	for(int i=0;i<cktlist_size;i++){
-		MPI_CLASS mpi_class;
 		if(my_id==0){
-			//Circuit * ckt = cktlist[i];
-			mpi_class.ckt = cktlist[i];
+			clog<<i<<" "<<cktlist.size()<<endl;
+			Circuit *ckt = cktlist[i];
+			mpi_class.ckt = ckt;
+			clog<<mpi_class.ckt->get_name()<<" node size: "<<mpi_class.ckt->nodelist.size()<<endl;
 			//if(mpi_class.ckt->get_name()=="VDD"){
 			clog<<"Solving "<<mpi_class.ckt->get_name()<<endl;
 			// solve function here only charges for
 			// solve_LU and solve_IT setup
-			mpi_class.ckt->solve(my_id, num_procs);
+			cktlist[i]->solve(my_id, num_procs);
+			clog<<"finish rank o solve. "<<endl;
 		}
-		mpi_class.solve_mpi_IT(my_id, num_procs);
-		mpi_class.solve_mpi_iteration(my_id, num_procs);
+		//mpi_class.solve_mpi_IT(my_id, num_procs);
+		//mpi_class.solve_mpi_iteration(my_id, num_procs);
 			// DEBUG: output each circuit to separate file
 			//char ofname[MAX_BUF];
 			//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
 			//freopen(ofname,"w", stdout);
 		if(my_id ==0){
-			cktlist[i]->print();
+			//cktlist[i]->print();
 			//clog<<(*ckt)<<endl;
-			clog<<endl;
-			// after that, this circuit can be released
-			delete mpi_class.ckt;
+			//clog<<endl;
+			free(mpi_class.ckt);
 		}
 	}
 	t2 = clock();
@@ -152,6 +164,6 @@ int main(int argc, char * argv[]){
 	if(my_id ==0)	
 	clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(mpi_t2-mpi_t1)<<endl;
 	
-	MPI_Finalize();	
+	//MPI_Finalize();	
 	return 0;
 }

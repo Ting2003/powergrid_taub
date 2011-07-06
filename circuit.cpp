@@ -110,7 +110,11 @@ bool compare_node_ptr(const Node * a, const Node * b){
 
 // sort the nodes according to their coordinate 
 void Circuit::sort_nodes(){
+	clog<<" before sorting. "<<endl;
+	for(size_t i=0;i<nodelist.size();i++)
+		clog<<nodelist.size()<<" "<<get_name()<<" "<<i<<" "<<*nodelist[i]<<endl;
 	sort(nodelist.begin(), nodelist.end(), compare_node_ptr);
+	clog<<"after sorting. "<<endl;
 	// update node id mapping, 
 	// NOTE: ground node will be the last
 }
@@ -166,24 +170,24 @@ void Circuit::print(){
 // 4. get representative lists
 void Circuit::solve_init(){
 	sort_nodes();
-
+	return;
 	size_t size = nodelist.size() - 1;
 	Node * p = NULL;
+	//clog<<"size is: "<<size<<endl;
 	for(size_t i=0, nr=0;i<size;i++){
 		p=nodelist[i];
+		clog<<i<<" "<<*p<<endl;
 
 		// test if it can be merged
 		if( p->is_mergeable() ){
 			mergelist.push_back(p);
 			continue;
 		}
-
 		Net * net = p->nbr[TOP];
 		merge_node(p);
 
 		// find the VDD value
 		if( p->isX() ) VDD = p->get_value();
-
 		// test short circuit
 		if( !p->isX() && // X must be representative 
 		    net != NULL &&
@@ -192,14 +196,13 @@ void Circuit::solve_init(){
 			assert( net->ab[1] != p );
 			p->rep = net->ab[1]->rep;
 		} // else the representative is itself
-
 		// push the representatives into list
 		if( p->rep == p ) {
 			replist.push_back(p);
 			p->rid = nr++;
 		}
 	}// end of for i
-
+	clog<<"after merging. "<<endl;
 	size_t n_merge = mergelist.size();
 	size_t n_nodes = nodelist.size();
 	size_t n_reps  = replist.size();
@@ -208,8 +211,9 @@ void Circuit::solve_init(){
 	clog<<"replist    "<<n_reps <<endl;
 	clog<<"nodelist   "<<n_nodes<<endl;
 	clog<<"ratio =    "<<ratio  <<endl;*/
-
+	clog<<"to here. "<<endl;
 	net_id.clear();
+	clog<<"after clear. "<<endl;
 }
 
 // partition the circuit to X_BLOCKS * Y_BLOCKS blocks
@@ -368,8 +372,9 @@ void Circuit::find_block_size(){
 }
 
 void Circuit::solve(int &my_id, int&num_procs){
-	if( MODE == 0 )
+	if( MODE == 0 ){
 		solve_IT_setup(my_id, num_procs);
+	}
 	else{
 		solve_LU();
 	}
@@ -381,7 +386,7 @@ bool Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	if( circuit_type == UNKNOWN )
 		circuit_type = C4;
 	solve_init();
-
+	return false;
 	/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
 	  clog<<"Replist is small, use direct LU instead."<<endl;
 	  solve_LU_core();
@@ -390,6 +395,8 @@ bool Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	  */
 	select_omega();
 	partition_circuit();
+
+	return false;
 	// Only one block, use direct LU instead
 	if( block_info.size() == 1 ){
 		//clog<<"Block size = 1, use direct LU instead."<<endl;

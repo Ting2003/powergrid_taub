@@ -23,7 +23,7 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(char * filename);
+	void parse(int &my_id, char * filename);
 
 	int get_num_layers() const;
 

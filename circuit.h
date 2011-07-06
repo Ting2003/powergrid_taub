@@ -53,6 +53,9 @@ class Circuit{
 public:
 	Circuit(string name="");
 	~Circuit();
+
+	NodePtrVector nodelist;	
+
 	void check_sys() const;
 	friend class Block;
 	friend class MPI_CLASS;
@@ -168,7 +171,7 @@ private:
 	void merge_node(Node * node);
 
 	// ************** member variables *******************	
-	NodePtrVector nodelist;		// a set of nodes
+	//NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
 	NodePtrVector mergelist;	// nodes for merging
 	NetList net_set[NUM_NET_TYPE];// should be the same as size of NET_TYPE
