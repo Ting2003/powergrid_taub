@@ -92,28 +92,13 @@ int main(int argc, char * argv[]){
 	clock_t t1,t2;
 	t1=clock();
 	// only 0 rank cpu will parse input file
-	//if(my_id==0){
-	if(my_id==0) clog<<"start parse. "<<endl;
 	parser.parse(my_id, input);
-	/*if(my_id==0){	
-		for(size_t i=0;i<cktlist.size();i++){
-			for(size_t j=0;j<cktlist[i]->nodelist.size();j++){
-				clog<<cktlist[i]->get_name()<<" "<<*(cktlist[i]->nodelist[j])<<endl;
-			}
-		}
-	}*/
-	return 0;
 	t2=clock();
 	if(my_id==0)
 		clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 
 	// do the job
-	int cktlist_size=0;
-	if(my_id==0) {cktlist_size = cktlist.size();
-			clog<<cktlist.size()<<endl;}
-	MPI_Bcast(&cktlist_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
 	//clog<<"number of layers: "<<Circuit::get_total_num_layer()<<endl;
 	//if( mode == 0 ) clog<<"Solve using block-iterative."<<endl;
 	//else clog<<"Solve using direct LU."<<endl;
@@ -122,19 +107,18 @@ int main(int argc, char * argv[]){
 	mpi_t11 = MPI_Wtime();
 	
 	MPI_CLASS mpi_class;
-	for(int i=0;i<cktlist_size;i++){
-		if(my_id==0){
-			clog<<i<<" "<<cktlist.size()<<endl;
-			Circuit *ckt = cktlist[i];
-			mpi_class.ckt = ckt;
-			clog<<mpi_class.ckt->get_name()<<" node size: "<<mpi_class.ckt->nodelist.size()<<endl;
-			//if(mpi_class.ckt->get_name()=="VDD"){
-			clog<<"Solving "<<mpi_class.ckt->get_name()<<endl;
+	for(int i=0;i<cktlist.size();i++){
+		//if(my_id==0){
+			//clog<<i<<" "<<cktlist.size()<<endl;
+		Circuit *ckt = cktlist[i];
+		mpi_class.ckt = ckt;
+		//if(mpi_class.ckt->get_name()=="VDD"){
+			//clog<<my_id<<" Solving "<<mpi_class.ckt->get_name()<<endl;
 			// solve function here only charges for
 			// solve_LU and solve_IT setup
-			cktlist[i]->solve(my_id, num_procs);
-			clog<<"finish rank o solve. "<<endl;
-		}
+			//cktlist[i]->solve(my_id, num_procs);
+			//clog<<"finish rank o solve. "<<endl;
+		//}
 		//mpi_class.solve_mpi_IT(my_id, num_procs);
 		//mpi_class.solve_mpi_iteration(my_id, num_procs);
 			// DEBUG: output each circuit to separate file

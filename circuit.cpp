@@ -110,11 +110,11 @@ bool compare_node_ptr(const Node * a, const Node * b){
 
 // sort the nodes according to their coordinate 
 void Circuit::sort_nodes(){
-	clog<<" before sorting. "<<endl;
-	for(size_t i=0;i<nodelist.size();i++)
-		clog<<nodelist.size()<<" "<<get_name()<<" "<<i<<" "<<*nodelist[i]<<endl;
+	//clog<<" before sorting. "<<endl;
+	//for(size_t i=0;i<nodelist.size();i++)
+		//clog<<nodelist.size()<<" "<<get_name()<<" "<<i<<" "<<*nodelist[i]<<endl;
 	sort(nodelist.begin(), nodelist.end(), compare_node_ptr);
-	clog<<"after sorting. "<<endl;
+	//clog<<"after sorting. "<<endl;
 	// update node id mapping, 
 	// NOTE: ground node will be the last
 }

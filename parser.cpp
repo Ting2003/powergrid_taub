@@ -252,25 +252,15 @@ int Parser::create_circuits(){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(int &my_id, char * filename){
-	//if(my_id==0){
-		//{
-	/*ifstream fp;
-	fp.open(filename);
-	if(fp.is_open())
-		clog<<"File./"<<filename<<" is open.\n"<<endl;
-	else
-		clog<<"Error opening "<<filename<<".\n"<<endl;
-	*/
+void Parser::parse(int &my_id, char * filename){	
 	// first time parse:
 	create_circuits();
-	if(my_id==0) clog<<"after create circuits."<<endl;
 
 	FILE * f;
 	//char *p;
+	// other processor will redirect to another file
 	if(my_id==0) this->filename = filename;
 	else	filename="temp.txt";
-	//clog<<my_id<<" file_name: "<<this->filename<<endl;
 
 	f = fopen(filename, "r");
 	if( f == NULL ) 
@@ -279,16 +269,11 @@ void Parser::parse(int &my_id, char * filename){
 	// second time parser:
 	char line[MAX_BUF];
 	string l;
-	size_t count=0;
+	//size_t count=0;
 	//if(my_id==0){
 	while(fgets(line, MAX_BUF, f)!=NULL){
-		count++;
-		//p = fgets(line, MAX_BUF, f) ;
-		//if(p!= NULL){
-		//	clog<<"line_1. "<<line<<endl;
-		//}
-		//else {	clog<<"error. "<<endl;
-		//	break;}
+		//clog<<count<<" "<<line<<endl;
+		//count++;
 		char type = line[0];
 		  switch(type){
 		  case 'r': // resistor
@@ -313,13 +298,15 @@ void Parser::parse(int &my_id, char * filename){
 	}
 	//fp.close();
 	fclose(f);
-	MPI_Barrier(MPI_COMM_WORLD);
-	clog<<my_id<<" count: "<<count<<endl;
+	//MPI_Barrier(MPI_COMM_WORLD);
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
 		Circuit * ckt = (*p_ckts)[i];
 		ckt->map_node.clear();
 	}
+	// this barrier is necessary
+	MPI_Barrier(MPI_COMM_WORLD);
+	//if(my_id==0) clog<<my_id<<" count: "<<count<<endl;
 }// end of parse
 
 int Parser::get_num_layers() const{ return n_layer; }
