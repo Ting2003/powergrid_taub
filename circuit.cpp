@@ -372,8 +372,7 @@ bool Circuit::solve(int &my_id, int&num_procs){
 		// if solve with block-iterative method
 		// else do not continue
 		if(flag !=0)	return true;
-		else 
-			return false;
+		else return false;
 	}
 	else{
 		solve_LU();
@@ -415,7 +414,7 @@ int Circuit::solve_IT_setup(int &my_id, int&num_procs){
 			//clog<<i<<" "<<block_info[i].count<<endl;
 		clog<<"num_blocks: "<<block_info.X_BLOCKS<<" / "<<block_info.Y_BLOCKS <<endl;
 	}
-	return false;
+	return 1;
 	/*clog<<"e="<<EPSILON
 	  <<"\to="<<OMEGA
 	  <<"\tr="<<OVERLAP_RATIO

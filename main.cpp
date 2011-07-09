@@ -109,15 +109,14 @@ int main(int argc, char * argv[]){
 	MPI_CLASS mpi_class;
 	bool flag =  false;
 	for(int i=0;i<cktlist.size();i++){
-		Circuit *ckt = cktlist[i];
-		mpi_class.ckt = ckt;
+		mpi_class.ckt = cktlist[i];
 		if(mpi_class.ckt->get_name()=="VDD"){
 			//clog<<my_id<<" Solving "<<mpi_class.ckt->get_name()<<endl;
 			// solve function here only charges for
 			// solve_LU and solve_IT setup
-			flag = cktlist[i]->solve(my_id, num_procs);
+			flag = cktlist[i]->solve(my_id, num_procs);	
 			
-			// if multi_block, then solving with multi_processor
+			// if multi_block, then solving with multi_processor	
 			if(flag == true){
 				mpi_class.solve_mpi_IT(my_id, num_procs);
 				mpi_class.solve_iteration(my_id, num_procs);
@@ -131,7 +130,6 @@ int main(int argc, char * argv[]){
 			//clog<<(*ckt)<<endl;
 			//clog<<endl;
 				free(mpi_class.ckt);
-				free(ckt);
 			}
 		}
 	}

@@ -79,7 +79,7 @@ public:
 	void sort_nodes();
 
 	// solve for node voltage
-	void solve(int &my_id, int &num_procs);
+	bool solve(int &my_id, int &num_procs);
 	
 	void set_blocklist(Node * nd);
 
@@ -99,7 +99,7 @@ private:
 	void solve_LU();
 	void solve_LU_core();
 
-	bool solve_IT_setup(int &my_id, int&num_procs);
+	int solve_IT_setup(int &my_id, int&num_procs);
 	void solve_block_LU();
 
 	bool solve_pcg();
