@@ -137,9 +137,11 @@ void Algebra::factor_to_triplet(cholmod_factor *L, float *&L_h, size_t &L_h_nz){
 
 // substitution for only 1 block
 // L_nz is the total number of non-zeros in L
-void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, int &base_n){
+void Algebra::solve_CK_for_back_sub(int &my_id, int &L_nz, float *L, float*b, int &base_nz, int &base_n){
 	int i=0, j=0;
 	int index_col=0, index_row=0;
+	clog<<my_id<<" L_nz: "<<L_nz<<endl;
+	
 	// forward substitution
 	while(i<L_nz){
 		// xi=bi/Aii
@@ -156,7 +158,7 @@ void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, 
 		}
 		i=j;
 	}
-
+	if(my_id==0) clog<<" finish forward sub. "<<endl;
 	// backward substitution
 	i = L_nz-3;
 	while(i>=0){
@@ -174,6 +176,7 @@ void Algebra::solve_CK_for_back_sub(int &L_nz, float *L, float*b, int &base_nz, 
 		}
 		i = j;
 	}
+	if(my_id==0) clog<<" finish backward sub. "<<endl;
 }
 
 // Given column compressed form of matrix A

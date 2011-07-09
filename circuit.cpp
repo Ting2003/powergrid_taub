@@ -29,6 +29,7 @@
 #include "util.h"
 #include "algebra.h"
 #include "node.h"
+#include "mpi.h"
 
 using namespace std;
 
@@ -111,10 +112,8 @@ bool compare_node_ptr(const Node * a, const Node * b){
 // sort the nodes according to their coordinate 
 void Circuit::sort_nodes(){
 	//clog<<" before sorting. "<<endl;
-	//for(size_t i=0;i<nodelist.size();i++)
-		//clog<<nodelist.size()<<" "<<get_name()<<" "<<i<<" "<<*nodelist[i]<<endl;
+	
 	sort(nodelist.begin(), nodelist.end(), compare_node_ptr);
-	//clog<<"after sorting. "<<endl;
 	// update node id mapping, 
 	// NOTE: ground node will be the last
 }
@@ -170,13 +169,11 @@ void Circuit::print(){
 // 4. get representative lists
 void Circuit::solve_init(){
 	sort_nodes();
-	return;
 	size_t size = nodelist.size() - 1;
 	Node * p = NULL;
-	//clog<<"size is: "<<size<<endl;
 	for(size_t i=0, nr=0;i<size;i++){
 		p=nodelist[i];
-		clog<<i<<" "<<*p<<endl;
+		//clog<<i<<" "<<*p<<endl;
 
 		// test if it can be merged
 		if( p->is_mergeable() ){
@@ -202,7 +199,6 @@ void Circuit::solve_init(){
 			p->rid = nr++;
 		}
 	}// end of for i
-	clog<<"after merging. "<<endl;
 	size_t n_merge = mergelist.size();
 	size_t n_nodes = nodelist.size();
 	size_t n_reps  = replist.size();
@@ -211,9 +207,7 @@ void Circuit::solve_init(){
 	clog<<"replist    "<<n_reps <<endl;
 	clog<<"nodelist   "<<n_nodes<<endl;
 	clog<<"ratio =    "<<ratio  <<endl;*/
-	clog<<"to here. "<<endl;
 	net_id.clear();
-	clog<<"after clear. "<<endl;
 }
 
 // partition the circuit to X_BLOCKS * Y_BLOCKS blocks
@@ -334,14 +328,14 @@ void Circuit::stamp_block_matrix(){
 		}
 	}
 	make_A_symmetric_block();
-	size_t count = 0;
+	//size_t count = 0;
 	// after stamping, convert A to column compressed form
 	for(size_t i=0;i<num_blocks;i++){
 		if(block_info[i].count>0){
 			A[i].set_row(block_info[i].count);
 			block_info[i].CK_decomp(A[i], cm, peak_mem, CK_mem);
 			block_info[i].solve_CK_setup();
-			count += block_info[i].L_h_nz;
+			//count += block_info[i].L_h_nz;
 		}
 	}
 	//clog<<"peak memory for cholmod: "<<peak_mem / 1e9<<" e+06"<<endl;
@@ -371,39 +365,43 @@ void Circuit::find_block_size(){
 	}
 }
 
-void Circuit::solve(int &my_id, int&num_procs){
+bool Circuit::solve(int &my_id, int&num_procs){
 	if( MODE == 0 ){
-		solve_IT_setup(my_id, num_procs);
+		int flag = 0;
+		flag = solve_IT_setup(my_id, num_procs);
+		// if solve with block-iterative method
+		// else do not continue
+		if(flag !=0)	return true;
+		else 
+			return false;
 	}
 	else{
 		solve_LU();
+		return false;
 	}
 }
 
 // solve Circuit
-bool Circuit::solve_IT_setup(int &my_id, int&num_procs){
+int Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	// did not find any `X' node
 	if( circuit_type == UNKNOWN )
 		circuit_type = C4;
 	solve_init();
-	return false;
 	/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
 	  clog<<"Replist is small, use direct LU instead."<<endl;
 	  solve_LU_core();
-	  return true;
+	  return 0;
 	  }
 	  */
 	select_omega();
 	partition_circuit();
-
-	return false;
 	// Only one block, use direct LU instead
 	if( block_info.size() == 1 ){
 		//clog<<"Block size = 1, use direct LU instead."<<endl;
 		solve_LU_core();
-		return true;
+		return 0;
 	}
-
+	
 	// cm declared in circuit class
 	// cholmod_common c, *cm;
 	cm = &c;
@@ -412,6 +410,12 @@ bool Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	cm->final_ll = true;
 	block_init();
 
+	if(my_id==0) {
+		//for(size_t i=0;i<block_info.size();i++)
+			//clog<<i<<" "<<block_info[i].count<<endl;
+		clog<<"num_blocks: "<<block_info.X_BLOCKS<<" / "<<block_info.Y_BLOCKS <<endl;
+	}
+	return false;
 	/*clog<<"e="<<EPSILON
 	  <<"\to="<<OMEGA
 	  <<"\tr="<<OVERLAP_RATIO

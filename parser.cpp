@@ -305,7 +305,7 @@ void Parser::parse(int &my_id, char * filename){
 		ckt->map_node.clear();
 	}
 	// this barrier is necessary
-	MPI_Barrier(MPI_COMM_WORLD);
+	//MPI_Barrier(MPI_COMM_WORLD);
 	//if(my_id==0) clog<<my_id<<" count: "<<count<<endl;
 }// end of parse
 
