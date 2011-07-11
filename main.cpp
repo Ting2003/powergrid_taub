@@ -108,14 +108,15 @@ int main(int argc, char * argv[]){
 	
 	MPI_CLASS mpi_class;
 	bool flag =  false;
+	if(my_id==0) clog<<"cktlist.size: "<<cktlist.size()<<endl;
 	for(int i=0;i<cktlist.size();i++){
 		mpi_class.ckt = cktlist[i];
-		if(mpi_class.ckt->get_name()=="VDD"){
-			//clog<<my_id<<" Solving "<<mpi_class.ckt->get_name()<<endl;
+		//if(mpi_class.ckt->get_name()=="VDD"){
+			if(my_id==0)
+				clog<<my_id<<" Solving "<<mpi_class.ckt->get_name()<<endl;
 			// solve function here only charges for
 			// solve_LU and solve_IT setup
 			flag = cktlist[i]->solve(my_id, num_procs);	
-			
 			// if multi_block, then solving with multi_processor	
 			if(flag == true){
 				mpi_class.solve_mpi_IT(my_id, num_procs);
@@ -126,12 +127,11 @@ int main(int argc, char * argv[]){
 			//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
 			//freopen(ofname,"w", stdout);
 			if(my_id ==0){
-			//cktlist[i]->print();
-			//clog<<(*ckt)<<endl;
-			//clog<<endl;
+				cktlist[i]->print();
+				//clog<<endl;
 				free(mpi_class.ckt);
 			}
-		}
+		//}
 	}
 	t2 = clock();
 	mpi_t12 = MPI_Wtime();
@@ -149,6 +149,7 @@ int main(int argc, char * argv[]){
 	if(my_id ==0)	
 	clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(mpi_t2-mpi_t1)<<endl;
 	
-	//MPI_Finalize();	
+	//MPI_Finalize();
+	cktlist.clear();
 	return 0;
 }

@@ -104,11 +104,14 @@ inline Net * Node::get_nbr_net(DIRECTION dir) const{
 }
 
 inline bool Node::is_mergeable() const{
-	return nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
+	bool flag;
+	flag = nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
 	     ((nbr[EAST]  != NULL && nbr[WEST]  != NULL &&
 	       nbr[NORTH] == NULL && nbr[SOUTH] == NULL)
 	    ||(nbr[NORTH] != NULL && nbr[SOUTH] != NULL &&
 	       nbr[EAST]  == NULL && nbr[WEST] == NULL));
+
+	return flag;
 }
 
 #endif

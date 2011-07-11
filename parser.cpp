@@ -166,12 +166,14 @@ void Parser::update_node(Net * net){
 			if(a->pt.x > b->pt.x) swap<Node*>(a,b);
 			a->set_nbr(EAST, net);
 			b->set_nbr(WEST, net);
+
 			Circuit::layer_dir[layer] = HR;
 		}
 		else if( a->pt.x == b->pt.x ){// vertical
 			if(a->pt.y > b->pt.y) swap<Node*>(a,b);
 			a->set_nbr(NORTH, net);
 			b->set_nbr(SOUTH, net);
+			
 			Circuit::layer_dir[layer] = VT;
 		}
 		else
@@ -200,18 +202,21 @@ void Parser::update_node(Net * net){
 }
 
 // parse the file and create circuits
-int Parser::create_circuits(){
+int Parser::create_circuits(int &my_id){
 	FILE * fp;		// used for popen/pclose
 	int status;		// return status of popen/pclose
 	const char grep[]="grep 'layer' ";
-	const char rest[]="|sort -t ',' -k 2 -r |cut -d ',' -f 2 |cut -d ' ' -f 1,3 >";
+	//const char rest[]="|sort -t ',' -k 2 -r |cut -d ',' -f 2 |cut -d ' ' -f 1,3>";
+	//const char rest[]=">";
 	char cmd[MAX_BUF], name[MAX_BUF]="";
 	const char layerfile[] = "layer.txt";
 	int layer, n_circuit=0;
 
 	// extract useful information about layers
-	sprintf(cmd, "%s %s %s %s", grep, filename, rest, layerfile);
-	if( (fp = fopen(layerfile, "r")) == NULL ) report_exit("fopen error!\n");
+	//clog<<filename<<endl;
+	sprintf(cmd, "%s %s", grep, filename);
+	return 0;
+	if( (fp = popen(cmd, "r")) == NULL ) report_exit("fopen error!\n");
 
 	string prev_ckt_name("");
 	string name_string;
@@ -253,15 +258,16 @@ int Parser::create_circuits(){
 // the first time is to find the layer information
 // and the second time is to create nodes
 void Parser::parse(int &my_id, char * filename){	
-	// first time parse:
-	create_circuits();
-
-	FILE * f;
-	//char *p;
 	// other processor will redirect to another file
 	if(my_id==0) this->filename = filename;
 	else	filename="temp.txt";
 
+	// first time parse:
+	create_circuits(my_id);
+
+	FILE * f;
+	//char *p;
+	
 	f = fopen(filename, "r");
 	if( f == NULL ) 
 		report_exit("Input file not exist!\n");

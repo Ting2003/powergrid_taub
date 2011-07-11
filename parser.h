@@ -28,7 +28,7 @@ public:
 	int get_num_layers() const;
 
 private:
-	int create_circuits();		// parse the file and create circuits
+	int create_circuits(int &my_id);		// parse the file and create circuits
 
 	void try_change_via(Net *);
 

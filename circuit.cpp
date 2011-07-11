@@ -171,10 +171,20 @@ void Circuit::solve_init(){
 	sort_nodes();
 	size_t size = nodelist.size() - 1;
 	Node * p = NULL;
+
+	//for(size_t i=0;i<netlist.size();i++)
+		//clog<<i<<" "<<*netlist[i]<<endl;
+
 	for(size_t i=0, nr=0;i<size;i++){
 		p=nodelist[i];
-		//clog<<i<<" "<<*p<<endl;
-
+		/*clog<<"node: "<<p->name;
+		if(p->get_nbr_net(BOTTOM)!=NULL) clog<<"bot: "<<*p->get_nbr_net(BOTTOM)<<" "<<*p->nbr[BOTTOM]<<endl;
+		if(p->get_nbr_net(EAST)!=NULL) clog<<"east: "<<*p->get_nbr_net(EAST)<<" "<<*p->nbr[EAST]<<endl;
+		if(p->get_nbr_net(WEST)!=NULL) clog<<"west: "<<*p->get_nbr_net(WEST)<<" "<<*p->nbr[WEST]<<endl;
+		if(p->get_nbr_net(SOUTH)!=NULL) clog<<"south: "<<*p->get_nbr_net(SOUTH)<<" "<<*p->nbr[SOUTH]<<endl;
+		if(p->get_nbr_net(NORTH)!=NULL) clog<<"north: "<<*p->nbr[NORTH]<<endl;
+		if(p->get_nbr_net(TOP)!=NULL) clog<<"top: "<<*p->get_nbr_net(TOP)<<" "<<*p->nbr[TOP]<<endl;
+		*/
 		// test if it can be merged
 		if( p->is_mergeable() ){
 			mergelist.push_back(p);
@@ -240,7 +250,6 @@ void Circuit::partition_circuit(){
 		if( X_BLOCKS * Y_BLOCKS < num_blocks ) Y_BLOCKS+=1; 
 		num_blocks = X_BLOCKS * Y_BLOCKS;
 	}
-	//clog<<"num_blocks: "<<X_BLOCKS<<" / "<<Y_BLOCKS <<endl;
 	block_info.X_BLOCKS = X_BLOCKS;
 	block_info.Y_BLOCKS = Y_BLOCKS;
 	block_info.resize(X_BLOCKS * Y_BLOCKS);
@@ -394,6 +403,12 @@ int Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	  */
 	select_omega();
 	partition_circuit();
+	if(my_id==0) {
+		//for(size_t i=0;i<block_info.size();i++)
+			//clog<<i<<" "<<block_info[i].count<<endl;
+		clog<<"num_blocks: "<<block_info.X_BLOCKS<<" / "<<block_info.Y_BLOCKS <<endl;
+	}
+
 	// Only one block, use direct LU instead
 	if( block_info.size() == 1 ){
 		//clog<<"Block size = 1, use direct LU instead."<<endl;
@@ -409,11 +424,6 @@ int Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	cm->final_ll = true;
 	block_init();
 
-	if(my_id==0) {
-		//for(size_t i=0;i<block_info.size();i++)
-			//clog<<i<<" "<<block_info[i].count<<endl;
-		clog<<"num_blocks: "<<block_info.X_BLOCKS<<" / "<<block_info.Y_BLOCKS <<endl;
-	}
 	return 1;
 	/*clog<<"e="<<EPSILON
 	  <<"\to="<<OMEGA
@@ -421,44 +431,6 @@ int Circuit::solve_IT_setup(int &my_id, int&num_procs){
 	  <<"\tb="<<MAX_BLOCK_NODES
 	  <<"\tmode="<<MODE<<endl;
 	  */
-	
-	/*int iter = 0;	
-	double diff=0;
-	bool successful = false;
-
-	//clog<<"start and end_task for: "<<
-	//my_id<<" "<<start_task<<" "<<end_task<<endl;
-	float time=0;
-	double t1, t2;
-	t1= MPI_Wtime();
-	while( iter < MAX_ITERATION ){
-		diff = solve_iteration(my_id, num_procs, 
-			mpi_class, L_n, num_blocks, 
-			block_size, iter);
-		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
-		if( diff < EPSILON ){
-			successful = true;
-			break;
-		}
-	}
-	
-	t2 = MPI_Wtime();
-	time = t2-t1;
-	if(my_id==0){
-		clog<<"solve iteration time for "<<my_id<<" is "<<time<<endl;
-		clog<<"# iter: "<<iter<<endl;
-		get_voltages_from_block_LU_sol();
-		get_vol_mergelist();
-	}
-	for(size_t i=0;i<block_info.size();i++){
-		if(block_info[i].count > 0)
-			block_info[i].free_block_cholmod(cm);
-	}
-	
-	cholmod_finish(cm);
-	return successful;*/
 }
 
 // TODO: add comment
