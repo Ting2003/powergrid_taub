@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1000;
+const int MAX_ITERATION = 1;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -459,7 +459,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	t2 = MPI_Wtime();
 	time = t2-t1;
 	if(my_id==0){
-		clog<<"solve iteration time for "<<my_id<<" is "<<time<<endl;
+		clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
 		get_voltages_from_block_LU_sol();
 		get_vol_mergelist();

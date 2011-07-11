@@ -129,7 +129,8 @@ int main(int argc, char * argv[]){
 	
 	//fclose(stdout);
 	// output a single ground node
-	printf("G  %.5e\n", 0.0);
+	if(my_id==0)
+		printf("G  %.5e\n", 0.0);
 
 	close_logfile();
 

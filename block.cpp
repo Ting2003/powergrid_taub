@@ -49,6 +49,15 @@ void Block::CK_decomp(Matrix & A, cholmod_common *cm, size_t &peak_mem,
 
 void Block::solve_CK(cholmod_common *cm){
 	x_ck = cholmod_solve(CHOLMOD_A, L, b_new_ck, cm);
+	/*if(bid ==0){
+	clock_t t1, t2;
+	t1 = clock();
+	for(int i=0;i<1000;i++)
+		x_ck = cholmod_solve(CHOLMOD_A, L, b_new_ck, cm);
+	t2 = clock();
+	clog<<"time for bid_0 is: (1000 iter: ): "<<1.0*(t2-t1) / CLOCKS_PER_SEC<<endl;
+	}*/
+
 }
 
 void Block::allocate_resource(cholmod_common *cm){
