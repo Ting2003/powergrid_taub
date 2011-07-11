@@ -119,8 +119,17 @@ int main(int argc, char * argv[]){
 			flag = cktlist[i]->solve(my_id, num_procs);	
 			// if multi_block, then solving with multi_processor	
 			if(flag == true){
+				clock_t t1, t2;
+				t1 = clock();
 				mpi_class.solve_mpi_IT(my_id, num_procs);
+				t2 = clock();
+
+				if(my_id==0) clog<<"init time: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+
+				t1 = clock();
 				mpi_class.solve_iteration(my_id, num_procs);
+				t2 = clock();
+				if(my_id==0) clog<<"iter time: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 			}
 			// DEBUG: output each circuit to separate file
 			//char ofname[MAX_BUF];

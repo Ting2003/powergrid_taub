@@ -29,7 +29,7 @@ public:
 
 private:
 	int create_circuits(int &my_id);		// parse the file and create circuits
-
+	int extract_layer();
 	void try_change_via(Net *);
 
 	//void insert_net_node(string line);

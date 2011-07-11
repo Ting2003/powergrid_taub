@@ -204,20 +204,12 @@ void Parser::update_node(Net * net){
 // parse the file and create circuits
 int Parser::create_circuits(int &my_id){
 	FILE * fp;		// used for popen/pclose
-	int status;		// return status of popen/pclose
-	const char grep[]="grep 'layer' ";
-	//const char rest[]="|sort -t ',' -k 2 -r |cut -d ',' -f 2 |cut -d ' ' -f 1,3>";
-	//const char rest[]=">";
-	char cmd[MAX_BUF], name[MAX_BUF]="";
-	const char layerfile[] = "layer.txt";
+	fp = fopen("layer.txt", "r");
+	char name[MAX_BUF]="";
+	
 	int layer, n_circuit=0;
 
-	// extract useful information about layers
-	//clog<<filename<<endl;
-	sprintf(cmd, "%s %s", grep, filename);
-	return 0;
-	if( (fp = popen(cmd, "r")) == NULL ) report_exit("fopen error!\n");
-
+	// scan inputfile for first time
 	string prev_ckt_name("");
 	string name_string;
 	Circuit * p_last_circuit=NULL;
@@ -244,8 +236,7 @@ int Parser::create_circuits(int &my_id){
 		layer_in_ckt[layer] = n_circuit-1; // map layer id to circuit id
 		this->n_layer++;
 	}
-	if( (status = pclose(fp)) == -1 )    report_exit("pclose error!\n");
-
+	fclose(fp);
 	// now we know the correct number of layers
 	layer_in_ckt.resize(this->n_layer);
 	Circuit::layer_dir.resize(this->n_layer);
@@ -257,10 +248,16 @@ int Parser::create_circuits(int &my_id){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(int &my_id, char * filename){	
+void Parser::parse(int &my_id, char * filename){
+	int count=0;
 	// other processor will redirect to another file
-	if(my_id==0) this->filename = filename;
+	if(my_id==0){ 
+		this->filename = filename;
+		//count = extract_layer();
+	}
 	else	filename="temp.txt";
+
+	//MPI_Barrier(MPI_COMM_WORLD);
 
 	// first time parse:
 	create_circuits(my_id);
@@ -316,3 +313,53 @@ void Parser::parse(int &my_id, char * filename){
 }// end of parse
 
 int Parser::get_num_layers() const{ return n_layer; }
+
+int Parser::extract_layer(){
+	FILE *f;
+	f = fopen(filename, "r");
+	if(f==NULL)	report_exit("Input file not exist!\n");
+	char line[MAX_BUF];
+	char word[MAX_BUF];
+	string word_s;
+	char name[10];
+	int count=0;
+
+	FILE *fp;
+	fp = fopen("layer.txt", "w");
+	if(fp == NULL) report_exit("Output file not exist!\n");
+	while(fgets(line, MAX_BUF, f)!=NULL){
+		count++;
+		if(line[0]=='*'){
+			// copy the entire line into stringstream
+			stringstream ss;
+			ss<< line;	
+			int word_count = 0;
+			while(ss.getline(word, 10, ' ')){
+				if(word_count ==1){
+					word_s = word;
+					if(word_s !="layer:"){
+						break;
+					}
+				}
+				if(word_count==2){
+					stringstream ss_1;
+					ss_1<<word;
+					int vdd_count=0;
+					while(ss_1.getline(name, 10,',')){
+						if(vdd_count==1)
+							fprintf(fp, "%s ", name);
+						vdd_count++;
+					}
+				}
+				// extract layer number
+				if(word_count==4){
+					fprintf(fp, "%s \n", word);
+				}
+				word_count++;
+			}
+		}
+	}
+	fclose(f);
+	fclose(fp);
+	return count;
+}
