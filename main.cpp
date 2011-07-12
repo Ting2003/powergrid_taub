@@ -94,10 +94,12 @@ int main(int argc, char * argv[]){
 	t1=clock();
 	vector<char> grid_info;
 	parser.parse(my_id, input, grid_info);
-	// after parsing, this mem can be released
 	grid_info.clear();
+	MPI_Barrier(MPI_COMM_WORLD);
+	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	return 0;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 	
 	// do the job

@@ -268,15 +268,34 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 	char line[MAX_BUF];
 	string l;
 	size_t count=0;
+	size_t c_d = 0;
+	int id=0;
+
+	vector<char>::iterator it;
 	
-	for(size_t i=0;i<grid_info.size();i++){
-		if(grid_info[i]!='\n'){	
-			line[count] = grid_info[i];
-			count++;
-		}
+	if(my_id==0) clog<<"size of grid_info: "<<grid_info.size()<<endl;
+	it = grid_info.end()-1;
+	int i=0,k=0;
+
+	do{
+		if(*it != '\n');
 		else {
-			line[count] = '\n';
-			count = 0;
+			//c_d++;
+			id=0;
+			//if(my_id==0) clog<<strlen(line)<<endl;
+			for(i=it-grid_info.begin()+1;
+			i<grid_info.end()-grid_info.begin();
+			i++, id++){
+				line[id] = grid_info[i];
+			}
+
+			line[id]='\n';
+			//if(c_d==1e6){
+			//	clog<<k++<<" th: "<<endl;
+			//c_d=0;
+			//}
+			grid_info.erase(it, grid_info.end());
+			it = grid_info.end()-1;	
 
 			char type = line[0];
 			switch(type){
@@ -299,11 +318,11 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 					break;
 			}
 		}
-	}
+		it--;
+	}while(it!=grid_info.begin());
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
 		Circuit * ckt = (*p_ckts)[i];
-
 		ckt->map_node.clear();
 	}
 }// end of parse
@@ -341,7 +360,8 @@ int Parser::store_in_vector(int &my_id, vector<char> &grid_info){
 	return 0;
 }
 
-int Parser::extract_layer(int &my_id, vector<char> &grid_info, vector<pair<string, int> > &ckt_layer_info){
+int Parser::extract_layer(int &my_id, vector<char> &grid_info, 
+		vector<pair<string, int> > &ckt_layer_info){
 	char line[MAX_BUF];
 	char word[MAX_BUF];
 	string word_s;
