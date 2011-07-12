@@ -33,14 +33,14 @@ private:
 	int create_circuits(vector<char> &grid_info, vector<pair<string, int> > &ckt_name_info);		// parse the file and create circuits
 
 	int store_in_vector(int &my_id, vector<char> &grid_info);
-	int extract_layer(int &my_id, vector<char> &grid_info);
+	int extract_layer(int &my_id, vector<char> &grid_info, vector<pair<string, int> >&ckt_layer_info);
 	bool sort(vector <pair<string, int> > &a);
 
 	void try_change_via(Net *);
 
 	//void insert_net_node(string line);
 	void insert_net_node(char * line);
-	void extract_node(char * str, Node & nd, vector<pair<string, int> >&ckt_layer_info);
+	void extract_node(char * str, Node & nd);
 	void update_node(Net * net);
 
 	char * filename;		  // input file name

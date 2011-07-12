@@ -23,7 +23,7 @@ int main(int argc, char * argv[]){
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
-	
+	if(my_id==0) clog<<"num_procs: "<<num_procs<<endl;	
 	double mpi_t1, mpi_t2;
 
 	mpi_t1 = MPI_Wtime();
@@ -97,7 +97,7 @@ int main(int argc, char * argv[]){
 	// after parsing, this mem can be released
 	grid_info.clear();
 	t2=clock();
-	//clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 	
 	// do the job

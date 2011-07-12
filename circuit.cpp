@@ -218,6 +218,7 @@ void Circuit::solve_init(){
 // uniformly at random
 void Circuit::partition_circuit(){
 	size_t num_nodes = replist.size();
+	//clog<<"num_nodes: "<<num_nodes<<endl;
 	size_t num_blocks =  num_nodes / MAX_BLOCK_NODES;
 	if( num_nodes % MAX_BLOCK_NODES > 0 ) ++num_blocks;
 	size_t len_x = x_max-x_min;

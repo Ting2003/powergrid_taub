@@ -201,7 +201,6 @@ void Parser::update_node(Net * net){
 
 // parse the file and create circuits
 int Parser::create_circuits(vector<char> &grid_info, vector<pair<string, int> > &ckt_name_info){
-	char name[MAX_BUF]="";
 	int layer, n_circuit=0;
 
 	string prev_ckt_name("");
@@ -209,11 +208,11 @@ int Parser::create_circuits(vector<char> &grid_info, vector<pair<string, int> > 
 	Circuit * p_last_circuit=NULL;
 	// now read filename.info to create circuits (they are SORTED)
 	for(int i=0;i<ckt_name_info.size();i++){
-		name = ckt_name_info[i].first;
+		name_string = ckt_name_info[i].first;
 		layer = ckt_name_info[i].second;
 		//cout<<name_string<<":"<<layer<<endl;
 		// compare with previous circuit name 
-		name_string.assign(name);
+		//name_string.assign(name);
 		if( prev_ckt_name == "" ||
 		    name_string != prev_ckt_name ){
 			Circuit * circuit = new Circuit(name_string);
@@ -262,43 +261,49 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 
 	extract_layer(my_id, grid_info, ckt_name_info);
 
-	return;
-	FILE * f;
-	f = fopen(filename, "r");
-	if( f == NULL ) 
-		report_exit("Input file not exist!\n");
 	// first time parse:
-	create_circuits(ckt_name_info, grid_info);
+	create_circuits(grid_info, ckt_name_info);
 
 	// second time parser:
 	char line[MAX_BUF];
 	string l;
-	while( fgets(line, MAX_BUF, f) != NULL ){
-		char type = line[0];
-		switch(type){
-		case 'r': // resistor
-		case 'R':
-		case 'v': // VDD
-		case 'V':
-		case 'i': // current
-		case 'I':
-			insert_net_node(line);
-			break;
-		case '.': // command
-		case '*': // comment
-		case ' ':
-		case '\n':
-			break;
-		default:
-			printf("Unknown input line: ");
-			report_exit(line);
-			break;
+	size_t count=0;
+	
+	for(size_t i=0;i<grid_info.size();i++){
+		if(grid_info[i]!='\n'){	
+			line[count] = grid_info[i];
+			count++;
+		}
+		else {
+			line[count] = '\n';
+			count = 0;
+
+			char type = line[0];
+			switch(type){
+				case 'r': // resistor
+				case 'R':
+				case 'v': // VDD
+				case 'V':
+				case 'i': // current
+				case 'I':
+					insert_net_node(line);
+					break;
+				case '.': // command
+				case '*': // comment
+				case ' ':
+				case '\n':
+					break;
+				default:
+					printf("Unknown input line: ");
+					report_exit(line);
+					break;
+			}
 		}
 	}
-	fclose(f);
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
 		Circuit * ckt = (*p_ckts)[i];
+
 		ckt->map_node.clear();
 	}
 }// end of parse
@@ -329,7 +334,7 @@ int Parser::store_in_vector(int &my_id, vector<char> &grid_info){
 	MPI_Bcast(&grid_info[0], grid_size, MPI_CHAR, 0, 
 		MPI_COMM_WORLD);
 
-	//clog<<grid_info.size()<<endl;
+	//clog<<"grid_size: "<<my_id<<" "<<grid_info.size()<<endl;
 	//if(my_id==11)
 	//for(size_t i=grid_info.size()-100;i<grid_info.size();i++)
 		//clog<<grid_info[i];
@@ -392,12 +397,11 @@ int Parser::extract_layer(int &my_id, vector<char> &grid_info, vector<pair<strin
 		}
 	}
 	// sort resulting vector by the ckt name
-	if(my_id==0){
-		sort(ckt_layer_info);		
-	//if(my_id==11)
+	sort(ckt_layer_info);
+	//if(my_id==1)
 		//for(int i=0;i<ckt_layer_info.size();i++)
-			//clog<<ckt_layer_info[i].first<<" "<<ckt_layer_info[i].second<<endl;
-	}
+			//clog<<"layer: "<<ckt_layer_info[i].first<<" "<<ckt_layer_info[i].second<<endl;
+	
 	return 0;
 }
 
