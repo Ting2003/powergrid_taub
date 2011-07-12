@@ -13,6 +13,8 @@
 #include <vector>
 #include "global.h"
 #include "circuit.h"
+#include <algorithm>
+#include <string>
 using std::vector;
 
 // given an input file, parse it and store corresponding result into Circuit
@@ -28,16 +30,17 @@ public:
 	int get_num_layers() const;
 
 private:
-	int create_circuits();		// parse the file and create circuits
+	int create_circuits(vector<char> &grid_info, vector<pair<string, int> > &ckt_name_info);		// parse the file and create circuits
 
 	int store_in_vector(int &my_id, vector<char> &grid_info);
-	int extract_layer();
+	int extract_layer(int &my_id, vector<char> &grid_info);
+	bool sort(vector <pair<string, int> > &a);
 
 	void try_change_via(Net *);
 
 	//void insert_net_node(string line);
 	void insert_net_node(char * line);
-	void extract_node(char * str, Node & nd);
+	void extract_node(char * str, Node & nd, vector<pair<string, int> >&ckt_layer_info);
 	void update_node(Net * net);
 
 	char * filename;		  // input file name

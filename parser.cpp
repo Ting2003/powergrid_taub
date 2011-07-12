@@ -200,18 +200,17 @@ void Parser::update_node(Net * net){
 }
 
 // parse the file and create circuits
-int Parser::create_circuits(){
-	FILE * fp;		// used for popen/pclose
-	fp = fopen("layer.txt", "r");
+int Parser::create_circuits(vector<char> &grid_info, vector<pair<string, int> > &ckt_name_info){
 	char name[MAX_BUF]="";
-			
 	int layer, n_circuit=0;
 
 	string prev_ckt_name("");
 	string name_string;
 	Circuit * p_last_circuit=NULL;
 	// now read filename.info to create circuits (they are SORTED)
-	while( fscanf(fp, "%s %d", name, &layer) != EOF ){
+	for(int i=0;i<ckt_name_info.size();i++){
+		name = ckt_name_info[i].first;
+		layer = ckt_name_info[i].second;
 		//cout<<name_string<<":"<<layer<<endl;
 		// compare with previous circuit name 
 		name_string.assign(name);
@@ -234,8 +233,6 @@ int Parser::create_circuits(){
 		this->n_layer++;
 	}
 	
-	fclose(fp);
-
 	// now we know the correct number of layers
 	layer_in_ckt.resize(this->n_layer);
 	Circuit::layer_dir.resize(this->n_layer);
@@ -250,7 +247,6 @@ int Parser::create_circuits(){
 void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 	if(my_id==0){
 		this->filename = filename;
-		//count = extract_layer();
 	}
 	else	this->filename = "temp.txt";
 
@@ -259,8 +255,12 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 	t1 = clock();
 	store_in_vector(my_id, grid_info);
 	t2 = clock();
+
+	vector<pair<string, int> >ckt_name_info;
 	//if(my_id==0) clog<<" send cost: "<<
 	//	1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+
+	extract_layer(my_id, grid_info, ckt_name_info);
 
 	return;
 	FILE * f;
@@ -268,7 +268,7 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 	if( f == NULL ) 
 		report_exit("Input file not exist!\n");
 	// first time parse:
-	create_circuits();
+	create_circuits(ckt_name_info, grid_info);
 
 	// second time parser:
 	char line[MAX_BUF];
@@ -336,52 +336,83 @@ int Parser::store_in_vector(int &my_id, vector<char> &grid_info){
 	return 0;
 }
 
-int Parser::extract_layer(){
-	FILE *f;
-	f = fopen(filename, "r");
-	if(f==NULL)	report_exit("Input file not exist!\n");
+int Parser::extract_layer(int &my_id, vector<char> &grid_info, vector<pair<string, int> > &ckt_layer_info){
 	char line[MAX_BUF];
 	char word[MAX_BUF];
 	string word_s;
 	char name[10];
 	int count=0;
+	
+	pair<string, int> ckt_name_layer;
 
-	FILE *fp;
-	fp = fopen("layer.txt", "w");
-	if(fp == NULL) report_exit("Output file not exist!\n");
-	while(fgets(line, MAX_BUF, f)!=NULL){
-		count++;
-		if(line[0]=='*'){
-			// copy the entire line into stringstream
-			stringstream ss;
-			ss<< line;	
-			int word_count = 0;
-			while(ss.getline(word, 10, ' ')){
-				if(word_count ==1){
-					word_s = word;
-					if(word_s !="layer:"){
-						break;
+	for(size_t i=0;i<grid_info.size();i++){
+		if(grid_info[i]!='\n'){	
+			line[count] = grid_info[i];
+			count++;
+		}
+		else {
+			line[count] = '\n';
+			count = 0;
+
+			if(line[0]=='*'){
+				// copy the entire line into stringstream
+				stringstream ss;
+				ss<< line;
+				//if(my_id==0) clog<<"line: "<<line<<endl;
+				int word_count = 0;
+				while(ss.getline(word, 10, ' ')){
+					if(word_count ==1){
+						word_s = word;
+						if(word_s !="layer:"){
+							break;
+						}
 					}
-				}
-				if(word_count==2){
-					stringstream ss_1;
-					ss_1<<word;
-					int vdd_count=0;
-					while(ss_1.getline(name, 10,',')){
-						if(vdd_count==1)
-							fprintf(fp, "%s ", name);
-						vdd_count++;
+					if(word_count==2){
+						stringstream ss_1;
+						ss_1<<word;
+						int vdd_count=0;
+						while(ss_1.getline(name, 10,',')){
+							if(vdd_count==1){
+								// extract ckt->name
+								ckt_name_layer.first = name;
+								//fprintf(fp, "%s ", name);
+							}
+							vdd_count++;
+						}
 					}
+					// extract layer number
+					if(word_count==4){
+						ckt_name_layer.second = atoi(word);
+						ckt_layer_info.push_back(ckt_name_layer);
+						//fprintf(fp, "%s \n", word);
+					}
+					word_count++;
 				}
-				// extract layer number
-				if(word_count==4){
-					fprintf(fp, "%s \n", word);
-				}
-				word_count++;
 			}
 		}
 	}
-	fclose(f);
-	fclose(fp);
-	return count;
+	// sort resulting vector by the ckt name
+	if(my_id==0){
+		sort(ckt_layer_info);		
+	//if(my_id==11)
+		//for(int i=0;i<ckt_layer_info.size();i++)
+			//clog<<ckt_layer_info[i].first<<" "<<ckt_layer_info[i].second<<endl;
+	}
+	return 0;
+}
+
+bool Parser::sort(vector<pair<string, int> > &a){
+	pair<string, int> tmp;
+	for(int i=0;i< a.size()-1;i++){
+		int minIndex = i;
+		for(int j = i+1;j< a.size();j++)
+			if(a[j].first.compare(a[minIndex].first)>0)
+				minIndex = j;
+		if(minIndex !=i){
+			tmp = a[i];
+			a[i] = a[minIndex];
+			a[minIndex] = tmp;
+		}	
+	}
+	return true;
 }
