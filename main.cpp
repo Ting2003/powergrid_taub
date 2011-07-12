@@ -92,7 +92,10 @@ int main(int argc, char * argv[]){
 	Parser parser(&cktlist);
 	clock_t t1,t2;
 	t1=clock();
-	parser.parse(input);
+	vector<char> grid_info;
+	parser.parse(my_id, input, grid_info);
+	// after parsing, this mem can be released
+	grid_info.clear();
 	t2=clock();
 	//clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();

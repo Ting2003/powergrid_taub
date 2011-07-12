@@ -89,6 +89,7 @@ public:
 	cholmod_common c, *cm;
 	size_t peak_mem;
 	size_t CK_mem;
+
 private:
 	// member functions
 	void solve_LU();

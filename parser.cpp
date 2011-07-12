@@ -16,6 +16,7 @@
 #include <cstring>
 #include "util.h"
 #include "parser.h"
+#include "mpi.h"
 using namespace std;
 
 // store the pointer to circuits
@@ -201,15 +202,10 @@ void Parser::update_node(Net * net){
 // parse the file and create circuits
 int Parser::create_circuits(){
 	FILE * fp;		// used for popen/pclose
-	int status;		// return status of popen/pclose
-	const char grep[]="grep 'layer' ";
-	const char rest[]="|sort -t ',' -k 2 -r |cut -d ',' -f 2 |cut -d ' ' -f 1,3";
-	char cmd[MAX_BUF], name[MAX_BUF]="";
+	fp = fopen("layer.txt", "r");
+	char name[MAX_BUF]="";
+			
 	int layer, n_circuit=0;
-
-	// extract useful information about layers
-	sprintf(cmd, "%s %s %s", grep, filename, rest);
-	if( (fp = popen(cmd, "r")) == NULL ) report_exit("popen error!\n");
 
 	string prev_ckt_name("");
 	string name_string;
@@ -238,7 +234,7 @@ int Parser::create_circuits(){
 		this->n_layer++;
 	}
 	
-	if( (status = pclose(fp)) == -1 )    report_exit("pclose error!\n");
+	fclose(fp);
 
 	// now we know the correct number of layers
 	layer_in_ckt.resize(this->n_layer);
@@ -251,9 +247,22 @@ int Parser::create_circuits(){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(char * filename){
-	this->filename = filename;
+void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
+	if(my_id==0){
+		this->filename = filename;
+		//count = extract_layer();
+	}
+	else	this->filename = "temp.txt";
 
+	// for y200, this part cost about 5.6s
+	clock_t t1, t2;
+	t1 = clock();
+	store_in_vector(my_id, grid_info);
+	t2 = clock();
+	//if(my_id==0) clog<<" send cost: "<<
+	//	1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+
+	return;
 	FILE * f;
 	f = fopen(filename, "r");
 	if( f == NULL ) 
@@ -295,3 +304,84 @@ void Parser::parse(char * filename){
 }// end of parse
 
 int Parser::get_num_layers() const{ return n_layer; }
+
+int Parser::store_in_vector(int &my_id, vector<char> &grid_info){
+	FILE *f;
+	f = fopen(filename, "r");
+	if(f==NULL) report_exit("Input file not exist!\n");
+	char line[MAX_BUF];
+	
+	while(fgets(line, MAX_BUF, f)!=NULL){
+		for(int i=0;line[i]!='\n';i++){
+			grid_info.push_back(line[i]);
+		}
+		grid_info.push_back('\n');
+	}
+	fclose(f);
+
+	long long grid_size = grid_info.size();
+
+	MPI_Bcast(&grid_size, 1, MPI_LONG_LONG, 0, 
+		MPI_COMM_WORLD);
+
+	if(my_id!=0) grid_info.resize(grid_size);
+
+	MPI_Bcast(&grid_info[0], grid_size, MPI_CHAR, 0, 
+		MPI_COMM_WORLD);
+
+	//clog<<grid_info.size()<<endl;
+	//if(my_id==11)
+	//for(size_t i=grid_info.size()-100;i<grid_info.size();i++)
+		//clog<<grid_info[i];
+	return 0;
+}
+
+int Parser::extract_layer(){
+	FILE *f;
+	f = fopen(filename, "r");
+	if(f==NULL)	report_exit("Input file not exist!\n");
+	char line[MAX_BUF];
+	char word[MAX_BUF];
+	string word_s;
+	char name[10];
+	int count=0;
+
+	FILE *fp;
+	fp = fopen("layer.txt", "w");
+	if(fp == NULL) report_exit("Output file not exist!\n");
+	while(fgets(line, MAX_BUF, f)!=NULL){
+		count++;
+		if(line[0]=='*'){
+			// copy the entire line into stringstream
+			stringstream ss;
+			ss<< line;	
+			int word_count = 0;
+			while(ss.getline(word, 10, ' ')){
+				if(word_count ==1){
+					word_s = word;
+					if(word_s !="layer:"){
+						break;
+					}
+				}
+				if(word_count==2){
+					stringstream ss_1;
+					ss_1<<word;
+					int vdd_count=0;
+					while(ss_1.getline(name, 10,',')){
+						if(vdd_count==1)
+							fprintf(fp, "%s ", name);
+						vdd_count++;
+					}
+				}
+				// extract layer number
+				if(word_count==4){
+					fprintf(fp, "%s \n", word);
+				}
+				word_count++;
+			}
+		}
+	}
+	fclose(f);
+	fclose(fp);
+	return count;
+}

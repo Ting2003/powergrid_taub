@@ -23,12 +23,15 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(char * filename);
+	void parse(int &my_id, char * filename, vector<char> &grid_info);
 
 	int get_num_layers() const;
 
 private:
 	int create_circuits();		// parse the file and create circuits
+
+	int store_in_vector(int &my_id, vector<char> &grid_info);
+	int extract_layer();
 
 	void try_change_via(Net *);
 
