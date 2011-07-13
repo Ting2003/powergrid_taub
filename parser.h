@@ -30,15 +30,14 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(int &my_id, char * filename, vector<char> &grid_info);
+	void parse(int &my_id, char * filename);
 
 	int get_num_layers() const;
 
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits
 
-	int store_in_vector(int &my_id, vector<char> &grid_info, FILE *f, long &size, int &flag);
-	int extract_layer(int &my_id, vector<char> &grid_info, vector<CKT_LAYER >&ckt_layer_info);
+	int extract_layer(int &my_id, vector<CKT_LAYER >&ckt_layer_info);
 	bool sort(vector <CKT_LAYER> &a);
 
 	void try_change_via(Net *);

@@ -243,7 +243,7 @@ int Parser::create_circuits(vector<CKT_LAYER > &ckt_name_info){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
+void Parser::parse(int &my_id, char * filename){
 	int MPI_Vector;
 	int count =2;
 	int lengths[2] = {10, 1};
@@ -253,20 +253,16 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 			&MPI_Vector);
 	MPI_Type_commit(&MPI_Vector);
 
-	if(my_id==0){
+	//if(my_id==0){
 		this->filename = filename;
-	}
-	else	this->filename = "temp.txt";
+	//}
+	//else	this->filename = "temp.txt";
 
-	// for y200, this part cost about 5.6s
-	//FILE *f;
-	//f = fopen(this->filename, "r");
-	//if(f==NULL) report_exit("Input file not exist!\n");
-	
 	// processor 0 will extract layer info
 	// and bcast it into other processor
 	vector<CKT_LAYER >ckt_name_info;
-	extract_layer(my_id, grid_info, ckt_name_info);
+	if(my_id==0)
+		extract_layer(my_id, ckt_name_info);
 	int ckt_name_info_size = ckt_name_info.size();
 	
 	MPI_Bcast(&ckt_name_info_size, 1, MPI_INT, 0,
@@ -276,83 +272,43 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 	MPI_Bcast(&ckt_name_info[0], ckt_name_info_size, 
 			MPI_Vector, 0, MPI_COMM_WORLD);
 
-	//if(my_id==0) 
-		//for(int i=0;i<ckt_name_info.size();i++)
-			//clog<<ckt_name_info[i].name<<" "<<
-				//ckt_name_info[i].layer<<endl;
-
 	// first time parse:
 	create_circuits(ckt_name_info);
-	
+
+	if(my_id==0){
+
 	FILE *f;
-	//f = fopen(this->filename, "r");
-	//if(f==NULL) report_exit("Input file not exist!\n");
-	int flag = 0;
-	int iter = 0;
-	long size=0;
-
-	char line[MAX_BUF];
-
-	string l;
-	int id=0, i=0, j=0;
-	char type;
-	vector<char>::iterator it, p;
+	f = fopen(this->filename, "r");
+	if(f==NULL) report_exit("Input file not exist!\n");
 	
-	while( flag ==0){
-		store_in_vector(my_id, grid_info, f, size, flag);	
-		MPI_Barrier(MPI_COMM_WORLD);
+	char line[MAX_BUF];
+	char type;
+	
+	while( fgets(line, MAX_BUF,f)!=NULL){
 		
-		// second time parser:	
-		it = grid_info.begin();
-		p = it;
-		if(my_id<12){	
-		while(it!=grid_info.end()){
-			if(*it =='\n'){
-				id=0;
-				for(i=p-grid_info.begin();
-					i<it-grid_info.begin();
-					i++, id++){
-					line[id] = grid_info[i];
-				}
-
-				line[id]='\n';
-				p = it+1;	
-				//if(my_id==1) clog<<line<<endl;
-
-				type = line[0];
-				switch(type){
-					case 'r': // resistor
-					case 'R':
-					case 'v': // VDD
-					case 'V':
-					case 'i': // current
-					case 'I':
-						insert_net_node(line);
-						break;
-					case '.': // command
-					case '*': // comment
-					case ' ':
-					case '\n':
-						break;
-					default:
-						printf("Unknown input line: ");
-						report_exit(line);
-						break;
-				}
-			}
-			it++;
+		type = line[0];
+		switch(type){
+			case 'r': // resistor
+			case 'R':
+			case 'v': // VDD
+			case 'V':
+			case 'i': // current
+			case 'I':
+				insert_net_node(line);
+				break;
+			case '.': // command
+			case '*': // comment
+			case ' ':
+			case '\n':
+				break;
+			default:
+				printf("Unknown input line: ");
+				report_exit(line);
+				break;
 		}
-		}
-		grid_info.clear();
-
-		//if(my_id==0 && feof(f)) flag=1;
-		MPI_Bcast(&flag, 1, MPI_INT, 0, 
-			MPI_COMM_WORLD);
-		iter ++;
-
-		if(my_id==0) clog<<"finish one parse. "<<endl;
 	}
-	//fclose(f);
+
+	}
 
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
@@ -363,59 +319,7 @@ void Parser::parse(int &my_id, char * filename, vector<char> &grid_info){
 
 int Parser::get_num_layers() const{ return n_layer; }
 
-int Parser::store_in_vector(int &my_id, vector<char> &grid_info, FILE *f, long &size, int &flag){
-	f = fopen(this->filename, "r");
-	if(f==NULL) report_exit("Input file not exist!\n");
-
-	fseek(f, size, SEEK_SET);
-
-	char line[MAX_BUF];
-
-	// 150M is the limit for storing data
-	size_t size_limit = 50e6;
-
-
-	while(fgets(line, MAX_BUF, f)!=NULL){
-		//if(my_id==0) {clog<<line<<endl;
-			//for(int i=0;i<grid_info.size();i++)
-			//clog<<grid_info[i];
-		//}
-
-		for(int i=0;line[i]!='\n';i++){
-			grid_info.push_back(line[i]);
-		}
-		grid_info.push_back('\n');
-		if(grid_info.size() >= size_limit) break;
-	}
-	size = ftell(f);
-	if(my_id==0 && feof(f)) flag=1;
-	fclose(f);
-
-	long long grid_size = grid_info.size();
-
-	MPI_Bcast(&grid_size, 1, MPI_LONG_LONG, 0, 
-		MPI_COMM_WORLD);
-
-	if(my_id!=0) grid_info.resize(grid_size);
-
-	MPI_Bcast(&grid_info[0], grid_size, MPI_CHAR, 0, 
-		MPI_COMM_WORLD);
-
-	/*if(my_id==1) {
-		clog<<grid_info.size()<<endl;
-		for(int i=0;i<grid_info.size();i++)
-			clog<<grid_info[i];
-	}*/
-
-	//if(my_id==0) clog<<"new bcast. "<<endl;
-	//clog<<"grid_size: "<<my_id<<" "<<grid_info.size()<<endl;
-	//if(my_id==11)
-	//for(size_t i=grid_info.size()-100;i<grid_info.size();i++)
-		//clog<<grid_info[i];
-	return 0;
-}
-
-int Parser::extract_layer(int &my_id, vector<char> &grid_info, 
+int Parser::extract_layer(int &my_id, 
 		vector<CKT_LAYER > &ckt_layer_info){
 	char line[MAX_BUF];
 	char word[MAX_BUF];
