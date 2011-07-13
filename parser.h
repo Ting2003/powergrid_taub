@@ -17,6 +17,11 @@
 #include <string>
 using std::vector;
 
+
+struct CKT_LAYER{
+	char name[10];
+	int layer;
+};
 // given an input file, parse it and store corresponding result into Circuit
 class Parser{
 public:
@@ -30,11 +35,11 @@ public:
 	int get_num_layers() const;
 
 private:
-	int create_circuits(vector<char> &grid_info, vector<pair<string, int> > &ckt_name_info);		// parse the file and create circuits
+	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits
 
-	int store_in_vector(int &my_id, vector<char> &grid_info);
-	int extract_layer(int &my_id, vector<char> &grid_info, vector<pair<string, int> >&ckt_layer_info);
-	bool sort(vector <pair<string, int> > &a);
+	int store_in_vector(int &my_id, vector<char> &grid_info, FILE *f, long &size, int &flag);
+	int extract_layer(int &my_id, vector<char> &grid_info, vector<CKT_LAYER >&ckt_layer_info);
+	bool sort(vector <CKT_LAYER> &a);
 
 	void try_change_via(Net *);
 

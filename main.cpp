@@ -94,12 +94,15 @@ int main(int argc, char * argv[]){
 	t1=clock();
 	vector<char> grid_info;
 	parser.parse(my_id, input, grid_info);
-	grid_info.clear();
+	//grid_info.clear();
 	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	
+	if(my_id==0) clog<<"cktlist.size: "<<cktlist.size()<<endl;
 	return 0;
+	
 	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 	
 	// do the job
@@ -115,6 +118,7 @@ int main(int argc, char * argv[]){
 		if(my_id ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
+		
 		// DEBUG: output each circuit to separate file
 		//char ofname[MAX_BUF];
 		//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
