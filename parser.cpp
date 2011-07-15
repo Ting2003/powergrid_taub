@@ -253,10 +253,7 @@ void Parser::parse(int &my_id, char * filename){
 			&MPI_Vector);
 	MPI_Type_commit(&MPI_Vector);
 
-	//if(my_id==0){
-		this->filename = filename;
-	//}
-	//else	this->filename = "temp.txt";
+	this->filename = filename;
 
 	// processor 0 will extract layer info
 	// and bcast it into other processor
@@ -276,38 +273,36 @@ void Parser::parse(int &my_id, char * filename){
 	create_circuits(ckt_name_info);
 
 	if(my_id==0){
+		FILE *f;
+		f = fopen(this->filename, "r");
+		if(f==NULL) report_exit("Input file not exist!\n");
 
-	FILE *f;
-	f = fopen(this->filename, "r");
-	if(f==NULL) report_exit("Input file not exist!\n");
-	
-	char line[MAX_BUF];
-	char type;
-	
-	while( fgets(line, MAX_BUF,f)!=NULL){
-		
-		type = line[0];
-		switch(type){
-			case 'r': // resistor
-			case 'R':
-			case 'v': // VDD
-			case 'V':
-			case 'i': // current
-			case 'I':
-				insert_net_node(line);
-				break;
-			case '.': // command
-			case '*': // comment
-			case ' ':
-			case '\n':
-				break;
-			default:
-				printf("Unknown input line: ");
-				report_exit(line);
-				break;
+		char line[MAX_BUF];
+		char type;
+
+		while( fgets(line, MAX_BUF,f)!=NULL){
+
+			type = line[0];
+			switch(type){
+				case 'r': // resistor
+				case 'R':
+				case 'v': // VDD
+				case 'V':
+				case 'i': // current
+				case 'I':
+					insert_net_node(line);
+					break;
+				case '.': // command
+				case '*': // comment
+				case ' ':
+				case '\n':
+					break;
+				default:
+					printf("Unknown input line: ");
+					report_exit(line);
+					break;
+			}
 		}
-	}
-
 	}
 
 	// release map_node resource

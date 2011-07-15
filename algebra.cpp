@@ -36,7 +36,7 @@ void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
 	UF_long * Ti = new UF_long[nz];
 	UF_long * Tj = new UF_long[nz];
 	double * Tx = new double[nz];
-	A.to_arrays((size_t*)Ti,(size_t*)Tj,Tx);
+	A.to_arrays((long*)Ti,(long*)Tj,Tx);
 
 	UF_long * Ap = new UF_long[n_col+1]; 
 	UF_long * Ai = new UF_long[nz];
@@ -100,10 +100,10 @@ void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
 }
 
 // deliver the address of x
-void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, cholmod_common *cm, size_t &peak_mem, size_t &CK_mem){
+void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, cholmod_common *cm){
 	cholmod_factor *L;
 	//cm->final_ll = true; // stay in LL' format
-	CK_decomp(A, L, cm, peak_mem, CK_mem);
+	CK_decomp(A, L, cm);
 	// then solve
 	x = cholmod_solve(CHOLMOD_A, L, b, cm);
 	//cholmod_print_dense(x, "x", cm);
@@ -145,7 +145,7 @@ void Algebra::LU_decomposition(int n, UF_long * Ap, UF_long * Ai, double * Ax,
 }
 
 // doing cholesky decomposition
-void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm, size_t &peak_mem, size_t & CK_mem){
+void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 	// doing factorization first
 	cholmod_triplet * T;
 	size_t n_row = A.get_row();
@@ -181,8 +181,5 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm, size_
 	//L->ordering = CHOLMOD_NATURAL;
 	cholmod_factorize(A_cholmod, L, cm);
 	//cholmod_print_factor(L, "L", cm);
-	if(peak_mem < cm->memory_usage)
-		peak_mem = cm->memory_usage;
-	CK_mem += cm->lnz;
 	cholmod_free_sparse(&A_cholmod, cm);
 }

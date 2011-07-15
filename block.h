@@ -25,7 +25,7 @@ public:
 	~Block();
 	void free_block_cholmod(cholmod_common *cm);
 	void LU_decomposition();
-	void CK_decomp(Matrix & A, cholmod_common *cm, size_t &peak_mem, size_t &CK_mem);
+	void CK_decomp(Matrix & A, cholmod_common *cm);
 	void solve_CK(cholmod_common *cm); // solve with cholesky decomp
 
 	// allocate space for the matrix and vectors accoding to count

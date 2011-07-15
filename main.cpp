@@ -96,12 +96,7 @@ int main(int argc, char * argv[]){
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-		
-	//if( cktlist.size()>0 ) cktlist[0]->check_sys();
 	
-	// do the job
-	//if( mode == 0 ) clog<<"Solve using block-iterative."<<endl;
-	//else clog<<"Solve using direct LU."<<endl;
 	t1 = clock();
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
@@ -111,19 +106,17 @@ int main(int argc, char * argv[]){
 		if(my_id ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
-		
-		// DEBUG: output each circuit to separate file
-		//char ofname[MAX_BUF];
-		//sprintf(ofname,"%s.%s",filename,ckt->get_name().c_str());
-		//freopen(ofname,"w", stdout);
-		if(my_id ==0)
-		cktlist[i]->print();
-		//clog<<(*ckt)<<endl;
-		clog<<endl;
+
+		if(my_id ==0){
+			cktlist[i]->print();
+			//clog<<(*ckt)<<endl;
+			clog<<endl;
+		}
 		// after that, this circuit can be released
 		delete ckt;
 		//}
 	}
+
 	t2 = clock();
 	mpi_t12 = MPI_Wtime();
 	if(my_id ==0)

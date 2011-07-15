@@ -18,6 +18,12 @@ Triplet::Triplet(){
 	//push_back(0,0,1.0);
 }
 
+Triplet::~Triplet(){
+	Ti.clear();
+	Tj.clear();
+	Tx.clear();
+}
+
 ostream & operator <<(ostream & os, const Triplet & t){
 	for(size_t i=0;i<t.size();i++){
 		os<<scientific
@@ -44,7 +50,7 @@ void Triplet::merge(){
 
 // insert a triplet 
 // if index < 0, simply ignore
-void Triplet::push_back(size_t i, size_t j, double x){
+void Triplet::push_back(long i, long j, double x){
 	Ti.push_back(i);
 	Tj.push_back(j);
 	Tx.push_back(x);
@@ -53,10 +59,10 @@ void Triplet::push_back(size_t i, size_t j, double x){
 // return the number of elements in a triplet instance
 size_t Triplet::size() const {return Ti.size();}
 
-void Triplet::to_arrays(size_t * Ti, size_t * Tj, double * Tx) const{
+void Triplet::to_arrays(long * Ti, long* Tj, double * Tx) const{
 	assert(Ti!=NULL && Tj!=NULL && Tx!=NULL);
-	vector_to_array<size_t>(this->Ti, Ti);
-	vector_to_array<size_t>(this->Tj, Tj);
+	vector_to_array<long>(this->Ti, Ti);
+	vector_to_array<long>(this->Tj, Tj);
 	vector_to_array<double>(this->Tx, Tx);
 }
 

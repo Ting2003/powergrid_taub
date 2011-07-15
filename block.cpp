@@ -42,9 +42,8 @@ void Block::free_block_cholmod(cholmod_common *cm){
     cholmod_free_dense(&x_ck, cm);
 }
 
-void Block::CK_decomp(Matrix & A, cholmod_common *cm, size_t &peak_mem,
-	size_t &CK_mem){
-	Algebra::CK_decomp(A, L, cm, peak_mem, CK_mem);
+void Block::CK_decomp(Matrix & A, cholmod_common *cm){
+	Algebra::CK_decomp(A, L, cm);
 }
 
 void Block::solve_CK(cholmod_common *cm){

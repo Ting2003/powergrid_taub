@@ -23,12 +23,13 @@ class Vec;
 class Triplet{
 public:
 	Triplet();
+	~Triplet();
 	void merge();
-	void push_back(size_t i,size_t j,double x);
+	void push_back(long i,long j,double x);
 	size_t size() const;
-	size_t get_row() const;
-	void set_row(size_t row);
-	void to_arrays(size_t * Ti, size_t * Tj, double * Tx) const;
+	long get_row() const;
+	void set_row(long row);
+	void to_arrays(long * Ti, long * Tj, double * Tx) const;
 	void diagonal_split(Triplet & L, Triplet & D, Triplet & U) const;
 
 	friend ostream & operator <<(ostream & os, const Triplet & t);
@@ -47,18 +48,18 @@ public:
 	Triplet operator + (const Triplet & B) const;
 
 	friend class Algebra;
-//	friend class Circuit;
+	friend class Circuit;
 private:
-	vector<size_t> Ti;
-	vector<size_t> Tj;
+	vector<long> Ti;
+	vector<long> Tj;
 	vector<double> Tx;
-	size_t row;
+	long row;
 };
 
-inline size_t Triplet::get_row() const{
+inline long Triplet::get_row() const{
 	return this->row ;
 }
-inline void Triplet::set_row(size_t row){
+inline void Triplet::set_row(long row){
 	this->row = row;
 }
 

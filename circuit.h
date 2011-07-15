@@ -87,8 +87,81 @@ public:
 	// C style output
 	void print();
 	cholmod_common c, *cm;
-	size_t peak_mem;
-	size_t CK_mem;
+
+	// mpi related functions
+	void mpi_setup(int &my_id, int &num_procs);
+	void MPI_Assign_Task(int &num_tasks, int &num_procs);
+	void block_mpi_setup();
+	void triplet_to_vector();
+	void mpi_create_matrix(int &my_id, int &num_procs); 
+
+	// mpi related variables
+	// member
+	// ******* processor 0  variable ********
+	Matrix *A_g; // local is Matrix *A
+	vector<long> Ti_g; // receiv by Ti
+	vector<long> Tj_g; // receiv by Tj
+	vector<long> Tx_g; // receiv by Tx
+	long *matrix_row; // local is A.row
+
+	// start_task and end_task
+	int *start_task;
+	int *end_task;
+	// tasks_n stores # of blocks for each processor
+	int *tasks_n;
+	// b_new_info is the global solution array
+	float *b_new_info;
+
+	// # of rows for all the blocks, receive by row
+	int *row_A;
+	// # of nz for all the blocks, receive by 
+	int *nz_A;
+	// # of n for all the blocks, receive by L_n
+	int *L_n_d;
+
+	// base for rows of matrix for each processor
+	int *base_row_A;
+	// base for matrix nz for each processor
+	int *base_nz_A;
+	// base for rhs n for each processor
+	int *base_n_d;
+
+	// # for matrix rows send for each processor
+	int *send_row_A;
+	// # for matrix nz send for each processor
+	int *send_nz_A;
+	// # for rhs n send for each processor
+	int *send_n;
+	
+	// ****** other processor *******
+	Matrix *A;
+	vector<long> Ti;
+	vector<long> Tj;
+	vector<double> Tx;
+
+	BlockInfo block_info_mpi;
+
+	// solution array for each processor
+	float *b_x_d;
+
+	// # of matrix row in each block within a processor
+	int *row_dd_A;
+	// # of matrix nz in each block within a processor
+	int *nz_dd_A;
+	// # of rhs n in each block within a processor
+	int *L_n_dd;
+	
+	// nz and L_n are # of nz in L and # of n in rhs
+	// nz here is the non-zero of triplet including coord
+	int row;
+	int nz; 
+	int L_n;
+	// block_size is the number of tasks for each cpu
+	int block_size;
+
+	int num_blocks;
+
+	size_t total_n, total_nz_A, total_row_A;
 
 private:
 	// member functions
@@ -97,9 +170,7 @@ private:
 
 	bool solve_IT(int &my_id, int&num_procs);
 	void solve_block_LU();
-
-	void MPI_Assign_Task(int &num_tasks, int &num_procs, int &start_task, int &end_task, int &my_id);
-
+	void decomp_matrix(Matrix *A);
 	bool solve_pcg();
 	//bool solve_block_pcg();
 
@@ -108,8 +179,9 @@ private:
 	void solve_init();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs, int &start_task, int &end_task, size_t &total_n, size_t &x_base, float *x_new_root, float *x_new_info, int &iter);
-	void block_init();
+	double solve_iteration(int &my_id, int&num_procs);
+
+	void block_init(Matrix *A);
 	void update_block_geometry();
 
 	// methods of stamping the matrix
@@ -121,7 +193,7 @@ private:
 	void make_A_symmetric(Matrix &A, double *bp);
 	void make_A_symmetric_block();
 
-	void stamp_block_matrix();
+	void stamp_block_matrix(Matrix *A);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
 	void stamp_block_resistor(Net *net, Matrix * A);
