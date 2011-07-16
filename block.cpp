@@ -121,7 +121,7 @@ void Block::update_rhs(){
 	size_t k=0, l=0;
 	//b_new = b;
 	for(size_t i=0;i<count;i++)
-		bnewp[i] = bp[i];
+		b_new[i] = b_init[i];
 
 	// for each net in this block
 	for(size_t i=0;i<size;i++){
@@ -141,7 +141,7 @@ void Block::update_rhs(){
 		if(it != block_id_a.end()){
 			k = a->id_in_block[it - block_id_a.begin()];
 			if(!a->isX())
-				bnewp[k] += G * b->value;
+				b_new[k] += G * b->value;
 		}
 		else {
 			it = find(block_id_b.begin(),
@@ -149,7 +149,7 @@ void Block::update_rhs(){
 			if(it !=block_id_b.end() ){
 				l = b->id_in_block[it - block_id_b.begin()];
 				if(!b->isX()) //b_new[l] += G *a->value;
-					bnewp[l] += G * a->value;
+					b_new[l] += G * a->value;
 			}
 		}
 	} // end of for i

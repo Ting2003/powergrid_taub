@@ -97,28 +97,28 @@ int main(int argc, char * argv[]){
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
-	//double mpi_t11, mpi_t12;
-	//mpi_t11 = MPI_Wtime();
+	double mpi_t11, mpi_t12;
+	mpi_t11 = MPI_Wtime();
 	//if(my_id==0) clog<<cktlist.size()<<endl;
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="VDD"){
+		if(ckt->get_name()=="VDD"){
 		if(my_id ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
 		if(my_id==0)
 			clog<<"finish solving. "<<endl;
-		/*if(my_id ==0){
+		if(my_id ==0){
 			cktlist[i]->print();
 			//clog<<(*ckt)<<endl;
 			clog<<endl;
-		}*/
+		}
 		// after that, this circuit can be released
 		free(ckt);
-		//}
+		}
 	}
 
-	/*mpi_t12 = MPI_Wtime();
+	mpi_t12 = MPI_Wtime();
 	if(my_id ==0)
 	clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 	
@@ -126,7 +126,7 @@ int main(int argc, char * argv[]){
 	// output a single ground node
 	if(my_id==0)
 		printf("G  %.5e\n", 0.0);
-	*/
+	
 	close_logfile();
 
 	MPI_Finalize();
