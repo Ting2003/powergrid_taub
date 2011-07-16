@@ -170,7 +170,7 @@ private:
 
 	bool solve_IT(int &my_id, int&num_procs);
 	void solve_block_LU();
-	void decomp_matrix(Matrix *A);
+	void decomp_matrix(int &my_id, Matrix *A);
 	bool solve_pcg();
 	//bool solve_block_pcg();
 

@@ -30,6 +30,7 @@ public:
 
 	// allocate space for the matrix and vectors accoding to count
 	void allocate_resource(cholmod_common*cm);
+	void allocate_mpi_resource(cholmod_common *cm);
 
 	DIRECTION relative_to(const Block & block) const;
 
@@ -52,6 +53,7 @@ public:
 	// x_new is the double array of xp
 	// for the transfer of mpi
 	float *x_new;
+	double *b_init, *b_new;
 	// solution
 	cholmod_dense *x_ck;
 

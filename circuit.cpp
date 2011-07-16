@@ -34,9 +34,9 @@
 using namespace std;
 
 double Circuit::EPSILON = 1e-5;
-size_t Circuit::MAX_BLOCK_NODES =5500;
+size_t Circuit::MAX_BLOCK_NODES =8;//5500;
 double Circuit::OMEGA = 1.2;
-double Circuit::OVERLAP_RATIO = 0.2;
+double Circuit::OVERLAP_RATIO = 0;//0.2;
 int    Circuit::MODE = 0;
 const int MAX_ITERATION = 1000;
 const int SAMPLE_INTERVAL = 5;
@@ -373,8 +373,9 @@ void Circuit::stamp_block_matrix(Matrix *A){
 			}
 			break;
 		case CURRENT:
-			for(it=ns.begin();it!=ns.end();++it)
+			for(it=ns.begin();it!=ns.end();++it){
 				stamp_block_current((*it), A);
+			}
 			break;
 		case VOLTAGE:
 			for(it=ns.begin();it!=ns.end();++it){
@@ -428,6 +429,7 @@ void Circuit::solve(int &my_id, int&num_procs){
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs){
 	if(my_id==0){
+		clog<<"before solve IT. "<<endl;
 		// did not find any `X' node
 		if( circuit_type == UNKNOWN )
 			circuit_type = C4;
@@ -463,7 +465,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	// create block and matrix info
 	mpi_create_matrix(my_id, num_procs);	
 	// for each processor, decomp
-	decomp_matrix(A);
+	decomp_matrix(my_id, A);
 		
 	/*clog<<"e="<<EPSILON
 	    <<"\to="<<OMEGA
@@ -471,7 +473,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	    <<"\tb="<<MAX_BLOCK_NODES
 	    <<"\tmode="<<MODE<<endl;
 	*/
-	
+
 	int iter = 0;	
 	double diff=0;
 	bool successful = false;
@@ -921,7 +923,7 @@ void Circuit::make_A_symmetric_block(){
 				if(it_1!=(*q).end() && !nk->isX()){
 					Block &block = block_info[block_id];
 					size_t k1 = nk->id_in_block[i];
-					block.bp[k1] += G *(nl->value);
+					block.b_init[k1] += G *(nl->value);
 				}
 			}
 		}
@@ -1034,7 +1036,7 @@ void Circuit::stamp_block_current(Net * net, Matrix * A){
 			Block &block_k = block_info[block_idk];
 			//Vec & pk = block_k.b;
 			size_t k = nk->id_in_block[i];
-			block_k.bp[k] += -net->value;
+			block_k.b_init[k] += -net->value;
 			//pk[k] += -net->value;
 		}
 	}
@@ -1044,7 +1046,7 @@ void Circuit::stamp_block_current(Net * net, Matrix * A){
 			Block & block_l = block_info[block_idl];
 			//Vec & pl = block_l.b;
 			size_t l = nl->id_in_block[i];
-			block_l.bp[l] += net->value;
+			block_l.b_init[l] += net->value;
 			//pl[l] +=  net->value;
 		}
 	}
@@ -1068,11 +1070,11 @@ void Circuit::stamp_block_VDD(Net * net, Matrix * A){
 		// the current should be stamped
 			//assert( feqn(1.0, q[id]) ); 
 			assert( feqn(1.0, block.bp[id]) );
-			block.bp[id] = net->value;
+			block.b_init[id] = net->value;
 			//q[id] = net->value;	    // modify it
 		}
 		else{
-			block.bp[id] += net->value;
+			block.b_init[id] += net->value;
 			//q[id] += net->value;
 		}
 	}
@@ -1264,7 +1266,7 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 	this->add_net(net);
 }
 
-void Circuit::decomp_matrix(Matrix *A){
+void Circuit::decomp_matrix(int &my_id, Matrix *A){
 	// after stamping, convert A to column compressed form
 	for(size_t i=0;i<block_size;i++){
 		Block & block = block_info_mpi[i];

@@ -24,9 +24,8 @@ int main(int argc, char * argv[]){
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
 	if(my_id==0) clog<<"num_procs: "<<num_procs<<endl;	
-	double mpi_t1, mpi_t2;
-
-	mpi_t1 = MPI_Wtime();
+	//double mpi_t1, mpi_t2;
+	//mpi_t1 = MPI_Wtime();
 	
 	int c;
 	int mode=0;
@@ -93,46 +92,43 @@ int main(int argc, char * argv[]){
 	clock_t t1,t2;
 	t1=clock();
 	parser.parse(my_id, input);
+	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-	
-	t1 = clock();
-	double mpi_t11, mpi_t12;
-	mpi_t11 = MPI_Wtime();
+
+	//double mpi_t11, mpi_t12;
+	//mpi_t11 = MPI_Wtime();
+	//if(my_id==0) clog<<cktlist.size()<<endl;
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
 		if(my_id ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
-
-		if(my_id ==0){
+		if(my_id==0)
+			clog<<"finish solving. "<<endl;
+		/*if(my_id ==0){
 			cktlist[i]->print();
 			//clog<<(*ckt)<<endl;
 			clog<<endl;
-		}
+		}*/
 		// after that, this circuit can be released
-		delete ckt;
+		free(ckt);
 		//}
 	}
 
-	t2 = clock();
-	mpi_t12 = MPI_Wtime();
+	/*mpi_t12 = MPI_Wtime();
 	if(my_id ==0)
-	clog<<"solve using: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<" "<<1.0*(mpi_t12-mpi_t11)<<endl;
+	clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 	
 	//fclose(stdout);
 	// output a single ground node
 	if(my_id==0)
 		printf("G  %.5e\n", 0.0);
-
+	*/
 	close_logfile();
 
-	mpi_t2 = MPI_Wtime();
-
-	if(my_id ==0)	
-	clog<<"mpi time for my_id is: "<<my_id<<" "<<1.0*(mpi_t2-mpi_t1)<<endl;
 	MPI_Finalize();
 	
 	return 0;
