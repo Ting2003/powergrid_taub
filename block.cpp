@@ -77,10 +77,12 @@ void Block::allocate_resource(cholmod_common *cm){
 	x_new = new float [count];
 	b_init = new double [count];
 	b_new = new double [count];
-	memset(x_old, 0, count);
-	memset(x_new, 0, count);
-	memset(b_init, 0, count);
-	memset(b_new, 0, count);
+	for(size_t i=0;i<count;i++){
+		x_old[i]=0;
+		x_new[i]=0;
+		b_init[i]=0;
+		b_new[i]=0;
+	}
 }
 
 void Block::allocate_mpi_resource(cholmod_common *cm){

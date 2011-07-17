@@ -85,6 +85,7 @@ public:
 	Block * get_block_neighbor(const Block & b, DIRECTION dir);
 
 	void resize(size_t n){blocks.resize(n);}
+	void clear(){blocks.clear();}
 
 	Block & operator [] (size_t index){ return blocks[index]; }
 

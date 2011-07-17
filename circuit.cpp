@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1000;
+const int MAX_ITERATION = 10;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -384,7 +384,8 @@ void Circuit::stamp_block_matrix(Matrix *A){
 	/*for(size_t i=0;i<block_size;i++){
 		Block & block = block_info[i];
 		if(block.count>0){
-			A[i].set_row(block.count);					block.CK_decomp(A[i], cm);
+			A[i].set_row(block.count);					
+			block.CK_decomp(A[i], cm);
 		}
 	}
 	clog<<"finish factor. "<<endl;*/
@@ -425,7 +426,6 @@ void Circuit::solve(int &my_id, int&num_procs){
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs){
 	if(my_id==0){
-		clog<<"before solve IT. "<<endl;
 		// did not find any `X' node
 		if( circuit_type == UNKNOWN )
 			circuit_type = C4;
@@ -445,7 +445,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 			solve_LU_core();
 			return true;
 		}
-
 		A_g = new Matrix [block_info.size()];
 		block_init(A_g);
 	}
@@ -453,8 +452,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	cm = &c;
 	cholmod_start(cm);
 	cm->print = 5;
+	//if(get_name()=="GND")
+	//cholmod_print_common("cm", cm);
 	//cm->final_ll = true;
-
 
 	mpi_setup(my_id, num_procs);
 	// create block and matrix info
@@ -485,8 +485,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, num_procs);
 		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if(my_id ==0)
+			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
@@ -505,6 +505,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		if(block_info_mpi[i].count > 0)
 			block_info_mpi[i].free_block_cholmod(cm);
 	}
+	block_info_mpi.clear();
+	delete [] A;
 	cholmod_finish(cm);
 	return successful;
 }
@@ -561,9 +563,9 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 	// 0 rank cpu scatter rhs to all other processors
 	MPI_Scatterv(b_new_info, send_n, base_n_d, 
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
+		MPI_COMM_WORLD);	
 	
-	base =0;	
+	base =0;
 	for(int i=0;i<block_size;i++){
 		Block &block = block_info_mpi[i];
 		if(block.count ==0) continue;
@@ -581,7 +583,7 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 		}
 		base += block.count;
 
-		diff = modify_voltage(block, block.x_old);
+		diff = modify_voltage(my_id, block, block.x_old);
 		if( max_diff < diff ) max_diff = diff;
 	}
 	// communication
@@ -608,10 +610,9 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 	return max_diff_root;
 }
 
-double Circuit::modify_voltage(Block & block, double * x_old){
+double Circuit::modify_voltage(int &my_id, Block & block, double * x_old){
 	double max_diff = 0.0;
 	for(size_t i=0;i<block.count;i++){
-		//clog<<i<<" x_old / x_new: "<<x_old[i]<<" "<<block.x_new[i]<<endl;
 		block.x_new[i] = (1-OMEGA) * x_old[i] + OMEGA * block.x_new[i];
 		//clog<<"new val: "<<i<<" "<<block.x_new[i]<<endl;
 		//block.nodes[i]->value = block.x_new[i];
@@ -1281,7 +1282,10 @@ void Circuit::decomp_matrix(int &my_id, Matrix *A){
 	for(size_t i=0;i<block_size;i++){
 		Block & block = block_info_mpi[i];
 		if(block.count>0){
-			A[i].set_row(block.count);					block.CK_decomp(A[i], cm);
+			A[i].set_row(block.count);
+			block.CK_decomp(A[i], cm);
+			//if(my_id==0 && i==0 && get_name()=="GND")
+				//cholmod_print_factor(block.L, "L", cm);
 		}
 	}
 }
@@ -1293,22 +1297,24 @@ void Circuit::mpi_setup(int &my_id, int &num_procs){
 	start_task = new int [num_procs];
 	end_task = new int [num_procs];
 	tasks_n = new int [num_procs];
-	memset(start_task, 0, num_procs);
-	memset(end_task, 0, num_procs);
-	memset(tasks_n, 0, num_procs);
 	
 	send_nz_A = new int[num_procs];
 	send_n = new int [num_procs];
-	for(int i=0;i<num_procs;i++){
-		send_nz_A[i]=0;
-		send_n[i]=0;
-	}
-	
+
 	base_nz_A = new int[num_procs];
 	base_n_d = new int [num_procs];
-	memset(base_nz_A, 0, num_procs);
-	memset(base_n_d, 0, num_procs);	
-	
+	for(int i=0;i<num_procs;i++){
+		start_task[i]=0;
+		end_task[i]=0;
+		tasks_n[i]=0;
+
+		send_nz_A[i]=0;
+		send_n[i]=0;
+
+		base_nz_A[i]=0;
+		base_n_d[i]=0;
+	}
+			
 	if(my_id==0){
 		MPI_Assign_Task(num_blocks, num_procs);
 
@@ -1388,10 +1394,16 @@ void Circuit::mpi_create_matrix(int &my_id, int &num_procs){
 			A[i].Ti[j] = Ti[base+j];
 			A[i].Tj[j] = Tj[base+j];
 			A[i].Tx[j] = Tx[base+j];
+			//if(j<10 &&my_id==0)
+				//clog<<"A: "<<A[i].Ti[j]<<" "<<A[i].Tj[j]<<" "<<A[i].Tx[j]<<endl;
 		}
 		base += nz_dd_A[i];
 	}
-
+	//if(my_id==0&&get_name()=="GND"){
+		//clog<<"row : "<<A[0].get_row()<<endl;
+		//for(int i=0;i<block_size;i++)
+		//cout<<A[0]<<endl;
+	//}
 	Ti.clear();
 	Tj.clear();
 	Tx.clear();
@@ -1416,9 +1428,11 @@ void Circuit::block_mpi_setup(int &num_procs){
 	nz_A = new int [block_info.size()];
 	L_n_d = new int [block_info.size()];
 
-	memset(nz_A, 0, block_info.size());
-	memset(L_n_d, 0, block_info.size());
-	
+	for(size_t i=0;i<block_info.size();i++){
+		nz_A[i]=0;
+		L_n_d[i]=0;
+	}
+
 	for(size_t i=0;i<block_info.size();i++){
 		total_n += block_info[i].count;
 		total_nz_A += A_g[i].size();
@@ -1433,7 +1447,6 @@ void Circuit::block_mpi_setup(int &num_procs){
 	Tx_g.resize(total_nz_A);
 
 	b_new_info = new float [total_n];	
-	memset(b_new_info, 0, total_n);
 	
 	size_t base_row=0, base_nz=0;
 	size_t base_n = 0;
