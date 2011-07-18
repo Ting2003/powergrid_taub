@@ -34,11 +34,11 @@
 using namespace std;
 
 double Circuit::EPSILON = 1e-5;
-size_t Circuit::MAX_BLOCK_NODES =5500;
+size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 10;//1000;
+const int MAX_ITERATION = 100;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -292,7 +292,7 @@ void Circuit::partition_circuit(){
 		if( X_BLOCKS * Y_BLOCKS < num_blocks ) Y_BLOCKS+=1; 
 		num_blocks = X_BLOCKS * Y_BLOCKS;
 	}
-	//clog<<"num_blocks: "<<X_BLOCKS<<" / "<<Y_BLOCKS <<endl;
+	clog<<"num_blocks: "<<X_BLOCKS<<" / "<<Y_BLOCKS <<endl;
 	block_info.X_BLOCKS = X_BLOCKS;
 	block_info.Y_BLOCKS = Y_BLOCKS;
 	block_info.resize(X_BLOCKS * Y_BLOCKS);
@@ -425,6 +425,8 @@ void Circuit::solve(int &my_id, int&num_procs){
 
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs){
+	clock_t t_s, t_e;
+	t_s = clock();
 	if(my_id==0){
 		// did not find any `X' node
 		if( circuit_type == UNKNOWN )
@@ -452,15 +454,17 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	cm = &c;
 	cholmod_start(cm);
 	cm->print = 5;
-	//if(get_name()=="GND")
-	//cholmod_print_common("cm", cm);
-	//cm->final_ll = true;
 
 	mpi_setup(my_id, num_procs);
 	// create block and matrix info
 	mpi_create_matrix(my_id, num_procs);	
 	// for each processor, decomp
+	double mpi_t11, mpi_t12;
+	mpi_t11 = MPI_Wtime();
 	decomp_matrix(my_id, A);
+	mpi_t12 = MPI_Wtime();	
+	if(my_id==0) clog<<"decomp time is: "<<1.0*(mpi_t12-
+			mpi_t11)<<endl;
 	
 	// 0 rank cpu scatter initial solution
 	// to all other processors
@@ -468,6 +472,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
 
+	t_e = clock();
+	if(my_id==0) clog<<"mpi_overhead is: "<<1.0*(t_e-t_s)/
+		CLOCKS_PER_SEC<<endl;
 	/*clog<<"e="<<EPSILON
 	    <<"\to="<<OMEGA
 	    <<"\tr="<<OVERLAP_RATIO
@@ -482,16 +489,21 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	float time=0;
 	double t1, t2;
 	t1= MPI_Wtime();
+	float *diff_root;
+	diff_root = new float [num_procs];
+	for(int i=0;i<num_procs;i++)
+		diff_root[i]=0;
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, num_procs);
 		iter++;
-		if(my_id ==0)
-			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
 		}
 	}
+	delete [] diff_root;
 	t2 = MPI_Wtime();
 	time = t2-t1;
 	if(my_id==0){
@@ -532,7 +544,10 @@ void Circuit::node_voltage_init(){
 double Circuit::solve_iteration(int &my_id, int&num_procs){	
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
-	
+
+	//double t1, t2;
+	//t1 = MPI_Wtime();
+
 	// processor 0 update all the rhs info
 	if(my_id==0){
 		size_t base_1 = 0;
@@ -548,6 +563,10 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 			base_1 += block.count;
 		}
 	}
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"update_rhs cost: "<<t2-t1<<endl;
+
+	//t1 = MPI_Wtime();
 	// before scatter, b_x_d stores the solution
 	// of last step
 	size_t base =0;
@@ -559,12 +578,18 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 		}
 		base += block.count;
 	}
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"copy old value cost: "<<t2-t1<<endl;
 
+	//t1 = MPI_Wtime();
 	// 0 rank cpu scatter rhs to all other processors
 	MPI_Scatterv(b_new_info, send_n, base_n_d, 
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);	
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"scatter cost: "<<t2-t1<<endl;
 	
+	//t1 = MPI_Wtime();
 	base =0;
 	for(int i=0;i<block_size;i++){
 		Block &block = block_info_mpi[i];
@@ -581,21 +606,39 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 			// store new solution here
 			b_x_d[base+j] = block.xp[j];
 		}
-		base += block.count;
 
+		//diff = modify_voltage(my_id, block, base, 
+				//block.x_old);
 		diff = modify_voltage(my_id, block, block.x_old);
 		if( max_diff < diff ) max_diff = diff;
+
+		base += block.count;
 	}
-	// communication
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"solve and find diff, copy new sol cost: "<<t2-t1<<endl;
+
+	//t1 = MPI_Wtime();
+	// communication	
 	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"gather diff cost: "<<t2-t1<<endl;
+
+	//t1= MPI_Wtime();
 	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"bcast diff cost: "<<t2-t1<<endl;
+
+	//t1 = MPI_Wtime();
 	// 0 rank cpu will gather all the solution from b_x_d
 	// to b_new_info
 	MPI_Gatherv(b_x_d, L_n, MPI_FLOAT, b_new_info, send_n,
 		base_n_d, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"gather sol cost: "<<t2-t1<<endl;
 	
 	// update nodes value in nodelist
 	// overlap is allowed here
+	//t1 = MPI_Wtime();
 	if(my_id==0){
 		base = 0;
 		for(size_t i=0;i<block_info.size();i++){
@@ -606,15 +649,21 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 			base += block.count;
 		}
 	}
+	//t2 = MPI_Wtime();
+	//if(my_id==0) clog<<"update node value cost: "<<
+		//t2-t1<<endl;
+
 	//if(my_id ==0) clog<<"diff: "<<max_diff_root<<endl;
 	return max_diff_root;
 }
 
-double Circuit::modify_voltage(int &my_id, Block & block, double * x_old){
+double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 	double max_diff = 0.0;
 	for(size_t i=0;i<block.count;i++){
+		//b_x_d[base+i] = (1-OMEGA)*x_old[i] + OMEGA*
+			//b_x_d[base+i];
+		//double diff = fabs(x_old[i] - b_x_d[base+i]);
 		block.x_new[i] = (1-OMEGA) * x_old[i] + OMEGA * block.x_new[i];
-		//clog<<"new val: "<<i<<" "<<block.x_new[i]<<endl;
 		//block.nodes[i]->value = block.x_new[i];
 		double diff = fabs(x_old[i] - block.x_new[i]);
 		if( diff > max_diff ) max_diff = diff;
