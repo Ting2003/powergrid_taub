@@ -489,10 +489,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	float time=0;
 	double t1, t2;
 	t1= MPI_Wtime();
-	float *diff_root;
-	diff_root = new float [num_procs];
-	for(int i=0;i<num_procs;i++)
-		diff_root[i]=0;
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, num_procs);
 		iter++;
@@ -503,7 +499,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 			break;
 		}
 	}
-	delete [] diff_root;
 	t2 = MPI_Wtime();
 	time = t2-t1;
 	if(my_id==0){
@@ -545,9 +540,6 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
 
-	//double t1, t2;
-	//t1 = MPI_Wtime();
-
 	// processor 0 update all the rhs info
 	if(my_id==0){
 		size_t base_1 = 0;
@@ -563,10 +555,6 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 			base_1 += block.count;
 		}
 	}
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"update_rhs cost: "<<t2-t1<<endl;
-
-	//t1 = MPI_Wtime();
 	// before scatter, b_x_d stores the solution
 	// of last step
 	size_t base =0;
@@ -578,18 +566,11 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 		}
 		base += block.count;
 	}
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"copy old value cost: "<<t2-t1<<endl;
-
-	//t1 = MPI_Wtime();
 	// 0 rank cpu scatter rhs to all other processors
 	MPI_Scatterv(b_new_info, send_n, base_n_d, 
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);	
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"scatter cost: "<<t2-t1<<endl;
 	
-	//t1 = MPI_Wtime();
 	base =0;
 	for(int i=0;i<block_size;i++){
 		Block &block = block_info_mpi[i];
@@ -602,43 +583,26 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 
 		block.xp = static_cast<double *>(block.x_ck->x);
 		for(size_t j=0;j<block.count;j++){
-			block.x_new[j] = block.xp[j];
 			// store new solution here
 			b_x_d[base+j] = block.xp[j];
 		}
 
-		//diff = modify_voltage(my_id, block, base, 
-				//block.x_old);
-		diff = modify_voltage(my_id, block, block.x_old);
+		diff = modify_voltage(my_id, block, base, 
+				block.x_old);
 		if( max_diff < diff ) max_diff = diff;
 
 		base += block.count;
 	}
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"solve and find diff, copy new sol cost: "<<t2-t1<<endl;
-
-	//t1 = MPI_Wtime();
 	// communication	
 	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"gather diff cost: "<<t2-t1<<endl;
-
-	//t1= MPI_Wtime();
 	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"bcast diff cost: "<<t2-t1<<endl;
-
-	//t1 = MPI_Wtime();
 	// 0 rank cpu will gather all the solution from b_x_d
 	// to b_new_info
 	MPI_Gatherv(b_x_d, L_n, MPI_FLOAT, b_new_info, send_n,
 		base_n_d, MPI_FLOAT, 0, MPI_COMM_WORLD);
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"gather sol cost: "<<t2-t1<<endl;
 	
 	// update nodes value in nodelist
 	// overlap is allowed here
-	//t1 = MPI_Wtime();
 	if(my_id==0){
 		base = 0;
 		for(size_t i=0;i<block_info.size();i++){
@@ -649,23 +613,17 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 			base += block.count;
 		}
 	}
-	//t2 = MPI_Wtime();
-	//if(my_id==0) clog<<"update node value cost: "<<
-		//t2-t1<<endl;
-
-	//if(my_id ==0) clog<<"diff: "<<max_diff_root<<endl;
 	return max_diff_root;
 }
 
-double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
+double Circuit::modify_voltage(int &my_id, Block &block, size_t &base, double * x_old){
 	double max_diff = 0.0;
+	if(get_name()=="VDDA") OMEGA = 1.0;
+	else OMEGA = 1.15;
 	for(size_t i=0;i<block.count;i++){
-		//b_x_d[base+i] = (1-OMEGA)*x_old[i] + OMEGA*
-			//b_x_d[base+i];
-		//double diff = fabs(x_old[i] - b_x_d[base+i]);
-		block.x_new[i] = (1-OMEGA) * x_old[i] + OMEGA * block.x_new[i];
-		//block.nodes[i]->value = block.x_new[i];
-		double diff = fabs(x_old[i] - block.x_new[i]);
+		b_x_d[base+i] = (1-OMEGA)*x_old[i] + OMEGA*
+			b_x_d[base+i];
+		double diff = fabs(x_old[i] - b_x_d[base+i]);
 		if( diff > max_diff ) max_diff = diff;
 	}
 	return max_diff;

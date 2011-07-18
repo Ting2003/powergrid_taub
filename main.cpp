@@ -105,8 +105,8 @@ int main(int argc, char * argv[]){
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
-		//if(my_id ==0)
-			//clog<<"Solving "<<ckt->get_name()<<endl;
+		if(my_id ==0)
+			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
 		if(my_id ==0){
 			cktlist[i]->print();
