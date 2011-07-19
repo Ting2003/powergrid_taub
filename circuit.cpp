@@ -1436,16 +1436,10 @@ void Circuit::block_mpi_setup(int &num_procs){
 	L_n_d = new int [block_info.size()];
 
 	for(size_t i=0;i<block_info.size();i++){
-		nz_A[i]=0;
-		L_n_d[i]=0;
-	}
-
-	for(size_t i=0;i<block_info.size();i++){
 		total_n += block_info[i].count;
 		total_nz_A += A_g[i].size();
 
 		nz_A[i] = A_g[i].size();
-
 		L_n_d[i] = block_info[i].count;
 	}
 
