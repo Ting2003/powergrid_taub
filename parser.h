@@ -30,7 +30,9 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(int &my_id, char * filename);
+	void parse_1(int &my_id, char * filename);
+
+	void parse_2(int &my_id, int &color);
 
 	int get_num_layers() const;
 
@@ -43,7 +45,7 @@ private:
 	void try_change_via(Net *);
 
 	//void insert_net_node(string line);
-	void insert_net_node(char * line);
+	void insert_net_node(char * line, int &color);
 	void extract_node(char * str, Node & nd);
 	void update_node(Net * net);
 

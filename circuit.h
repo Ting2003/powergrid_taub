@@ -28,6 +28,8 @@
 #include "vec.h"
 #include "triplet.h"
 #include "block.h"
+#include "mpi.h"
+
 using namespace std;
 using namespace std::tr1;
 
@@ -74,7 +76,7 @@ public:
 	void sort_nodes();
 
 	// solve for node voltage
-	void solve(int &my_id, int &num_procs);
+	void solve(int &my_id, int &num_procs, MPI_Comm &comm);
 	
 	void set_blocklist(Node * nd);
 
@@ -89,10 +91,10 @@ public:
 	cholmod_common c, *cm;
 
 	// mpi related functions
-	void mpi_setup(int &my_id, int &num_procs);
+	void mpi_setup(int &my_id, int &num_procs, MPI_Comm &comm);
 	void MPI_Assign_Task(int &num_tasks, int &num_procs);
 	void block_mpi_setup(int &num_procs);
-	void mpi_create_matrix(int &my_id, int &num_procs); 
+	void mpi_create_matrix(int &my_id, int &num_procs, MPI_Comm &comm); 
 
 	// mpi related variables
 	// member
@@ -157,7 +159,7 @@ private:
 	void solve_LU();
 	void solve_LU_core();
 
-	bool solve_IT(int &my_id, int&num_procs);
+	bool solve_IT(int &my_id, int&num_procs, MPI_Comm &comm);
 	void solve_block_LU();
 	void decomp_matrix(int &my_id, Matrix *A);
 	bool solve_pcg();
@@ -168,7 +170,7 @@ private:
 	void solve_init();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs);
+	double solve_iteration(int &my_id, int&num_procs, MPI_Comm &comm);
 
 	void block_init(Matrix *A);
 	void update_block_geometry();

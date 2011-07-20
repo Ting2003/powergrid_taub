@@ -414,9 +414,9 @@ void Circuit::find_block_size(){
 	}
 }
 
-void Circuit::solve(int &my_id, int&num_procs){
+void Circuit::solve(int &my_id, int&num_procs, MPI_Comm &comm){
 	if( MODE == 0 )
-		solve_IT(my_id, num_procs);
+		solve_IT(my_id, num_procs, comm);
 	else{
 		if(my_id==0)
 			solve_LU();
@@ -424,7 +424,7 @@ void Circuit::solve(int &my_id, int&num_procs){
 }
 
 // solve Circuit
-bool Circuit::solve_IT(int &my_id, int&num_procs){
+bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_Comm &comm){
 	clock_t t_s, t_e;
 	t_s = clock();
 	if(my_id==0){
@@ -455,9 +455,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	cholmod_start(cm);
 	cm->print = 5;
 
-	mpi_setup(my_id, num_procs);
+	mpi_setup(my_id, num_procs, comm);
 	// create block and matrix info
-	mpi_create_matrix(my_id, num_procs);	
+	mpi_create_matrix(my_id, num_procs, comm);	
 	// for each processor, decomp
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
@@ -470,7 +470,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	// to all other processors
 	MPI_Scatterv(b_new_info, send_n, base_n_d, 
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
+		comm);
 
 	t_e = clock();
 	if(my_id==0) clog<<"mpi_overhead is: "<<1.0*(t_e-t_s)/
@@ -490,7 +490,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	double t1, t2;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
-		diff = solve_iteration(my_id, num_procs);
+		diff = solve_iteration(my_id, num_procs, comm);
 		iter++;
 		//if(my_id ==0)
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
@@ -536,7 +536,7 @@ void Circuit::node_voltage_init(){
 // 2. solve the matrix
 // 3. update node voltages
 // 4. track the maximum error of solution
-double Circuit::solve_iteration(int &my_id, int&num_procs){	
+double Circuit::solve_iteration(int &my_id, int&num_procs, MPI_Comm &comm){	
 	float diff = .0, max_diff = .0;
 	float max_diff_root=0;
 
@@ -569,7 +569,7 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 	// 0 rank cpu scatter rhs to all other processors
 	MPI_Scatterv(b_new_info, send_n, base_n_d, 
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);	
+		comm);	
 	
 	base =0;
 	for(int i=0;i<block_size;i++){
@@ -594,12 +594,12 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 		base += block.count;
 	}
 	// communication	
-	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&max_diff, &max_diff_root, 1, MPI_FLOAT, MPI_MAX, 0, comm);
+	MPI_Bcast(&max_diff_root, 1, MPI_FLOAT, 0, comm);
 	// 0 rank cpu will gather all the solution from b_x_d
 	// to b_new_info
 	MPI_Gatherv(b_x_d, L_n, MPI_FLOAT, b_new_info, send_n,
-		base_n_d, MPI_FLOAT, 0, MPI_COMM_WORLD);
+		base_n_d, MPI_FLOAT, 0, comm);
 	
 	// update nodes value in nodelist
 	// overlap is allowed here
@@ -1297,7 +1297,7 @@ void Circuit::decomp_matrix(int &my_id, Matrix *A){
 	}
 }
 
-void Circuit::mpi_setup(int &my_id, int &num_procs){
+void Circuit::mpi_setup(int &my_id, int &num_procs, MPI_Comm &comm){
 	// shoule be included in solve_mpi_IT	
 	num_blocks = block_info.size();
 	
@@ -1334,40 +1334,38 @@ void Circuit::mpi_setup(int &my_id, int &num_procs){
 	delete [] A_g;
 
 	// bcast total block numbers to others
-	MPI_Bcast(&num_blocks, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&num_blocks, 1, MPI_INT, 0, comm);
 
 	// scatter total block numbers for each processor
 	MPI_Scatter(tasks_n, 1, MPI_INT, &block_size, 
-			1, MPI_INT, 0, MPI_COMM_WORLD);
+			1, MPI_INT, 0, comm);
 		
 	// scatter total nz, and n for each processor
 	MPI_Scatter(send_nz_A, 1, MPI_INT, &nz, 1,
-			MPI_INT, 0, MPI_COMM_WORLD);
+			MPI_INT, 0, comm);
 	MPI_Scatter(send_n, 1, MPI_INT, &L_n, 1, 
-			MPI_INT, 0, MPI_COMM_WORLD);
+			MPI_INT, 0, comm);
 
 	// b_x_d will be obtained within solving_iteration
 	b_x_d = new float [L_n];
 }
 
-void Circuit::mpi_create_matrix(int &my_id, int &num_procs){
+void Circuit::mpi_create_matrix(int &my_id, int &num_procs,
+		MPI_Comm &comm){
 	// scatter 3 triplet vector
 	Ti.resize(nz);
 	MPI_Scatterv(&Ti_g[0], send_nz_A, base_nz_A, MPI_LONG,
-			&Ti[0], nz, MPI_LONG, 0,
-			MPI_COMM_WORLD);	
+			&Ti[0], nz, MPI_LONG, 0, comm);	
 	Ti_g.clear();
 
 	Tj.resize(nz);
 	MPI_Scatterv(&Tj_g[0], send_nz_A, base_nz_A, MPI_LONG,
-			&Tj[0], nz, MPI_LONG, 0,
-			MPI_COMM_WORLD);
+			&Tj[0], nz, MPI_LONG, 0, comm);
 	Tj.clear();
 
 	Tx.resize(nz);
 	MPI_Scatterv(&Tx_g[0], send_nz_A, base_nz_A, 
-		MPI_DOUBLE, &Tx[0], nz, MPI_DOUBLE, 0,
-		MPI_COMM_WORLD);
+		MPI_DOUBLE, &Tx[0], nz, MPI_DOUBLE, 0, comm);
 	Tx_g.clear();
 
 	// within each processor
@@ -1378,10 +1376,10 @@ void Circuit::mpi_create_matrix(int &my_id, int &num_procs){
 	// scatter n of rhs of each block within each processor
 	MPI_Scatterv(nz_A, tasks_n, start_task, MPI_INT,
 			nz_dd_A, block_size, MPI_INT, 0,
-			MPI_COMM_WORLD);
+			comm);
 	MPI_Scatterv(L_n_d, tasks_n, start_task, MPI_INT, 
 			L_n_dd, block_size, MPI_INT, 0,
-			MPI_COMM_WORLD);
+			comm);
 	
 	// build up and block and triplet
 	// now the triplet has everything
@@ -1479,3 +1477,5 @@ void Circuit::block_mpi_setup(int &num_procs){
 	send_nz_A[k] = total_nz_A - base_nz_A[k];
 	send_n[k] = total_n - base_n_d[k];
 }
+
+

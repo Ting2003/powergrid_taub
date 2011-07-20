@@ -56,12 +56,11 @@ void Parser::extract_node(char * str, Node & nd){
 }
 
 // given a line, extract net and node information
-void Parser::insert_net_node(char * line){
+void Parser::insert_net_node(char * line, int &color){
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
 	static Node nd[2];
-	Node * nd_ptr[2];	// this will be set to the two nodes found
 	double value;
 	sscanf(line, "%s %s %s %lf", sname, sa, sb, &value);
 
@@ -82,7 +81,11 @@ void Parser::insert_net_node(char * line){
 	else
 		layer = nd[0].get_layer();
 
+	// if ckt_id is not supposed color, return
 	int ckt_id = layer_in_ckt[layer];
+	if(ckt_id != color) return;
+
+	Node * nd_ptr[2];	// this will be set to the two nodes found
 	Circuit * ckt = (*p_ckts)[ckt_id];
 	for(int i=0;i<2;i++){
 		if ( nd[i].is_ground() ){
@@ -243,7 +246,7 @@ int Parser::create_circuits(vector<CKT_LAYER > &ckt_name_info){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(int &my_id, char * filename){
+void Parser::parse_1(int &my_id, char * filename){
 	int MPI_Vector;
 	int count =2;
 	int lengths[2] = {10, 1};
@@ -271,7 +274,9 @@ void Parser::parse(int &my_id, char * filename){
 
 	// first time parse:
 	create_circuits(ckt_name_info);
+}
 
+void Parser::parse_2(int &my_id, int &color){	
 	if(my_id==0){
 		FILE *f;
 		f = fopen(this->filename, "r");
@@ -290,7 +295,7 @@ void Parser::parse(int &my_id, char * filename){
 				case 'V':
 				case 'i': // current
 				case 'I':
-					insert_net_node(line);
+					insert_net_node(line, color);
 					break;
 				case '.': // command
 				case '*': // comment
