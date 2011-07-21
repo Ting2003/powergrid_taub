@@ -20,5 +20,6 @@ void Assign_Task(int &num_tasks, int & num_procs, int *start_task,int *end_task,
 void Assign_color(int &my_id, int &color, int **ranks, int &n,
 	int *procs_n, int *start_proc);
 
+void Write_send(int &my_id, int &color, int &new_rank, int &cktlist_size, Circuit *ckt);
 
 #endif

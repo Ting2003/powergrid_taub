@@ -29,7 +29,8 @@
 #include "triplet.h"
 #include "block.h"
 #include "mpi.h"
-
+#include <stdlib.h>
+#include <stdio.h>
 using namespace std;
 using namespace std::tr1;
 
@@ -87,7 +88,7 @@ public:
 	friend class Parser;
 
 	// C style output
-	void print();
+	void print(int &color);
 	cholmod_common c, *cm;
 
 	// mpi related functions

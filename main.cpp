@@ -126,10 +126,11 @@ int main(int argc, char * argv[]){
 	MPI_Group_rank(new_group, &new_rank);
 	//if(my_id==0) clog<<"new size is: "<<new_size<<endl;
 	//clog<<"old and new rank: "<<my_id<<" "<<new_rank<<endl;		
+	
 	clock_t t1,t2;
 	t1=clock();
 	parser.parse_2(new_rank, color);
-	//MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
 	t2=clock();
 	//if(new_rank==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
@@ -139,30 +140,29 @@ int main(int argc, char * argv[]){
 	
 	// now each group of processor only deals with its color ckt
 	int i = color;
-	Circuit * ckt = cktlist[i];
+	Circuit * ckt = cktlist[i];	
+
 	if(new_rank ==0)
 		clog<<"Solving "<<ckt->get_name()<<endl;
 	ckt->solve(new_rank, new_size, new_comm);
-	if(my_id ==0){
-		cktlist[i]->print();
-		//clog<<endl;
-	}
+
+	//Write_send(my_id, color, new_rank, cktlist_size, ckt);
+
+	if(new_rank ==0)
+		ckt->print(color);
 
 	free(ckt);
-
+	
 	mpi_t12 = MPI_Wtime();
 	
 	// output a single ground node
-	if(new_rank==0){
-		//printf("G  %.5e\n", 0.0);
+	if(new_rank==0)
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
-		//close_logfile();
-	}
 
 	if(my_id==0){
-		printf("G %.5e\n", 0.0);
 		close_logfile();
 	}
+
 	//MPI_Barrier(MPI_COMM_WORLD);
 	
 	MPI_Group_free(&new_group);
@@ -210,4 +210,23 @@ void Assign_color(int &my_id, int &color, int **ranks, int &n,
 		}
 		if(my_id==0) clog<<endl;
 	}
+}
+
+// serially output into logfile
+void Write_send(int &my_id, int &color, int &new_rank, int &cktlist_size, Circuit *ckt){
+	int wf = 0;
+	int send_id=0;
+	for(int i=0;i<cktlist_size;i++){
+		if(color == wf && new_rank ==0){
+			send_id = my_id;
+			clog<<"print id is: "<<my_id<<endl;
+			//ckt->print();
+		}
+		wf ++;
+		MPI_Bcast(&wf, 1, MPI_INT, my_id, MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+
+	if(my_id==0)
+		printf("G %.5e\n", 0.0);
 }

@@ -29,7 +29,8 @@
 #include "util.h"
 #include "algebra.h"
 #include "node.h"
-
+#include <stdlib.h>
+#include <stdio.h>
 #include "mpi.h"
 using namespace std;
 
@@ -194,15 +195,32 @@ ostream & operator << (ostream & os, const Circuit & ckt){
 	return os;
 }
 
-void Circuit::print(){
+void Circuit::print(int &color){
 	// uncomment this if want to output to a file
 	//freopen("output.txt","w",stdout);
+	string out_file;
+	char filename[100];
+	char buff[10];
+	sprintf(buff, "%d", color);
+	out_file = "out_"+(string)buff+".txt";
 
+	int i=0;
+	for(i=0;i<out_file.size();i++)
+		filename[i] = out_file[i];
+	filename[i] = '\0';
+	//clog<<"filename is: "<<filename<<endl;
+
+	FILE *f;
+	f = fopen(filename, "w");
+	
 	// don't output ground node
 	for(size_t i=0;i<nodelist.size()-1;i++){
-		printf("%s  %.5e\n", nodelist[i]->name.c_str(), 
+		fprintf(f, "%s  %.5e\n", nodelist[i]->name.c_str(), 
 				nodelist[i]->value);
 	}
+	if(get_name()=="GND")
+		fprintf(f, "G %.5e\n",0.0);
+	fclose(f);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
