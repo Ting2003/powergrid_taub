@@ -166,6 +166,7 @@ private:
 	
 	// initialize things before solve_iteration
 	void solve_init();
+	void solve_init_LU();
 
 	// updates nodes value in each iteration
 	double solve_iteration(int &my_id, int&num_procs);

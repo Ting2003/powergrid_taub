@@ -15,6 +15,7 @@
 #include "vec.h"
 #include "umfpack.h"
 #include "algebra.h"
+#include "mpi.h"
 
 // solve x for linear system Ax=b
 // NOTE: UF_long and size_t must have the same size!
@@ -103,9 +104,16 @@ void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
 void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, cholmod_common *cm){
 	cholmod_factor *L;
 	//cm->final_ll = true; // stay in LL' format
+	clock_t t1, t2;
+	t1 = clock();
 	CK_decomp(A, L, cm);
+	t2 = clock();
+	clog<<"decomp: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	// then solve
+	t1 = clock();
 	x = cholmod_solve(CHOLMOD_A, L, b, cm);
+	t2 = clock();
+	clog<<"solve: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//cholmod_print_dense(x, "x", cm);
 	//cholmod_print_dense(b, "b", cm);
 	//cholmod_print_factor(L, "L", cm);
@@ -151,6 +159,7 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 	size_t n_row = A.get_row();
 	size_t n_col = A.get_row();
 	size_t nnz = A.size();
+	if(nnz==0) return;
 	int *Ti;
 	int *Tj;
 	double *Tx;
@@ -175,11 +184,12 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 
 	// free the triplet pointer
 	cholmod_free_triplet(&T, cm);
-
+	//return;
 	//cm->supernodal = -1;
 	L = cholmod_analyze(A_cholmod, cm);
 	//L->ordering = CHOLMOD_NATURAL;
 	cholmod_factorize(A_cholmod, L, cm);
+	//return;
 	//cholmod_print_factor(L, "L", cm);
 	cholmod_free_sparse(&A_cholmod, cm);
 }

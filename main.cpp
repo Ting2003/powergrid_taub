@@ -104,7 +104,7 @@ int main(int argc, char * argv[]){
 	
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="VDD"){
+		if(ckt->get_name()=="VDD"){
 		if(my_id ==0)
 			clog<<"Solving "<<ckt->get_name()<<endl;
 		ckt->solve(my_id, num_procs);
@@ -113,7 +113,7 @@ int main(int argc, char * argv[]){
 			//clog<<endl;
 		}
 		// after that, this circuit can be released
-		//}
+		}
 
 		free(ckt);
 	}

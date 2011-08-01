@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 100;//1000;
+const int MAX_ITERATION = 1000;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -205,6 +205,55 @@ void Circuit::print(){
 	}
 }
 
+void Circuit::solve_init_LU(){
+	sort_nodes();
+
+	size_t size = nodelist.size() - 1;
+	Node * p = NULL;
+	for(size_t i=0, nr=0;i<size;i++){
+		p=nodelist[i];
+
+		// test if it can be merged
+		/*if( p->is_mergeable() ){
+			mergelist.push_back(p);
+			continue;
+		}*/
+
+		Net * net = p->nbr[TOP];
+		//merge_node(p);
+
+		// find the VDD value
+		if( p->isX() ) VDD = p->get_value();
+
+		// test short circuit
+		if( !p->isX() && // X must be representative 
+		    net != NULL &&
+		    fzero(net->value) ){
+			// TODO: ensure ab[1] is not p itself
+			assert( net->ab[1] != p );
+			p->rep = net->ab[1]->rep;
+		} // else the representative is itself
+
+		// push the representatives into list
+		if( p->rep == p ) {
+			replist.push_back(p);
+			p->rid = nr++;
+		}
+	}// end of for i
+
+	size_t n_merge = mergelist.size();
+	size_t n_nodes = nodelist.size();
+	size_t n_reps  = replist.size();
+	double ratio = n_merge / (double) (n_merge + n_reps);
+	/*clog<<"mergeable  "<<n_merge<<endl;
+	clog<<"replist    "<<n_reps <<endl;
+	clog<<"nodelist   "<<n_nodes<<endl;
+	clog<<"ratio =    "<<ratio  <<endl;*/
+
+	net_id.clear();
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // Computation Functions
 
@@ -292,6 +341,8 @@ void Circuit::partition_circuit(){
 		if( X_BLOCKS * Y_BLOCKS < num_blocks ) Y_BLOCKS+=1; 
 		num_blocks = X_BLOCKS * Y_BLOCKS;
 	}
+	X_BLOCKS = 7;
+	Y_BLOCKS = 6;
 	clog<<"num_blocks: "<<X_BLOCKS<<" / "<<Y_BLOCKS <<endl;
 	block_info.X_BLOCKS = X_BLOCKS;
 	block_info.Y_BLOCKS = Y_BLOCKS;
@@ -425,13 +476,19 @@ void Circuit::solve(int &my_id, int&num_procs){
 
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs){
+	double time=0;
+	double t1, t2;
 	clock_t t_s, t_e;
 	t_s = clock();
 	if(my_id==0){
 		// did not find any `X' node
 		if( circuit_type == UNKNOWN )
 			circuit_type = C4;
+		t1 = MPI_Wtime();
 		solve_init();
+		t2 = MPI_Wtime();
+		time += t2-t1;
+		clog<<"solve init cost: "<<(t2-t1)<<endl;
 
 		/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
 		  clog<<"Replist is small, use direct LU instead."<<endl;
@@ -439,42 +496,57 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 		  return true;
 		  }
 		  */
-		select_omega();
+		//select_omega();
+		t1 = MPI_Wtime();
 		partition_circuit();
+		t2 = MPI_Wtime();
+		time += t2-t1;
+		clog<<"partition cost: "<<(t2-t1)<<endl;
 		// Only one block, use direct LU instead
 		if( block_info.size() == 1 ){
 			//clog<<"Block size = 1, use direct LU instead."<<endl;
 			solve_LU_core();
 			return true;
 		}
+		t1 = MPI_Wtime();
 		A_g = new Matrix [block_info.size()];
 		block_init(A_g);
+		t2 = MPI_Wtime();
+		time += t2-t1;
+		clog<<"block init cost: "<<(t2-t1)<<endl;
 	}
 	// cm declared in circuit class
 	cm = &c;
 	cholmod_start(cm);
 	cm->print = 5;
-
+	
+	t1 = MPI_Wtime();
 	mpi_setup(my_id, num_procs);
+	if(my_id==0) clog<<"after mpi setup. "<<endl;
 	// create block and matrix info
-	mpi_create_matrix(my_id, num_procs);	
+	mpi_create_matrix(my_id, num_procs);
+	if(my_id==0) clog<<"after mpi create matrix. "<<endl;
+	t2 = MPI_Wtime();
+	time += t2-t1;
 	// for each processor, decomp
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	decomp_matrix(my_id, A);
+	if(my_id==0) clog<<"after decomp matrix. "<<endl;
 	mpi_t12 = MPI_Wtime();	
 	if(my_id==0) clog<<"decomp time is: "<<1.0*(mpi_t12-
 			mpi_t11)<<endl;
-	
+	return true;	
 	// 0 rank cpu scatter initial solution
 	// to all other processors
+	t1 = MPI_Wtime();
 	MPI_Scatterv(b_new_info, send_n, base_n_d, 
 		MPI_FLOAT, b_x_d, L_n, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
+	t2 = MPI_Wtime();
+	time += t2-t1;
 
-	t_e = clock();
-	if(my_id==0) clog<<"mpi_overhead is: "<<1.0*(t_e-t_s)/
-		CLOCKS_PER_SEC<<endl;
+	if(my_id==0) clog<<"mpi_overhead is: "<<time <<endl;
 	/*clog<<"e="<<EPSILON
 	    <<"\to="<<OMEGA
 	    <<"\tr="<<OVERLAP_RATIO
@@ -486,8 +558,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs){
 	double diff=0;
 	bool successful = false;
 	
-	float time=0;
-	double t1, t2;
+	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, num_procs);
@@ -618,8 +689,9 @@ double Circuit::solve_iteration(int &my_id, int&num_procs){
 
 double Circuit::modify_voltage(int &my_id, Block &block, size_t &base, double * x_old){
 	double max_diff = 0.0;
-	if(get_name()=="VDDA") OMEGA = 1.0;
-	else OMEGA = 1.15;
+	//if(get_name()=="VDDA") OMEGA = 1.0;
+	//else OMEGA = 1.15;
+	OMEGA = 1.0;
 	for(size_t i=0;i<block.count;i++){
 		b_x_d[base+i] = (1-OMEGA)*x_old[i] + OMEGA*
 			b_x_d[base+i];
@@ -662,7 +734,11 @@ void Circuit::solve_LU_core(){
 
 // solve the node voltages using direct LU
 void Circuit::solve_LU(){
-	solve_init();
+	double t1, t2;
+	t1 = MPI_Wtime();
+	solve_init_LU();
+	t2 = MPI_Wtime();
+	clog<<"solve init: "<<1.0*(t2-t1)<<endl;
 	solve_LU_core();
 }
 
@@ -1288,12 +1364,9 @@ void Circuit::decomp_matrix(int &my_id, Matrix *A){
 	// after stamping, convert A to column compressed form
 	for(size_t i=0;i<block_size;i++){
 		Block & block = block_info_mpi[i];
-		if(block.count>0){
-			A[i].set_row(block.count);
-			block.CK_decomp(A[i], cm);
-			//if(my_id==0 && i==0 && get_name()=="GND")
-				//cholmod_print_factor(block.L, "L", cm);
-		}
+		if(block.count ==0) continue;
+		A[i].set_row(block.count);
+		block.CK_decomp(A[i], cm);
 	}
 }
 
