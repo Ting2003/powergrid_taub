@@ -34,6 +34,9 @@ public:
 
 	int get_num_layers() const;
 
+	// functions for block
+	void set_block_geometry(float *geo);
+
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits
 

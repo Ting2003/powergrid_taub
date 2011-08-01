@@ -260,6 +260,7 @@ void Parser::parse(int &my_id, char * filename){
 	vector<CKT_LAYER >ckt_name_info;
 	if(my_id==0)
 		extract_layer(my_id, ckt_name_info);
+	
 	int ckt_name_info_size = ckt_name_info.size();
 	
 	MPI_Bcast(&ckt_name_info_size, 1, MPI_INT, 0,
@@ -272,6 +273,20 @@ void Parser::parse(int &my_id, char * filename){
 	// first time parse:
 	create_circuits(ckt_name_info);
 
+	float * geo;
+	float * block_geo;
+	geo = new float[X_BLOCKS *Y_BLOCKS *4];
+	block_geo = new float [4];
+
+	// update block geometry
+	if(my_id==0) set_block_geometry(geo);
+	MPI_scatter(geo, 4, MPI_FLOAT, block_geo, 4, MPI_FLOAT, 
+			0, MPI_COMM_WORLD);
+
+	vector <char> block_netlist;
+	vector <char> block_boundary_netlist;
+
+	// second time parse:
 	if(my_id==0){
 		FILE *f;
 		f = fopen(this->filename, "r");
@@ -321,6 +336,12 @@ int Parser::extract_layer(int &my_id,
 	string word_s;
 	char name[10];
 	int count=0;
+	static char sname[MAX_BUF];
+	static char sa[MAX_BUF];
+	static char sb[MAX_BUF];
+	static Node nd[2];
+	double value;
+	int i=0;
 
 	// only processor 0 will extract layer info
 	if(my_id!=0) return 0;
@@ -366,6 +387,26 @@ int Parser::extract_layer(int &my_id,
 				word_count++;
 			}
 		}
+		else if(line[0]!='.'){
+			// find grid boundary x and y
+			sscanf(line, "%s %s %s %lf", sname,sa,sb, &value);
+			if( sa[0] == '0' ) { nd[0].pt.set(-1,-1,-1); }
+			else extract_node(sa, nd[0]);
+
+			if( sb[0] == '0' ) { nd[1].pt.set(-1,-1,-1); }
+			else extract_node(sb, nd[1]);
+
+			for(i=0;i<2;i++){
+				if(nd[i].pt.x > x_max) 
+					x_max = nd[i].pt.x;
+				if(nd[i].pt.x < x_min)
+					x_min = nd[i].pt.x;
+				if(nd[i].pt.y > y_max)
+					y_max = nd[i].pt.y;
+				if(nd[i].pt.y < y_min)
+					y_min = nd[i].pt.y;
+			}
+		}
 	}
 	fclose(f);
 	// sort resulting vector by the ckt name
@@ -391,4 +432,37 @@ bool Parser::sort(vector<CKT_LAYER > &a){
 		}	
 	}
 	return true;
+}
+
+void Parser::set_block_geometry(float *geo){
+	double x, y;
+	//x = (double)(x_max-x_min) / X_BLOCKS;
+	//y = (double)(y_max-y_min) / Y_BLOCKS;
+	x = (double)(x_max-x_min+0.5) / X_BLOCKS;
+	y = (double)(y_max-y_min+0.5) / Y_BLOCKS;
+	//if( fzero(x) ) x = 1.0;
+	//if( fzero(y) ) y = 1.0;
+	len_per_block_x = x;
+	len_per_block_y = y;
+	len_ovr_x = x * overlap_ratio;
+	len_ovr_y = y * overlap_ratio;
+	//clog<<"len_x, len_y: "<<x<<" / "<<y<<endl;
+	//clog<<"len_ovr_x, len_ovr_y: "<<len_ovr_x
+		//<<" / "<<len_ovr_y<<endl;
+
+	size_t bid = 0;
+	// update block 4 corners
+	for(size_t y=0;y<Y_BLOCKS;y++){
+		for(size_t x=0;x<X_BLOCKS;x++){
+			bid = y * X_BLOCKS + x;
+			// lx
+			geo[4*bid] = x * len_per_block_x - len_ovr_x;
+			// ly
+			geo[4*bid+1] = y * len_per_block_y - len_ovr_y;
+			// ux
+			geo[4*bid+2] = (x+1) * len_per_block_x + len_ovr_x;
+			// uy
+			geo[4*bid+3] = (y+1) * len_per_block_y + len_ovr_y;
+		}
+	}
 }
