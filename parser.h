@@ -13,10 +13,10 @@
 #include <vector>
 #include "global.h"
 #include "circuit.h"
+#include "mpi_class.h"
 #include <algorithm>
 #include <string>
 using std::vector;
-
 
 struct CKT_LAYER{
 	char name[10];
@@ -30,7 +30,7 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(int &my_id, char * filename);
+	void parse(int &my_id, char * filename, MPI_CLASS &mpi_class);
 
 	int get_num_layers() const;
 
@@ -38,15 +38,16 @@ public:
 	void set_block_geometry(float *geo);
 	int cpr_nd_block(Node &nd, float *geo, int &bid);
 	
-	void net_to_block(vector<vector<char> >& block_netlist,
-	vector<vector<char> >&block_boundary_netlist);
+	void net_to_block(float *geo);
 
-	void find_base_netlist(vector<vector<char> > &block_boundary_netlist, vector<vector<char> > &block_netlist, long *base_netlist, long *base_bd_netlist, long *size_netlist, long *size_bd_netlist);
+	void build_block_geo(int &my_id);
 
-	void send_netlist(int &my_id);
+	void second_parse(int &my_id, MPI_CLASS &mpi_class);
+	
+	void InitialOF(vector<FILE *> & of, int &num_blocks, int &color);
 
-	void second_parse(int &my_id);
-
+	void InitialIF(vector<FILE *> & ifs, int &my_id, int &block_size, int &color);
+	
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits
 

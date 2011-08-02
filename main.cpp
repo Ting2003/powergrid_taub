@@ -89,17 +89,26 @@ int main(int argc, char * argv[]){
 	Circuit::set_parameters(epsilon, omega, overlap_ratio, 
 			max_block_nodes, mode);
 	// start to parfile
-	if(my_id==0)
-	clog<<"start to parse. "<<endl;
 	vector<Circuit *> cktlist;
+	MPI_CLASS mpi_class;
+	if(my_id==0){
+		mpi_class.start_task = new int [num_procs];
+		mpi_class.end_task = new int [num_procs];
+		mpi_class.tasks_n = new int [num_procs];
+		mpi_class.MPI_Assign_Task(num_procs);
+	}
+	MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, 
+		&mpi_class.block_size, 
+		1, MPI_INT, 0, MPI_COMM_WORLD);
+		
 	Parser parser(&cktlist);
 	clock_t t1,t2;
 	t1=clock();
-	parser.parse(my_id, input);
+	parser.parse(my_id, input, mpi_class);
 	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
 	t2=clock();
-	//if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
 	return 0;
 	double mpi_t11, mpi_t12;
