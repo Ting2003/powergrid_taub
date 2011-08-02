@@ -36,6 +36,16 @@ public:
 
 	// functions for block
 	void set_block_geometry(float *geo);
+	int cpr_nd_block(Node &nd, float *geo, int &bid);
+	
+	void net_to_block(vector<vector<char> >& block_netlist,
+	vector<vector<char> >&block_boundary_netlist);
+
+	void find_base_netlist(vector<vector<char> > &block_boundary_netlist, vector<vector<char> > &block_netlist, long *base_netlist, long *base_bd_netlist, long *size_netlist, long *size_bd_netlist);
+
+	void send_netlist(int &my_id);
+
+	void second_parse(int &my_id);
 
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits

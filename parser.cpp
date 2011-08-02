@@ -273,19 +273,73 @@ void Parser::parse(int &my_id, char * filename){
 	// first time parse:
 	create_circuits(ckt_name_info);
 
+	send_netlist(my_id);
+	return;
+
+	second_parse(my_id);
+}
+
+void Parser::send_netlist(int &my_id){
 	float * geo;
 	float * block_geo;
+	long * base_netlist, * base_bd_netlist;
+	long *size_netlist, *size_bd_netlist;
+	// block info in cpu 0
 	geo = new float[X_BLOCKS *Y_BLOCKS *4];
+	// block netlist info in cpu 0
+	base_netlist = new long [X_BLOCKS * Y_BLOCKS];
+	// block boundary netlist info in cpu 0
+	base_bd_netlist = new long [X_BLOCKS * Y_BLOCKS];
+	// block netlist size info in cpu 0
+	size_netlist = new long [X_BLOCKS * Y_BLOCKS];
+	// block boundary netlist size info in cpu 0
+	size_bd_netlist = new long [X_BLOCKS * Y_BLOCKS];
+
+	// block info in other cpus
 	block_geo = new float [4];
 
 	// update block geometry
 	if(my_id==0) set_block_geometry(geo);
-	MPI_scatter(geo, 4, MPI_FLOAT, block_geo, 4, MPI_FLOAT, 
+	MPI_Scatter(geo, 4, MPI_FLOAT, block_geo, 4, MPI_FLOAT, 
 			0, MPI_COMM_WORLD);
 
-	vector <char> block_netlist;
-	vector <char> block_boundary_netlist;
+	// block netlist info in cpu 0
+	vector< vector <char> > block_netlist;
+	// block boundary netlist info in cpu 0
+	vector < vector <char> > block_boundary_netlist;
+	// block netlist info in other cpus
+	vector <char> block_netlist_dd;
+	// block boundary netlist info in other cpus
+	vector <char> block_bd_netlist_dd;
 
+	block_netlist.resize(X_BLOCKS*Y_BLOCKS);
+	block_boundary_netlist.resize(X_BLOCKS * Y_BLOCKS);
+	if(my_id==0){
+		net_to_block(block_netlist, block_boundary_netlist);
+		find_base_netlist(block_boundary_netlist, 
+		block_netlist, base_netlist,
+		base_bd_netlist,size_netlist, size_bd_netlist);
+	}
+
+	size_t netlist_size_dd;
+	size_t netlist_bd_size_dd;
+	// scatter the netlist size and bd_netlist size for
+	// each block
+	MPI_Scatter(size_netlist, 1, MPI_LONG, &netlist_size_dd, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+	MPI_Scatter(size_bd_netlist, 1, MPI_LONG, &netlist_bd_size_dd, MPI_LONG, 0, MPI_COMM_WORLD);
+
+	// scatter the netlist data and bd_netlist data for 
+	// each block
+	MPI_Scatterv(block_netlist, size_netlist, base_netlist, 
+		MPI_CHAR, block_netlist_dd, &netlist_size_dd, 
+		MPI_CHAR, 0, MPI_COMM_WORLD);	
+	MPI_Scatterv(block_boundary_netlist, size_bd_netlist, 
+		base_bd_netlist, MPI_CHAR, &block_bd_netlist_dd, 
+		netlist_bd_size_dd, 
+		MPI_CHAR, 0, MPI_COMM_WORLD);
+}
+
+void Parser::second_parse(int &my_id){
 	// second time parse:
 	if(my_id==0){
 		FILE *f;
@@ -464,5 +518,78 @@ void Parser::set_block_geometry(float *geo){
 			// uy
 			geo[4*bid+3] = (y+1) * len_per_block_y + len_ovr_y;
 		}
+	}
+}
+
+void Parser::net_to_block(vector<vector<char> >& block_netlist,
+	vector<vector<char> >&block_boundary_netlist){
+	static char sname[MAX_BUF];
+	static char sa[MAX_BUF];
+	static char sb[MAX_BUF];
+	static Node nd[2];
+	Node * nd_ptr[2];	// this will be set to the two nodes found
+	double value;
+
+	FILE *f;
+	f = fopen(this->filename, "r");
+	if(f==NULL) report_exit("Input file not exist!\n");
+
+	char line[MAX_BUF];
+	char type;
+	int k=0;
+
+	int count_1 = 0, count_2 = 0;
+	while( fgets(line, MAX_BUF,f)!=NULL){
+		sscanf(line, "%s %s %s %lf", 
+				sname, sa, sb, &value);
+
+		count_1 = 0, count_2 = 0;
+
+		if( sa[0] != '0' ) 
+			extract_node(sa, nd[0]);
+		if( sb[0] != '0' )
+			extract_node(sb, nd[1]);
+		for(int j=0;j<X_BLOCKS *Y_BLOCKS;j++){
+			count_1 = cpr_nd_block(nd[0], geo, j);
+			count_2 = cpr_nd_block(nd[1], geo, j);
+			if(count_1 ==1 && count_2 ==1){
+				k=0;
+				do{
+					block_netlist[j].push_back(line[k]);
+				}while(line[k]!='\0');
+			}
+			else if(count_1 ==1 && count_2 ==0 || (count_1 ==0 && count_2 ==1)){
+				k=0;
+				do{
+					block_boundary_netlist[j].push_back(line[k]);
+				}while(line[k]!='\0');
+			}
+		}
+	}
+	fclose(f);
+}
+
+int Parser::cpr_nd_block(Node &nd, float *geo, int &bid){
+	if(nd.pt.x >= geo[4*bid] &&
+	   nd.pt.x <= geo[4*bid+2] &&
+	   nd.pt.y >= geo[4*bid+1] &&
+	   nd.pt.y <= geo[4*bid+3])
+		return 1;
+	else return 0;
+}
+
+void Parser::find_base_netlist(vector<vector<char> > &block_boundary_netlist, vector<vector<char> > &block_netlist, 
+long *base_netlist, long *base_bd_netlist,
+long *size_netlist, long *size_bd_netlist){
+	// find base_netlist for each processor
+	long base = 0;
+	long base_bd = 0;
+	for(int i = 0;i < X_BLOCKS * Y_BLOCKS;i++){
+		base_netlist[i] = base;
+		base_bd_netlist[i] = base_bd;
+		base += block_netlist[i].size();
+		base_bd += block_boundary_netlist[i].size();
+		size_netlist[i] = block_netlist[i].size();
+		size_bd_netlist[i] = block_boundary_netlist[i].size();
 	}
 }

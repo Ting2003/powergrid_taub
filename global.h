@@ -22,13 +22,13 @@ const int OUTPUT_WIDTH_FLOAT = 15;
 const int OUTPUT_WIDTH_INDEX = 3;
 const int OUTPUT_WIDTH_STRING = 10;
 // overlap_ratio should < 0.45, or will be divergence
-const size_t X_BLOCKS = 3; // # of blocks along x axis
-const size_t Y_BLOCKS = 3; // # of blocks along y axis
+const size_t X_BLOCKS = 2; // # of blocks along x axis
+const size_t Y_BLOCKS = 2; // # of blocks along y axis
 static size_t x_max = 0;
 static size_t y_max = 0;
 static size_t x_min = 0;
 static size_t y_min = 0;
-float overlap_ratio = 0.2;
+float overlap_ratio = 0.5;
 typedef pair<size_t,size_t> SizeTPair;
 class Triplet;
 typedef Triplet Matrix;
