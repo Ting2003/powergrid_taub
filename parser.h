@@ -35,12 +35,14 @@ public:
 	int get_num_layers() const;
 
 	// functions for block
-	void set_block_geometry(float *geo);
+	void set_block_geometry(float *geo, MPI_CLASS &mpi_class);
 	int cpr_nd_block(Node &nd, float *geo, int &bid);
 	
-	void net_to_block(float *geo);
+	int cpr_nd_block(Node *nd, float *geo, int &bid);
 
-	void build_block_geo(int &my_id);
+	void net_to_block(float *geo, MPI_CLASS &mpi_class);
+
+	void build_block_geo(int &my_id, MPI_CLASS &mpi_class);
 
 	void second_parse(int &my_id, MPI_CLASS &mpi_class);
 	
@@ -51,13 +53,13 @@ public:
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits
 
-	int extract_layer(int &my_id, vector<CKT_LAYER >&ckt_layer_info);
+	int extract_layer(int &my_id, vector<CKT_LAYER >&ckt_layer_info, MPI_CLASS &mpi_class);
 	bool sort(vector <CKT_LAYER> &a);
 
 	void try_change_via(Net *);
 
 	//void insert_net_node(string line);
-	void insert_net_node(char * line);
+	void insert_net_node(char * line, int &count, MPI_CLASS &mpi_class);
 	void extract_node(char * str, Node & nd);
 	void update_node(Net * net);
 

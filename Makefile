@@ -53,3 +53,4 @@ all: main
 clean:
 	@echo "Cleaning all..."
 	rm -rf *.o $(OBJ) $(DBG) $(BIN) #tags $(CSCOPEFILES)
+	rm ./INPUT_FILE/*

@@ -109,21 +109,30 @@ int main(int argc, char * argv[]){
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
-	return 0;
+	
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
 		if(ckt->get_name()=="VDD"){
-		if(my_id ==0)
+		/*if(my_id ==3){
+			clog<<mpi_class.block_geo[0]<<" "<<
+			mpi_class.block_geo[2]<<" "<<
+			mpi_class.block_geo[1]<<" "<<
+			mpi_class.block_geo[3]<<endl;
 			clog<<"Solving "<<ckt->get_name()<<endl;
-		ckt->solve(my_id, num_procs);
-		if(my_id ==0){
-			cktlist[i]->print();
+			clog<<"w: "<<ckt->bd_nodelist_w<<endl;
+			clog<<"e: "<<ckt->bd_nodelist_e<<endl;
+			clog<<"s: "<<ckt->bd_nodelist_s<<endl;
+			clog<<"n: "<<ckt->bd_nodelist_n<<endl;
+		}*/
+
+		ckt->solve(my_id, num_procs, mpi_class);
+		//if(my_id ==0){
+			//cktlist[i]->print();
 			//clog<<endl;
-		}
+		//}
 		// after that, this circuit can be released
 		}
 

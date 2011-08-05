@@ -28,6 +28,7 @@
 #include "vec.h"
 #include "triplet.h"
 #include "block.h"
+#include "mpi_class.h"
 using namespace std;
 using namespace std::tr1;
 
@@ -63,6 +64,7 @@ public:
 
 	// add a node into nodelist
 	bool add_node(Node * nd);
+	bool add_node_bd(int &count, Node * node);
 
 	// add a net into netset
 	bool add_net(Net * net);
@@ -72,12 +74,11 @@ public:
 
 	// sort nodes according to predefined order
 	void sort_nodes();
+	void sort_bd_nodes();
 
 	// solve for node voltage
-	void solve(int &my_id, int &num_procs);
+	void solve(int &my_id, int &num_procs, MPI_CLASS &mpi_class);
 	
-	void set_blocklist(Node * nd);
-
 	static void set_parameters(double, double, double, size_t, int);
 	static void get_parameters(double&, double&, double&, size_t&, int&);
 
@@ -88,90 +89,71 @@ public:
 	void print();
 	cholmod_common c, *cm;
 
-	// mpi related functions
-	void mpi_setup(int &my_id, int &num_procs);
-	void MPI_Assign_Task(int &num_tasks, int &num_procs);
-	void block_mpi_setup(int &num_procs);
-	void mpi_create_matrix(int &my_id, int &num_procs); 
-
 	// mpi related variables
 	// member
 	// ******* processor 0  variable ********
-	Matrix *A_g; // local is Matrix *A
-	vector<long> Ti_g; // receiv by Ti
-	vector<long> Tj_g; // receiv by Tj
-	vector<double> Tx_g; // receiv by Tx
-
-	// start_task and end_task
-	int *start_task;
-	int *end_task;
-	// tasks_n stores # of blocks for each processor
-	int *tasks_n;
-	// b_new_info is the global solution array
-	float *b_new_info;
-
-	// # of nz for all the blocks, receive by 
-	int *nz_A;
-	// # of n for all the blocks, receive by L_n
-	int *L_n_d;
-
-	// base for matrix nz for each processor
-	int *base_nz_A;
-	// base for rhs n for each processor
-	int *base_n_d;
-
-	// # for matrix nz send for each processor
-	int *send_nz_A;
-	// # for rhs n send for each processor
-	int *send_n;
+	// b_new_info is the global bd solution array
+	float *bd_x_g;
+	float *bd_x_g_temp;
 	
 	// ****** other processor *******
-	Matrix *A;
-	vector<long> Ti;
-	vector<long> Tj;
-	vector<double> Tx;
-
-	BlockInfo block_info_mpi;
+	Matrix A;
 
 	// solution array for each processor
-	float *b_x_d;
+	float *bd_x;
 
-	// # of matrix nz in each block within a processor
-	int *nz_dd_A;
-	// # of rhs n in each block within a processor
-	int *L_n_dd;
+	// stores boundary nodes value
+	int *bd_base;
+
+	// stores 4 boundary base of each processor
+	// into processor 0
+	int *bd_base_gd;
+
+	// stores the base for receiving bd_x_g
+	int *bd_base_g;
 	
-	// nz and L_n are # of nz in L and # of n in rhs
-	// nz here is the non-zero of triplet including coord
-	int nz; 
-	int L_n;
-	// block_size is the number of tasks for each cpu
+	// bd_size_g store the total bd_size of each block
+	int *bd_size_g;
+
+	// stores 4 boundary size
+	int *bd_dd_size;
+	// stores toal block's 4 boundary size
+	int *bd_dd_size_g;
+	
+	// total boundary node size
+	int bd_size;
+	// stores the whole grid size
+	// into processor 0
+	int total_size;
+
+	int total_blocks;
+	
+	// block_size is either 0 or 1
 	int block_size;
 
-	int num_blocks;
-
-	size_t total_n, total_nz_A;
+	// 4 boundary nodelist
+	NodePtrVector bd_nodelist_w; // west bd nodelist
+	NodePtrVector bd_nodelist_e; // east bd nodelist
+	NodePtrVector bd_nodelist_s; // south bd nodelist
+	NodePtrVector bd_nodelist_n; // north bd nodelist
 
 private:
 	// member functions
-	void solve_LU();
-	void solve_LU_core();
 
-	bool solve_IT(int &my_id, int&num_procs);
+	bool solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class);
 	void solve_block_LU();
 	void decomp_matrix(int &my_id, Matrix *A);
 	bool solve_pcg();
 	//bool solve_block_pcg();
-
 	
 	// initialize things before solve_iteration
 	void solve_init();
 	void solve_init_LU();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int&num_procs);
+	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class);
 
-	void block_init(Matrix *A);
+	void block_init(Matrix &A, MPI_CLASS &mpi_class);
 	void update_block_geometry();
 
 	// methods of stamping the matrix
@@ -180,15 +162,20 @@ private:
 	void stamp_current(double* b, Net * net);
 	void stamp_VDD(Matrix & A, double* b, Net * net);
 	
-	void make_A_symmetric(Matrix &A, double *bp);
-	void make_A_symmetric_block();
+	void make_A_symmetric(double *bp);
 
-	void stamp_block_matrix(Matrix *A);
+	void stamp_block_matrix(Matrix &A);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
-	void stamp_block_resistor(Net *net, Matrix * A);
-	void stamp_block_current(Net * net, Matrix * A);
-	void stamp_block_VDD(Net * net, Matrix * A);
+	void stamp_block_resistor(Net *net, Matrix &A);
+	void stamp_block_current(Net * net);
+	void stamp_block_VDD(Net * net, Matrix &A);
+
+	void boundary_init(int &my_id, int &num_procs);
+	void assign_bd_array();
+	void assign_bd_base();
+	void assign_bd_internal_array();
+	void reorder_bd_x_g(MPI_CLASS &mpi_class);
 
 	void update_block_rhs(Block & block, int dir);
 
@@ -211,14 +198,10 @@ private:
 	Vec compute_block_precondition( Vec &r);
 
 	void set_len_per_block();
-	void find_block_size ();
-	void block_boundary_insert_net(Net * net);
-	void find_block_base();
+	void find_block_size (MPI_CLASS &mpi_class);
 
-	void partition_circuit();
-	double modify_voltage(int &my_id, Block &block, size_t &base, double* x_old);
+	double modify_voltage(Block &block_info, double* x_old);
 
-	void node_voltage_init();
 	void solve_one_block(size_t block_id);
 
 	void select_omega();
@@ -237,6 +220,7 @@ private:
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
 	NodePtrVector mergelist;	// nodes for merging
+	
 	NetList net_set[NUM_NET_TYPE];// should be the same as size of NET_TYPE
 	// defines the net direction in layers
 	static vector<LAYER_DIR> layer_dir;
@@ -252,7 +236,7 @@ private:
 	string name;
 
 	// blocks
-	BlockInfo block_info;
+	Block block_info;
 	size_t x_min, y_min, x_max, y_max;
 
 	// control variables
@@ -273,13 +257,39 @@ inline size_t Circuit::get_total_num_layer(){return layer_dir.size();}
 
 // adds a node into nodelist
 inline bool Circuit::add_node(Node * node){
+	node->flag_bd = 0;
 	nodelist.push_back(node);
+	map_node[node->name] = node;
+	return true;
+}
+
+// adds a node into nodelist
+inline bool Circuit::add_node_bd(int &count, Node * node){
+	if(count ==1){
+		bd_nodelist_s.push_back(node);
+	}
+	else if(count==2){
+		bd_nodelist_n.push_back(node);
+	}
+	else if(count==3){
+		bd_nodelist_w.push_back(node);
+	}
+	else if(count==4){
+		bd_nodelist_e.push_back(node);
+	}
+	// node is boundary node
+	node->flag_bd = 1;
 	map_node[node->name] = node;
 	return true;
 }
 
 // adds a net into netset
 inline bool Circuit::add_net(Net * net){
+	// has at least one bd node, then belongs to bd net
+	if(net->ab[0]->flag_bd ==1 || net->ab[1]->flag_bd ==1)
+		net->flag_bd = 1;
+	else net->flag_bd = 0;
+
 	if( net->type == RESISTOR )
 		net_id[net] = net_set[net->type].size();
 	net_set[net->type].push_back(net);

@@ -37,10 +37,6 @@ public:
 	double get_value() const;
 	void set_value(double v);
 
-	vector<size_t> & get_block_id() const;
-
-	bool inside_block(size_t block_id) const;
-
 	bool is_mergeable() const;
 
 	friend ostream & operator << (ostream & os, const Node & node);
@@ -58,13 +54,15 @@ public:
 	Net * nbr[6];		// neighboring nets
 
 	size_t rid;		// id in rep_list
+	// to record whether this node is
+	// a boundary node or internal node
+	// flag_bd = 1, bd node, else internal node
+	int flag_bd;
 
 private:
 	double value;		// voltage
 	bool flag;		// mark if the node is an X
 	Node * rep;		// representative, if somewhere is short-circuit
-	vector<size_t> blocklist;	// belongs to which block
-	vector<size_t> id_in_block;	// local index inside block	
 
 	Node * end[4];		// south - north (west-east) ends
 	double eqvr[4];		// equivalent resisotrs
@@ -84,15 +82,6 @@ inline void Node::set_value(double v){value = v;}
 
 inline void Node::set_nbr(DIRECTION dir, Net * net){ nbr[dir] = net; }
 
-inline vector<size_t> & Node::get_block_id() const{return rep->blocklist;}
-
-inline bool Node::inside_block(size_t block_id) const{
-	vector<size_t>::const_iterator it;
-	it = find(blocklist.begin(), blocklist.end(), block_id);
-	if( it == blocklist.end() ) return false;
-	return true;
-}
-
 inline Node * Node::get_nbr_node(DIRECTION dir) const{
 	if( nbr[dir] == NULL ) return NULL;
 	Node * nbr_node = nbr[dir]->ab[0];
@@ -105,9 +94,11 @@ inline Net * Node::get_nbr_net(DIRECTION dir) const{
 
 inline bool Node::is_mergeable() const{
 	return nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
-	     ((nbr[EAST]  != NULL && nbr[WEST]  != NULL &&
+	     (((nbr[EAST]  != NULL && nbr[EAST]->flag_bd ==0) &&
+	       (nbr[WEST]  != NULL && nbr[WEST]->flag_bd ==0) &&
 	       nbr[NORTH] == NULL && nbr[SOUTH] == NULL)
-	    ||(nbr[NORTH] != NULL && nbr[SOUTH] != NULL &&
+	    ||((nbr[NORTH] != NULL && nbr[NORTH]->flag_bd==0)&&
+	      (nbr[SOUTH] != NULL && nbr[SOUTH]->flag_bd==0)&&
 	       nbr[EAST]  == NULL && nbr[WEST] == NULL));
 }
 

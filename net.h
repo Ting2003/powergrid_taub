@@ -18,6 +18,9 @@ public:
 	//string name;
 	double value;
 	Node* ab[2];	// two connection node
+	// if flag_bd =1, then bd net
+	// if flag_bd =0, then internal net
+	int flag_bd;
 };
 
 #endif
