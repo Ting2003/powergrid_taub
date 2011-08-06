@@ -35,7 +35,7 @@ public:
 
 	void update_x();
 
-	void update_rhs();
+	void update_rhs(int &my_id);
 
 	void update_block_geometry(MPI_CLASS &mpi_class);
 	
@@ -54,6 +54,7 @@ public:
 	// x_new is the double array of xp
 	// for the transfer of mpi
 	float *x_new;
+	// doesn't exist in allocate resource
 	double *b_init, *b_new;
 	// solution
 	cholmod_dense *x_ck;

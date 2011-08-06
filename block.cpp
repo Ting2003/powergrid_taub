@@ -69,12 +69,13 @@ void Block::allocate_resource(cholmod_common *cm){
 }
 
 // update rhs of each block with its boundary netlist
-void Block::update_rhs(){
+void Block::update_rhs(int &my_id){
 	size_t size = boundary_netlist.size();
 	size_t k=0, l=0;
 	//b_new = b;
-	for(size_t i=0;i<count;i++)
-		bnewp[i] = b_init[i];
+	for(size_t i=0;i<count;i++){
+		bnewp[i] = bp[i];
+	}
 
 	// for each net in this block
 	for(size_t i=0;i<size;i++){

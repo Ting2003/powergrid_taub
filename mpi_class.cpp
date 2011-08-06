@@ -7,7 +7,7 @@ MPI_CLASS::MPI_CLASS(){
 	y_max = 0;
 	x_min = 0;
 	y_min = 0;
-	overlap_ratio = 0.5;
+	overlap_ratio = 0;
 
 	start_task = NULL;
 	end_task = NULL;

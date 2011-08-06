@@ -74,7 +74,7 @@ public:
 
 	// sort nodes according to predefined order
 	void sort_nodes();
-	void sort_bd_nodes();
+	void sort_bd_nodes(int &my_id);
 
 	// solve for node voltage
 	void solve(int &my_id, int &num_procs, MPI_CLASS &mpi_class);
@@ -143,17 +143,15 @@ private:
 	bool solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class);
 	void solve_block_LU();
 	void decomp_matrix(int &my_id, Matrix *A);
-	bool solve_pcg();
-	//bool solve_block_pcg();
 	
 	// initialize things before solve_iteration
-	void solve_init();
+	void solve_init(int &my_id);
 	void solve_init_LU();
 
 	// updates nodes value in each iteration
 	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class);
 
-	void block_init(Matrix &A, MPI_CLASS &mpi_class);
+	void block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void update_block_geometry();
 
 	// methods of stamping the matrix
@@ -164,24 +162,24 @@ private:
 	
 	void make_A_symmetric(double *bp);
 
-	void stamp_block_matrix(Matrix &A);
+	void stamp_block_matrix(int &my_id, Matrix &A);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
-	void stamp_block_resistor(Net *net, Matrix &A);
-	void stamp_block_current(Net * net);
-	void stamp_block_VDD(Net * net, Matrix &A);
+	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
+	void stamp_block_current(int &my_id, Net * net);
+	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
 	void boundary_init(int &my_id, int &num_procs);
 	void assign_bd_array();
-	void assign_bd_base();
-	void assign_bd_internal_array();
+	void assign_bd_base(int &my_id);
+	void assign_bd_internal_array(int &my_id);
 	void reorder_bd_x_g(MPI_CLASS &mpi_class);
 
 	void update_block_rhs(Block & block, int dir);
 
 	//  ******* method for PCG method  ********
 	// solve circuit with preconditioned pcg method
-	void copy_node_voltages_block(bool from=true);
+	void copy_node_voltages_block();
 
 	// after solving, copy node voltage from replist to nodes
 	void get_voltages_from_LU_sol(double* x);
@@ -200,7 +198,7 @@ private:
 	void set_len_per_block();
 	void find_block_size (MPI_CLASS &mpi_class);
 
-	double modify_voltage(Block &block_info, double* x_old);
+	double modify_voltage(int &my_id, Block &block_info, double* x_old);
 
 	void solve_one_block(size_t block_id);
 
