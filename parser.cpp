@@ -92,8 +92,9 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			count = cpr_nd_block(nd_ptr[i], mpi_class.block_geo, my_id);
 			if (count==0) // internal node
 				ckt->add_node(nd_ptr[i]);
-			else // bd node, push into 4 bd netlist
+			else{ // bd node, push into 4 bd netlist
 				ckt->add_node_bd(count,nd_ptr[i]);
+			}
 
 			if( nd_ptr[i]->isX() )	     // determine circuit type
 				ckt->set_type(WB);

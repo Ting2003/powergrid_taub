@@ -93,14 +93,14 @@ public:
 	// member
 	// ******* processor 0  variable ********
 	// b_new_info is the global bd solution array
-	float *bd_x_g;
-	float *bd_x_g_temp;
+	double *bd_x_g;
+	double *bd_x_g_temp;
 	
 	// ****** other processor *******
 	Matrix A;
 
 	// solution array for each processor
-	float *bd_x;
+	double *bd_x;
 
 	// stores boundary nodes value
 	int *bd_base;
