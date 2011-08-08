@@ -36,9 +36,9 @@ using namespace std;
 double Circuit::EPSILON = 1e-5;
 size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
-double Circuit::OVERLAP_RATIO = 0.2;
+double Circuit::OVERLAP_RATIO = 0;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 2;//1000;
+const int MAX_ITERATION = 5;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -425,7 +425,10 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 			assign_bd_array();
 		}
 		// new rhs store in bnewp
-		block_info.update_rhs(my_id);	
+		block_info.update_rhs(my_id);
+		//if(iter==2 &&my_id==3)
+			//for(int i=0;i<block_info.count;i++)
+				//clog<<i<<" "<<block_info.bnewp[i]<<endl;
 
 		// x_old stores old solution
 		for(size_t j=0;j<block_info.count;j++)
@@ -433,6 +436,9 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
+		if(iter==2 && my_id==3)
+			for(int i=0;i< block_info.count;i++)
+				clog<<i<<" "<<block_info.xp[i]<<endl;
 
 		diff = modify_voltage(my_id, block_info, 
 				block_info.x_old);
