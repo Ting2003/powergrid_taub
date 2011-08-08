@@ -97,7 +97,7 @@ public:
 	double *bd_x_g_temp;
 	
 	// ****** other processor *******
-	Matrix *A;
+	Matrix A;
 
 	// solution array for each processor
 	double *bd_x;
@@ -142,7 +142,7 @@ private:
 
 	bool solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class);
 	void solve_block_LU();
-	void decomp_matrix(int &my_id, Matrix *A);
+	void decomp_matrix(int &my_id, Matrix &A);
 	
 	// initialize things before solve_iteration
 	void solve_init(int &my_id);
@@ -151,19 +151,19 @@ private:
 	// updates nodes value in each iteration
 	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class);
 
-	void block_init(int &my_id, Matrix *A, MPI_CLASS &mpi_class);
+	void block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void update_block_geometry();
 
 	// methods of stamping the matrix
 	
 	void make_A_symmetric(double *bp);
 
-	void stamp_block_matrix(int &my_id, Matrix *A);
+	void stamp_block_matrix(int &my_id, Matrix &A);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
-	void stamp_block_resistor(int &my_id, Net *net, Matrix *A);
+	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
 	void stamp_block_current(int &my_id, Net * net);
-	void stamp_block_VDD(int &my_id, Net * net, Matrix *A);
+	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
 	void boundary_init(int &my_id, int &num_procs);
 	void assign_bd_array();

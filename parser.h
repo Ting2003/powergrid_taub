@@ -15,6 +15,7 @@
 #include "circuit.h"
 #include "mpi_class.h"
 #include <algorithm>
+#include <map>
 #include <string>
 using std::vector;
 
@@ -40,9 +41,11 @@ public:
 	
 	int cpr_nd_block(Node *nd, float *geo, int &bid);
 
-	void net_to_block(float *geo, MPI_CLASS &mpi_class);
+	void net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &mpi_class);
 
 	void build_block_geo(int &my_id, MPI_CLASS &mpi_class);
+
+	void set_vdd_map(map<string, string> &vdd_map);
 
 	void second_parse(int &my_id, MPI_CLASS &mpi_class);
 	

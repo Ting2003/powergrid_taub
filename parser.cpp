@@ -287,7 +287,9 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 		0, MPI_COMM_WORLD);
 	
 	if(my_id==0){
-		net_to_block(mpi_class.geo, mpi_class);
+		map<string, string> vdd_map;
+		set_vdd_map(vdd_map);
+		net_to_block(vdd_map, mpi_class.geo, mpi_class);
 	}
 }
 
@@ -483,7 +485,7 @@ void Parser::set_block_geometry(float *geo, MPI_CLASS &mpi_class){
 	}
 }
 
-void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
+void Parser::net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &mpi_class){
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
@@ -495,6 +497,8 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	if(f==NULL) report_exit("Input file not exist!\n");
 
 	char line[MAX_BUF];
+	char line_temp[MAX_BUF];
+	int j=0;
 
 	int color = 0;
 	vector<FILE *> of;
@@ -502,10 +506,13 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	clog<<"num_blocks. "<<num_blocks<<endl;
 	InitialOF(of, num_blocks, color);
 
+	map<string, string>::iterator it;
+	it  = vdd_map.begin();
+
 	int count_1 = 0, count_2 = 0;
 	while( fgets(line, MAX_BUF,f)!=NULL){
 		if(line[0]=='r' || line[0] =='R' ||
-		   line[0]=='v' || line[0]=='V' ||
+		   line[0]=='v' || line[0] =='V' ||
 		   line[0]=='i' || line[0]=='I'){
 			sscanf(line, "%s %s %s %lf", 
 					sname, sa, sb, &value);
@@ -519,9 +526,33 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 				count_1 = cpr_nd_block(nd[0], geo, i);
 				count_2 = cpr_nd_block(nd[1], geo, i);
 
-				if(count_1 + count_2 >=1){
+				// write all voltage sources
+				if((count_1 + count_2 >=1))
 					fprintf(of[i], "%s", line);
+				if(count_1==0 && count_2 ==1){
+					it = vdd_map.find(nd[0].name);
+					if(it != vdd_map.end()){
+						j=0;
+						while(j<it->second.size()){
+							line_temp[j] = it->second[j];
+						}
+						line_temp[j] = '\0';
+						fprintf(of[i], "%s", line_temp);
+					}
 				}
+				else if(count_2 ==0 && count_1 ==1){
+					it = vdd_map.find(nd[1].name);
+					if(it !=vdd_map.end()){
+						j=0;
+						while(j < it->second.size()){
+							line_temp[j] = it->second[j];
+							j++;
+						}
+						line_temp[j] = '\0';
+						fprintf(of[i], "%s", line_temp);
+					}
+				}
+
 			}
 		}
 	}
@@ -530,6 +561,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 		fclose(of[i]);
 	}
 	of.clear();
+	vdd_map.clear();
 }
 
 int Parser::cpr_nd_block(Node &nd, float *geo, int &bid){
@@ -579,4 +611,35 @@ void Parser::InitialOF(vector<FILE *> & of, int &num_blocks, int &color){
 		f = fopen(buff, "w");
 		of.push_back(f);
 	}
+}
+
+void Parser::set_vdd_map(map<string, string> &vdd_map){
+	static char sa[MAX_BUF];
+	static char sb[MAX_BUF];
+	static char sname[MAX_BUF];
+	double value;
+
+	FILE *f;
+	f = fopen(this->filename, "r");
+	if(f==NULL)report_exit("Input file not exist!\n");
+
+	char line[MAX_BUF];
+	pair<string, string> vdd_pair;
+
+	while(fgets(line, MAX_BUF, f)!=NULL){
+		if(line[0]=='v'||line[0]=='V'){
+			sscanf(line, "%s %s %s %lf",
+				sname, sa, sb, &value);
+			if(sa[0] !='0'){
+				vdd_pair.first =(string)sa;
+			}
+			else if(sb[0] !='0'){
+				vdd_pair.first = (string)sb;
+			}
+
+			vdd_pair.second = (string)line;
+			vdd_map.insert(vdd_pair);
+		}
+	}
+	fclose(f);
 }
