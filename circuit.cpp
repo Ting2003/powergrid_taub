@@ -436,7 +436,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		if(iter==2 && my_id==3)
+		if(iter==1 && my_id==3)
 			for(int i=0;i< block_info.count;i++)
 				clog<<i<<" "<<block_info.xp[i]<<endl;
 
