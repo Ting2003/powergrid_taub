@@ -81,7 +81,7 @@ int main(int argc, char * argv[]){
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
-	//if(my_id==0) clog<<"num_procs: "<<num_procs<<endl;	
+	if(my_id==0) clog<<"num_procs: "<<num_procs<<endl;	
 
 	if( freopen(output, "w", stdout) == NULL )
 		report_exit("Ouptut file error\n");

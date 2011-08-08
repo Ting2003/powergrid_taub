@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0.2;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 50;//1000;
+const int MAX_ITERATION = 1;//1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -63,6 +63,7 @@ Circuit::Circuit(string _name):name(_name),
 	// mpi relate	
 	bd_x_g=NULL;
 	bd_x_g_temp = NULL;
+	A = NULL;
 	
 	bd_x = NULL;
 	bd_base = NULL;
@@ -94,6 +95,7 @@ Circuit::~Circuit(){
 	// mpi related variables
 	delete [] bd_x_g;
 	delete [] bd_x_g_temp;
+	delete [] A;
 	delete [] bd_x;
 	delete [] bd_base;
 	delete [] bd_base_gd;
@@ -209,6 +211,7 @@ void Circuit::print(){
 void Circuit::solve_init(int &my_id){
 	sort_nodes();
 	sort_bd_nodes(my_id);
+	A = new Matrix [total_blocks];
 
 	size_t size = nodelist.size() - 1;
 	Node * p = NULL;
@@ -265,7 +268,7 @@ void Circuit::solve_init(int &my_id){
 // 2. Set each node in replist into block
 // 3. Compute block size
 // 4. Insert boundary netlist into map
-void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
+void Circuit::block_init(int &my_id, Matrix *A, MPI_CLASS &mpi_class){
 	block_info.update_block_geometry(mpi_class);
 	block_info.allocate_resource(cm);
 	copy_node_voltages_block();
@@ -276,7 +279,7 @@ void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 
 // stamp the nets by sets, block version
 // *NOTE* at the same time insert the net into boundary netlist
-void Circuit::stamp_block_matrix(int &my_id, Matrix &A){
+void Circuit::stamp_block_matrix(int &my_id, Matrix *A){
 	//size_t num_blocks = block_info.size();
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetList & ns = net_set[type];
@@ -314,9 +317,10 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A){
 	}
 	make_A_symmetric(block_info.bp);
 
-	A.set_row(block_info.count);
-	if(block_info.count >0)
-		block_info.CK_decomp(A, cm);
+	A[my_id].set_row(block_info.count);
+	//if(block_info.count >0){
+		//block_info.CK_decomp(A[my_id], cm);
+	//}
 }
 
 // 1. mark rep nodes into corresponding blocks
@@ -357,9 +361,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	time += t2-t1;
 
 	t1 = MPI_Wtime();
-	if(mpi_class.block_size >0){
+	if(my_id < total_blocks){
 		block_init(my_id, A, mpi_class);
+		block_info.CK_decomp(A[my_id],cm);
 	}
+	return true;
 	boundary_init(my_id, num_procs);
 	
 	// stores 4 boundary base into bd_base_gd
@@ -426,6 +432,10 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 		// new rhs store in bnewp
 		block_info.update_rhs(my_id);
 
+		if(my_id==1)
+			for(int i=0;i<block_info.count;i++)
+				clog<<i<<" "<<block_info.bp[i]<<endl;
+
 		// x_old stores old solution
 		for(size_t j=0;j<block_info.count;j++)
 			block_info.x_old[j] = block_info.xp[j];	
@@ -471,7 +481,7 @@ double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 			block.xp[i];
 		// update block nodes value
 		block.nodes[i]->value = block.xp[i];
-		if(my_id==0) clog<<*block.nodes[i]<<endl;
+		if(my_id==1) clog<<*block.nodes[i]<<endl;
 		double diff = fabs(x_old[i] - block.xp[i]);
 		if( diff > max_diff ) max_diff = diff;
 	}
@@ -552,41 +562,6 @@ void Circuit::copy_node_voltages_block(){
 	}
 }
 
-// stamp the net in each set, 
-// *NOTE* at the same time insert the net into boundary netlist
-void Circuit::stamp_by_set(Matrix & A, double* b){
-	for(int type=0;type<NUM_NET_TYPE;type++){
-		NetList & ns = net_set[type];
-		NetList::iterator it;
-		switch(type){
-		case RESISTOR:
-			for(it=ns.begin();it!=ns.end();++it){
-				if( (*it) == NULL ) continue;
-				assert( fzero((*it)->value) == false );
-				stamp_resistor(A, (*it));
-				//block_boundary_insert_net(ns[i]);
-			}
-			break;
-		case CURRENT:
-			for(it=ns.begin();it!=ns.end();++it)
-				stamp_current(b, (*it));
-			break;
-		case VOLTAGE:
-			for(it=ns.begin();it!=ns.end();++it){
-				if( fzero((*it)->value)  && 
-				    !(*it)->ab[0]->is_ground() &&
-				    !(*it)->ab[1]->is_ground() )
-					continue; // it's a 0v via
-				stamp_VDD(A, b, (*it));
-			}
-			break;
-		default:
-			report_exit("Unknwon net type\n");
-			break;
-		}
-	}
-}
-
 void Circuit::make_A_symmetric(double *b){
 	int type = RESISTOR;
 	NetList & ns = net_set[type];
@@ -611,61 +586,9 @@ void Circuit::make_A_symmetric(double *b){
 	}
 }
 
-void Circuit::stamp_resistor(Matrix & A, Net * net){
-	double G;
-	Node * nk = net->ab[0]->rep;
-	Node * nl = net->ab[1]->rep;
-	size_t k = nk->rid;
-	size_t l = nl->rid;
-	G = 1./net->value;
-	if( !nk->isX() ) {
-		A.push_back(k,k, G);
-		if(!nl->isX() && l < k) // store lower triangular
-			A.push_back(k,l,-G);
-	}
-
-	if( !nl->isX() ) {
-		A.push_back(l,l, G);
-		if(!nk->isX() && k < l) // store ower triangular
-			A.push_back(l,k,-G);
-	}
-}
-
-// stamp a current source
-void Circuit::stamp_current(double * b, Net * net){
-	Node * nk = net->ab[0]->rep;
-	Node * nl = net->ab[1]->rep;
-	if( !nk->is_ground() && !nk->isX() ) { 
-		size_t k = nk->rid;
-		b[k] += -net->value;
-	}
-	if( !nl->is_ground() && !nl->isX() ) {
-		size_t l = nl->rid;
-		b[l] +=  net->value;
-	}
-}
-
-// stamp a voltage source
-void Circuit::stamp_VDD(Matrix & A, double * b, Net * net){
-	// find the non-ground node
-	Node * X = net->ab[0];
-	if( X->is_ground() ) X = net->ab[1];
-	size_t id = X->rep->rid;
-	A.push_back(id, id, 1.0);
-	Net * south = X->rep->nbr[SOUTH];
-	if( south != NULL &&
-	    south->type == CURRENT ){
-		// this node connects to a VDD and a current
-		assert( feqn(1.0, b[id]) ); // the current should be stamped
-		b[id] = net->value;	    // modify it
-	}
-	else
-		b[id] += net->value;
-}
-
 // =========== stamp block version of matrix =======
 
-void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
+void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix *A){
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
 
 	double G;	
@@ -681,7 +604,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			if(nk->flag_bd ==0 && !nk->isX()){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
-				A.push_back(k1,k1, G);
+				A[my_id].push_back(k1,k1, G);
 			}
 		}
 		// else internal net
@@ -689,9 +612,9 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
 
-			A.push_back(k1,k1, G);
+			A[my_id].push_back(k1,k1, G);
 			if(!nl->isX() && l1 < k1) // only store the lower triangular part
-				A.push_back(k1,l1,-G);
+				A[my_id].push_back(k1,l1,-G);
 		}
 	}// end of for j	
 }
@@ -712,7 +635,7 @@ void Circuit::stamp_block_current(int &my_id, Net * net){
 	}
 }
 
-void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
+void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix *A){
 	// find the non-ground node
 	Node * X = net->ab[0];
 	if( X->is_ground() ) X = net->ab[1];
@@ -720,7 +643,7 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 	if(X->rep->flag_bd ==1) return;
 	// do stamping for internal node
 	long id =X->rep->rid;
-	A.push_back(id, id, 1.0);
+	A[my_id].push_back(id, id, 1.0);
 	Net * south = X->rep->nbr[SOUTH];
 	if( south != NULL &&
 			south->type == CURRENT ){
