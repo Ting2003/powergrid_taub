@@ -191,6 +191,5 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 	//L->ordering = CHOLMOD_NATURAL;
 	cholmod_factorize(A_cholmod, L, cm);
 	//return;
-	cholmod_print_factor(L, "L", cm);
 	cholmod_free_sparse(&A_cholmod, cm);
 }

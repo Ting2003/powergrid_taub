@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 5;//1000;
+const int MAX_ITERATION = 500;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -62,7 +62,6 @@ Circuit::Circuit(string _name):name(_name),
 
 	// mpi relate	
 	bd_x_g=NULL;
-	bd_x_g_temp = NULL;
 	
 	bd_x = NULL;
 	bd_base = NULL;
@@ -93,7 +92,6 @@ Circuit::~Circuit(){
 	
 	// mpi related variables
 	delete [] bd_x_g;
-	delete [] bd_x_g_temp;
 	delete [] bd_x;
 	delete [] bd_base;
 	delete [] bd_base_gd;
@@ -376,6 +374,19 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	double diff=0;
 	bool successful = false;
 
+	// before iteration, copy boundary nodes value to corresponding blocks
+	assign_bd_internal_array(my_id);
+	MPI_Gatherv(bd_x, bd_size, MPI_DOUBLE, bd_x_g, 
+		bd_size_g, bd_base_g, MPI_DOUBLE, 0, 
+		MPI_COMM_WORLD);
+	
+	// reorder boundary array according to nbrs
+	if(my_id==0)	reorder_bd_x_g(mpi_class);	
+	MPI_Scatterv(bd_x_g, bd_size_g, bd_base_g, MPI_DOUBLE, 
+		bd_x, bd_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+			
+	assign_bd_array();
+
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
@@ -390,9 +401,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;
+	if(my_id==0) cout<<replist<<endl;
 	if(my_id==0){
 		//clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
+		//clog<<replist<<endl;
 		get_voltages_from_block_LU_sol();
 		get_vol_mergelist();
 	}
@@ -426,7 +439,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 		}
 		// new rhs store in bnewp
 		block_info.update_rhs(my_id);
-		//if(iter==2 &&my_id==3)
+		//if(iter==0 &&my_id==3)
 			//for(int i=0;i<block_info.count;i++)
 				//clog<<i<<" "<<block_info.bnewp[i]<<endl;
 
@@ -436,9 +449,9 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		if(iter==1 && my_id==3)
-			for(int i=0;i< block_info.count;i++)
-				clog<<i<<" "<<block_info.xp[i]<<endl;
+		//if(iter==2 && my_id==3)
+			//for(int i=0;i< block_info.count;i++)
+				//clog<<i<<" "<<block_info.xp[i]<<endl;
 
 		diff = modify_voltage(my_id, block_info, 
 				block_info.x_old);
@@ -452,10 +465,12 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0){
+		//if(iter==1)
 		//for(int i=0;i<total_size;i++)
 			//clog<<i<<" "<<bd_x_g[i]<<endl;
 		//clog<<endl;
 		reorder_bd_x_g(mpi_class);
+		//if(iter==1)
 		//for(int i=0;i<total_size;i++)
 			//clog<<i<<" "<<bd_x_g[i]<<endl;
 
@@ -568,15 +583,16 @@ void Circuit::make_A_symmetric(double *b){
 		if( (*it) == NULL || (*it)->flag_bd ==1) 
 			continue;
 		assert( fzero((*it)->value) == false );
+		Node *nd[] = {(*it)->ab[0]->rep, (*it)->ab[1]->rep};
 		// node a points to X node
-		if((*it)->ab[0]->isX()){
-			p = (*it)->ab[0]; q = (*it)->ab[1];
+		if(nd[0]->isX()){
+			p = nd[0]; q = nd[1];
 		}
-		else if((*it)->ab[1]->isX()){
-			p = (*it)->ab[1]; q = (*it)->ab[0];
+		else if(nd[1]->isX()){
+			p = nd[1]; q = nd[0];
 		}
 		else continue;
-		size_t id = q->rep->rid;
+		size_t id = q->rid;
 		double G = 1.0 / (*it)->value;
 		b[id] += p->value * G;
 	}
@@ -586,7 +602,7 @@ void Circuit::make_A_symmetric(double *b){
 
 void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
-
+	
 	double G;	
 	G = 1./net->value;
 	
@@ -617,7 +633,8 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 
 void Circuit::stamp_block_current(int &my_id, Net * net){
 	Node * nk = net->ab[0]->rep;
-	Node * nl = net->ab[1]->rep;
+	Node * nl = net->ab[1]->rep;	
+
 	// only stamp for internal node
 	if( !nk->is_ground() && !nk->isX() && nk->flag_bd ==0) {
 		size_t k = nk->rid;
@@ -807,7 +824,6 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 		for(int i=0;i<total_blocks;i++)
 			total_size += bd_size_g[i];
 		bd_x_g = new double[total_size];
-		bd_x_g_temp = new double[total_size];
 	}
 
 	bd_base_g = new int [num_procs];
@@ -845,44 +861,54 @@ void Circuit::assign_bd_internal_array(int &my_id){
 	Node *nd;
 	int base =0;
 
+	int temp=3;
+
 	// assign east boundary node value
 	base = bd_base[0];
 	for(size_t i=0;i<bd_nodelist_e.size();i++){
 		p = bd_nodelist_e[i];
-		if(p->nbr[WEST]->ab[0]->flag_bd == 0)
-			nd = p->nbr[WEST]->ab[0];
-		else nd = p->nbr[WEST]->ab[1];
+		if(p->nbr[WEST]->ab[0]->rep->flag_bd == 0)
+			nd = p->nbr[WEST]->ab[0]->rep;
+		else nd = p->nbr[WEST]->ab[1]->rep;
 		bd_x[base+i] = nd->value;
+		//if(my_id==temp)
+			//clog<<base+i<<" "<<*p<<" "<<*nd<<endl;
 	}
 
 	// assign west boundary node value
 	base = bd_base[1];
 	for(size_t i=0;i<bd_nodelist_w.size();i++){
 		p = bd_nodelist_w[i];
-		if(p->nbr[EAST]->ab[1]->flag_bd == 0)
-			nd = p->nbr[EAST]->ab[1];
-		else nd = p->nbr[EAST]->ab[0];
+		if(p->nbr[EAST]->ab[1]->rep->flag_bd == 0)
+			nd = p->nbr[EAST]->ab[1]->rep;
+		else nd = p->nbr[EAST]->ab[0]->rep;
 		bd_x[base+i] = nd->value;
+		//if(my_id==temp)
+			//clog<<base+i<<" "<<*p<<" "<<*nd<<endl;
 	}
 	
 	// assign north boundary node value
 	base = bd_base[2];
 	for(size_t i=0;i<bd_nodelist_n.size();i++){
 		p = bd_nodelist_n[i];
-		if(p->nbr[SOUTH]->ab[0]->flag_bd == 0)
-			nd = p->nbr[SOUTH]->ab[0];
-		else nd = p->nbr[SOUTH]->ab[1];
+		if(p->nbr[SOUTH]->ab[0]->rep->flag_bd == 0)
+			nd = p->nbr[SOUTH]->ab[0]->rep;
+		else nd = p->nbr[SOUTH]->ab[1]->rep;
 		bd_x[base+i] = nd->value;
+		//if(my_id==temp)
+			//clog<<base+i<<" "<<*p<<" "<<*nd<<endl;
 	}
 
 	// assign south boundary node value
 	base = bd_base[3];
 	for(size_t i=0;i<bd_nodelist_s.size();i++){
 		p = bd_nodelist_s[i];
-		if(p->nbr[NORTH]->ab[1]->flag_bd == 0)
-			nd = p->nbr[NORTH]->ab[1];
-		else nd = p->nbr[NORTH]->ab[0];
+		if(p->nbr[NORTH]->ab[1]->rep->flag_bd == 0)
+			nd = p->nbr[NORTH]->ab[1]->rep;
+		else nd = p->nbr[NORTH]->ab[0]->rep;
 		bd_x[base+i] = nd->value;
+		//if(my_id==temp)
+			//clog<<base+i<<" "<<*p<<" "<<*nd<<endl;
 	}
 }
 
@@ -895,28 +921,28 @@ void Circuit::assign_bd_array(){
 	// assign east boundary node value
 	base = bd_base[0];
 	for(size_t i=0;i<bd_nodelist_e.size();i++){
-		p = bd_nodelist_e[i];
+		p = bd_nodelist_e[i]->rep;
 		p->value = bd_x[base+i];
 	}
 
 	// assign west boundary node value
 	base = bd_base[1];
 	for(size_t i=0;i<bd_nodelist_w.size();i++){
-		p = bd_nodelist_w[i];
+		p = bd_nodelist_w[i]->rep;
 		p->value = bd_x[base+i];
 	}
 	
 	// assign north boundary node value
 	base = bd_base[2];
 	for(size_t i=0;i<bd_nodelist_n.size();i++){
-		p = bd_nodelist_n[i];
+		p = bd_nodelist_n[i]->rep;
 		p->value = bd_x[base+i];
 	}
 
 	// assign south boundary node value
 	base = bd_base[3];
 	for(size_t i=0;i<bd_nodelist_s.size();i++){
-		p = bd_nodelist_s[i];
+		p = bd_nodelist_s[i]->rep;
 		p->value = bd_x[base+i];
 	}
 }
@@ -935,15 +961,20 @@ void Circuit::reorder_bd_x_g(MPI_CLASS &mpi_class){
 	int bid_x = 0;
 	int bid_nbr = 0;
 	int size = 0;
+	double *bd_x_g_temp;
+	bd_x_g_temp = new double [total_size];
+	
 	for(int i=0;i<total_blocks;i++){
 		bid_y = i / X_BLOCKS;
 		bid_x = i % X_BLOCKS;
+		//clog<<"reorder for "<<i<<" th block."<<endl;
 		// compute block base for i
 		base_glo_p = bd_base_g[i];	
 		// east nbr dir
 		base_p = base_glo_p+bd_base_gd[4*i];
 		if((bid_x+1) < X_BLOCKS){
 			bid_nbr = i+1;
+			//clog<<"east bid: "<<bid_nbr<<endl;
 			// compute block base
 			base_glo_q = bd_base_g[bid_nbr];
 			// find east nbr block base
@@ -951,48 +982,56 @@ void Circuit::reorder_bd_x_g(MPI_CLASS &mpi_class){
 			size = bd_dd_size_g[4*bid_nbr+1];
 			for(int j=0;j<size;j++){
 				bd_x_g_temp[base_p+j] = bd_x_g[base_q+j];
+				//clog<<base_p+j<<" "<<base_q+j<<" "<<bd_x_g[base_q+j]<<endl;
 			}
 		}
-		
+			
 		// west nbr dir
 		base_p = base_glo_p + bd_base_gd[4*i+1];
 		if((bid_x-1)>=0){
 			bid_nbr = i-1;
+			//clog<<"west bid: "<<bid_nbr<<endl;
 			base_glo_q = bd_base_g[bid_nbr];
 
 			base_q = base_glo_q + bd_base_gd[4*bid_nbr];
 			size = bd_dd_size_g[4*bid_nbr];
 			for(int j=0;j<size;j++){
 				bd_x_g_temp[base_p+j] = bd_x_g[base_q+j];
+				//clog<<base_p+j<<" "<<base_q+j<<" "<<bd_x_g[base_q+j]<<endl;
 			}
 
 		}
-
 		// north nbr dir
 		base_p = base_glo_p+bd_base_gd[4*i+2];
 		if((bid_y+1)<Y_BLOCKS){
 			bid_nbr = i+X_BLOCKS;
+			//clog<<"north bid_nbr. "<<bid_nbr<<endl;
 			base_glo_q = bd_base_g[bid_nbr];
 			base_q = base_glo_q+bd_base_gd[4*bid_nbr+3];
 			size = bd_dd_size_g[4*bid_nbr+3];
 			for(int j=0;j<size;j++){
 				bd_x_g_temp[base_p+j] = bd_x_g[base_q+j];
+				//clog<<base_p+j<<" "<<base_q+j<<" "<<bd_x_g[base_q+j]<<endl;
 			}
 
 		}
-
 		// south nbr dir
 		base_p = base_glo_p+bd_base_gd[4*i+3];
 		if((bid_y-1)>=0){
 			bid_nbr = i-X_BLOCKS;
+			//clog<<"south bid. "<<bid_nbr<<endl;
 			base_glo_q = bd_base_g[bid_nbr];
 			base_q = base_glo_q+bd_base_gd[4*bid_nbr+2];
 			size = bd_dd_size_g[4*bid_nbr+2];
 			for(int j=0;j<size;j++){
 				bd_x_g_temp[base_p+j] = bd_x_g[base_q+j];
+				//clog<<base_p+j<<" "<<base_q+j<<" "<<bd_x_g[base_q+j]<<endl;
+
 			}
 
 		}
 	}
-	bd_x_g = bd_x_g_temp;
+	for(int i=0;i<total_size;i++)
+		bd_x_g[i] = bd_x_g_temp[i];
+	delete [] bd_x_g_temp;
 }

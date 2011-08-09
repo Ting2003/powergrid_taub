@@ -115,19 +115,7 @@ int main(int argc, char * argv[]){
 	
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		if(ckt->get_name()=="VDD"){
-		/*if(my_id ==3){
-			clog<<mpi_class.block_geo[0]<<" "<<
-			mpi_class.block_geo[2]<<" "<<
-			mpi_class.block_geo[1]<<" "<<
-			mpi_class.block_geo[3]<<endl;
-			clog<<"Solving "<<ckt->get_name()<<endl;
-			clog<<"w: "<<ckt->bd_nodelist_w<<endl;
-			clog<<"e: "<<ckt->bd_nodelist_e<<endl;
-			clog<<"s: "<<ckt->bd_nodelist_s<<endl;
-			clog<<"n: "<<ckt->bd_nodelist_n<<endl;
-		}*/
-
+		if(ckt->get_name()=="VDD"){	
 		ckt->solve(my_id, num_procs, mpi_class);
 		//if(my_id ==0){
 			//cktlist[i]->print();

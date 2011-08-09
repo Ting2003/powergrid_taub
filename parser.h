@@ -58,7 +58,8 @@ private:
 
 	int extract_layer(int &my_id, vector<CKT_LAYER >&ckt_layer_info, MPI_CLASS &mpi_class);
 	bool sort(vector <CKT_LAYER> &a);
-
+	
+	bool Is_Top_Layer_Net(Node &p, Node &q);
 	void try_change_via(Net *);
 
 	//void insert_net_node(string line);

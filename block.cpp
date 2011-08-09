@@ -73,6 +73,7 @@ void Block::update_rhs(int &my_id){
 	size_t size = boundary_netlist.size();
 	size_t k=0, l=0;
 
+	int temp = 2;
 	//b_new = b;
 	for(size_t i=0;i<count;i++){
 		bnewp[i] = bp[i];
@@ -85,17 +86,23 @@ void Block::update_rhs(int &my_id){
 
 		Node * a = net->ab[0]->rep;
 		Node * b = net->ab[1]->rep;
-		
+	
 		// if a is inside block
 		if(a->flag_bd == 0){
 			k = a->rid;
 			if(!a->isX()){
+				//if(my_id==temp){
+					//clog<<k<<" "<<G<<" "<<*b<<endl;
+				//}
 				bnewp[k] += G * b->value;
 			}
 		}
 		else if(b->flag_bd ==0){
 			l = b->rid;
 			if(!b->isX()){
+				//if(my_id==temp){
+					//clog<<l<<" "<<G<<" "<<*a<<endl;
+				//}
 				bnewp[l] += G * a->value;
 			}
 		}

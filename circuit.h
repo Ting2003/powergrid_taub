@@ -94,7 +94,6 @@ public:
 	// ******* processor 0  variable ********
 	// b_new_info is the global bd solution array
 	double *bd_x_g;
-	double *bd_x_g_temp;
 	
 	// ****** other processor *******
 	Matrix A;

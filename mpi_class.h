@@ -18,6 +18,10 @@ public:
 	long x_min;
 	long y_min;
 	float overlap_ratio;
+	double len_per_block_x;
+	double len_per_block_y;
+	double len_ovr_x;
+	double len_ovr_y;
 
 	int *start_task;
 	int *end_task;
