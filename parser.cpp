@@ -287,9 +287,7 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 		0, MPI_COMM_WORLD);
 	
 	if(my_id==0){
-		map<string, string> vdd_map;
-		//set_vdd_map(vdd_map);
-		net_to_block(vdd_map, mpi_class.geo, mpi_class);
+		net_to_block(mpi_class.geo, mpi_class);
 	}
 }
 
@@ -451,19 +449,6 @@ bool Parser::sort(vector<CKT_LAYER > &a){
 			a[minIndex] = tmp;
 		}	
 	}
-	
-	// sort according to circuit layer
-	for(size_t i=0;i< a.size()-1;i++){
-		int minIndex = i;
-		for(size_t j = i+1;j< a.size();j++)
-			if(strcmp(a[j].name, a[minIndex].name)==0 && a[j].layer < a[minIndex].layer)
-				minIndex = j;
-		if(minIndex !=i){
-			tmp = a[i];
-			a[i] = a[minIndex];
-			a[minIndex] = tmp;
-		}	
-	}
 	return true;
 }
 
@@ -504,7 +489,7 @@ void Parser::set_block_geometry(float *geo, MPI_CLASS &mpi_class){
 	}
 }
 
-void Parser::net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &mpi_class){
+void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
@@ -516,7 +501,6 @@ void Parser::net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &m
 	if(f==NULL) report_exit("Input file not exist!\n");
 
 	char line[MAX_BUF];
-	char line_temp[MAX_BUF];
 	string line_s;
 	int j=0;
 
@@ -525,9 +509,6 @@ void Parser::net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &m
 	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
 	clog<<"num_blocks. "<<num_blocks<<endl;
 	InitialOF(of, num_blocks, color);
-
-	map<string, string>::iterator it;
-	it  = vdd_map.begin();
 
 	int count_1 = 0, count_2 = 0;
 	while( fgets(line, MAX_BUF,f)!=NULL){
@@ -549,32 +530,7 @@ void Parser::net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &m
 
 				// write all voltage sources
 				if((count_1 + count_2 >=1))
-					fprintf(of[i], "%s", line);
-	
-				// print boundary vdd nets when
-				// rnets && both nodes on top layer &&
-				// node exist in vdd_map
-				/*if((line[0]=='r' || line[0]=='R') &&Is_Top_Layer_Net(nd[0], nd[1])){
-					if(count_1==0 && count_2 ==1){
-						it = vdd_map.find(nd[0].name);
-						if(it != vdd_map.end()){	
-							for(j=0;j<it->second.size();j++)
-								line_temp[j] = it->second[j];
-							line_temp[j] = '\0';
-							fprintf(of[i], "%s", line_temp);
-							
-						}
-					}
-					else if(count_2 ==0 && count_1 ==1){
-						it = vdd_map.find(nd[1].name);
-						if(it !=vdd_map.end()){
-							for(j=0;j<it->second.size();j++)
-								line_temp[j] = it->second[j];
-							line_temp[j] = '\0';
-							fprintf(of[i], "%s", line_temp);	
-						}
-					}
-				}*/
+					fprintf(of[i], "%s", line);				
 			}
 		}
 	}
@@ -583,7 +539,6 @@ void Parser::net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &m
 		fclose(of[i]);
 	}
 	of.clear();
-	vdd_map.clear();
 }
 
 int Parser::cpr_nd_block(Node &nd, float *geo, int &bid){
@@ -633,40 +588,6 @@ void Parser::InitialOF(vector<FILE *> & of, int &num_blocks, int &color){
 		f = fopen(buff, "w");
 		of.push_back(f);
 	}
-}
-
-// build vdd map for vdd nodes, not include 0 vias
-void Parser::set_vdd_map(map<string, string> &vdd_map){
-	static char sa[MAX_BUF];
-	static char sb[MAX_BUF];
-	static char sname[MAX_BUF];
-	double value;
-
-	FILE *f = NULL;
-	f = fopen(this->filename, "r");
-	if(f==NULL) report_exit("Input file not exist!\n");
-
-	char line[MAX_BUF];
-	pair<string, string> vdd_pair;
-
-	while(fgets(line, MAX_BUF, f)!=NULL){
-		if(line[0]=='v'||line[0]=='V'){
-			sscanf(line, "%s %s %s %lf",
-				sname, sa, sb, &value);
-			if(sa[0] !='0' && sb[0] =='0'){
-				vdd_pair.first =(string)sa;
-				vdd_pair.second = (string)line;
-				vdd_map.insert(vdd_pair);
-
-			}
-			else if(sb[0] !='0' && sa[0] =='0'){
-				vdd_pair.first = (string)sb;
-				vdd_pair.second = (string)line;
-				vdd_map.insert(vdd_pair);
-			}
-		}
-	}
-	fclose(f);
 }
 
 bool Parser::Is_Top_Layer_Net(Node &p, Node &q){

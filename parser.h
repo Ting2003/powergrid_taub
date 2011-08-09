@@ -41,7 +41,7 @@ public:
 	
 	int cpr_nd_block(Node *nd, float *geo, int &bid);
 
-	void net_to_block(map<string, string> &vdd_map, float *geo, MPI_CLASS &mpi_class);
+	void net_to_block(float *geo, MPI_CLASS &mpi_class);
 
 	void build_block_geo(int &my_id, MPI_CLASS &mpi_class);
 
