@@ -1,13 +1,18 @@
 #include "mpi_class.h"
 
 MPI_CLASS::MPI_CLASS(){
-	X_BLOCKS = 4; // # of blocks along x axis
-	Y_BLOCKS = 3; // # of blocks along y axis
+	X_BLOCKS = 2; // # of blocks along x axis
+	Y_BLOCKS = 2; // # of blocks along y axis
 	x_max = 0;
 	y_max = 0;
 	x_min = 0;
 	y_min = 0;
-	overlap_ratio = 0;
+	overlap_ratio = 0.5;
+
+	len_per_block_x = 0;
+	len_per_block_y = 0;
+	len_ovr_x = 0;
+	len_ovr_y = 0;
 
 	start_task = NULL;
 	end_task = NULL;
@@ -15,6 +20,7 @@ MPI_CLASS::MPI_CLASS(){
 
 	geo = NULL;
 	block_geo = NULL;
+	block_geo_origin = NULL;
 
 	block_size = 0;
 }
@@ -25,6 +31,7 @@ MPI_CLASS::~MPI_CLASS(){
 	delete [] tasks_n;
 	delete [] geo;
 	delete [] block_geo;
+	delete [] block_geo_origin;
 }
 
 // assgign tasks
@@ -41,4 +48,16 @@ void MPI_CLASS::MPI_Assign_Task(int & num_procs){
 		end_task[i] = base + tasks_n[i];
 		base += tasks_n[i];
 	}
+}
+
+// set 4 internal boundary line
+void MPI_CLASS::set_geo_origin(MPI_CLASS &mpi_class){
+	// lx
+	block_geo_origin[0] = block_geo[0] + len_ovr_x;
+	// ly
+	block_geo_origin[1] = block_geo[1] + len_ovr_x;
+	// ux
+	block_geo_origin[2] = block_geo[2] - len_ovr_y;
+	// uy
+	block_geo_origin[3] = block_geo[3] - len_ovr_y;
 }

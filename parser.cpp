@@ -64,6 +64,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 	Node * nd_ptr[2];	// this will be set to the two nodes found
 	double value;
 	int count=0;
+
 	sscanf(line, "%s %s %s %lf", sname, sa, sb, &value);
 
 	if( sa[0] == '0' ) { nd[0].pt.set(-1,-1,-1); }
@@ -90,6 +91,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			nd_ptr[i] = new Node(nd[i]); // copy constructor
 			nd_ptr[i]->rep = nd_ptr[i];  // set rep to be itself
 			count = cpr_nd_block(nd_ptr[i], mpi_class.block_geo, my_id);
+			
 			if (count==0) // internal node
 				ckt->add_node(nd_ptr[i]);
 			else{ // bd node, push into 4 bd netlist
@@ -102,7 +104,14 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 		}
 	}
 
+	if((line[0]=='r' || line[0] =='R') && 
+		!(nd[0].pt.x == nd[1].pt.x && 
+		nd[0].pt.y == nd[1].pt.y)){
 
+		add_node_inter(nd_ptr[0], nd_ptr[1], mpi_class.block_geo, mpi_class.block_geo_origin, ckt, my_id);
+
+	}
+	
 	NET_TYPE net_type = RESISTOR;
 	// find net type
 	switch(sname[0]){
@@ -270,7 +279,9 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class){
 	create_circuits(ckt_name_info);
 
 	build_block_geo(my_id, mpi_class);
+
 	MPI_Barrier(MPI_COMM_WORLD);
+	
 	second_parse(my_id, mpi_class);
 }
 
@@ -282,6 +293,9 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 
 	// update block geometry
 	if(my_id==0) set_block_geometry(mpi_class.geo, mpi_class);
+	MPI_Bcast(&mpi_class.len_ovr_x, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&mpi_class.len_ovr_y, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
 	MPI_Scatter(mpi_class.geo, 4, MPI_FLOAT, 
 		mpi_class.block_geo, 4, MPI_FLOAT, 
 		0, MPI_COMM_WORLD);
@@ -289,6 +303,12 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 	if(my_id==0){
 		net_to_block(mpi_class.geo, mpi_class);
 	}
+
+	// stores the geo boundary line for internal node:
+	// e, w, n, s
+	mpi_class.block_geo_origin = new float [4];
+	
+	mpi_class.set_geo_origin(mpi_class);
 }
 
 void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class){
@@ -502,7 +522,6 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 
 	char line[MAX_BUF];
 	string line_s;
-	int j=0;
 
 	int color = 0;
 	vector<FILE *> of;
@@ -575,8 +594,90 @@ int Parser::cpr_nd_block(Node *nd, float *geo, int &bid){
 	}
 	else if(nd->pt.x > geo[2] &&
 		nd->pt.y >= geo[1] &&
-	   	nd->pt.y <= geo[3]){
+		nd->pt.y <= geo[3]){
 		return 4; // east boundary
+	}
+}
+
+int Parser::cpr_nd_block_x(Node *nd, float *geo, int &bid){
+	if(nd->pt.x >= geo[0] &&
+	   nd->pt.x <= geo[2]){
+		return 0; // internal node
+	}
+	else if(nd->pt.x < geo[0] ){
+		return 1; // west boundary
+	}
+	else if(nd->pt.x > geo[2]){
+		return 2; // east boundary
+	}
+}
+
+int Parser::cpr_nd_block_y(Node *nd, float *geo, int &bid){
+	if(nd->pt.y >= geo[1] &&
+	   nd->pt.y <= geo[3]){
+		return 0; // internal node
+	}
+	else if(nd->pt.y < geo[1]){
+		return 1; // south boundary
+	}
+	else if(nd->pt.y > geo[3]){
+		return 2; // north boundary
+	}
+}
+
+void Parser::add_node_inter(Node *nd_0, Node *nd_1, 
+	float *geo, float *geo_origin, Circuit *ckt, int &my_id){
+	int count_x1, count_x2;
+	int count_y1, count_y2;
+
+	// handle whether east case
+	count_x1 = cpr_nd_block_x(nd_0, geo_origin, my_id);
+	count_x2 = cpr_nd_block_x(nd_1, geo_origin, my_id);
+	count_y1 = cpr_nd_block_y(nd_0, geo, my_id);
+	count_y2 = cpr_nd_block_y(nd_1, geo, my_id);
+		
+	if(count_y1==0 && count_y2 ==0){
+		if(count_x1 ==0 ){
+			if(count_x2 ==2){
+				ckt->internal_nodelist_e.push_back(nd_0);
+			}
+			else if(count_x2 ==1){
+				ckt->internal_nodelist_w.push_back(nd_0);
+			}
+		}
+		else if(count_x2 ==0){
+			if(count_x1 ==2){
+				ckt->internal_nodelist_e.push_back(nd_1);
+			}
+			else if(count_x1 ==1){
+				ckt->internal_nodelist_w.push_back(nd_1);
+			}
+		}
+	}
+
+	// handle whether north or south case
+	count_x1 = cpr_nd_block_x(nd_0, geo, my_id);
+	count_x2 = cpr_nd_block_x(nd_1, geo, my_id);
+	count_y1 = cpr_nd_block_y(nd_0, geo_origin, my_id);
+	count_y2 = cpr_nd_block_y(nd_1, geo_origin, my_id);
+
+	if(count_x1==0 && count_x2 ==0){
+		if(count_y1 ==0 ){
+			if(count_y2 ==2){
+				ckt->internal_nodelist_n.push_back(nd_0);
+			}
+			else if(count_y2 ==1){
+				ckt->internal_nodelist_s.push_back(nd_0);
+			}
+		}
+		else if(count_y2 ==0){
+			if(count_y1 ==2){
+				ckt->internal_nodelist_n.push_back(nd_1);
+			}
+			else if(count_y1 ==1){
+				ckt->internal_nodelist_s.push_back(nd_1);
+			}
+		}
 	}
 }
 
@@ -606,3 +707,4 @@ bool Parser::Is_Top_Layer_Net(Node &p, Node &q){
 	}
 	return flag;
 }
+

@@ -28,12 +28,16 @@ public:
 	int *tasks_n;
 
 	float *geo;
+	// block_geo after overlap enlargement
 	float *block_geo;
+	// block_geo origin, before overlap enlargement
+	float *block_geo_origin;
 
 	int block_size;
 
 	// function
 	void MPI_Assign_Task(int & num_procs);
+	void set_geo_origin(MPI_CLASS &mpi_class);
 };
 
 #endif

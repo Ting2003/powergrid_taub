@@ -58,6 +58,7 @@ public:
 	// a boundary node or internal node
 	// flag_bd = 1, bd node, else internal node
 	int flag_bd;
+	int internal_bd;
 
 private:
 	double value;		// voltage

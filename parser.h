@@ -41,6 +41,12 @@ public:
 	
 	int cpr_nd_block(Node *nd, float *geo, int &bid);
 
+	int cpr_nd_block_x(Node *nd, float *geo, int &bid);
+
+	int cpr_nd_block_y(Node *nd, float *geo, int &bid);
+	
+	void add_node_inter(Node *nd_0, Node *nd_1, float *geo, float *geo_origin, Circuit *ckt, int &bid);
+	
 	void net_to_block(float *geo, MPI_CLASS &mpi_class);
 
 	void build_block_geo(int &my_id, MPI_CLASS &mpi_class);

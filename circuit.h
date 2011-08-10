@@ -65,6 +65,9 @@ public:
 	// add a node into nodelist
 	bool add_node(Node * nd);
 	bool add_node_bd(int &count, Node * node);
+	bool add_node_inter(int &count, Node * node);
+	
+	void add_node_inter_bd(Node *nd_0, Node *nd_1, float *geo_line, int &bid);
 
 	// add a net into netset
 	bool add_net(Net * net);
@@ -75,6 +78,7 @@ public:
 	// sort nodes according to predefined order
 	void sort_nodes();
 	void sort_bd_nodes(int &my_id);
+	void sort_internal_nodes(int &my_id);
 
 	// solve for node voltage
 	void solve(int &my_id, int &num_procs, MPI_CLASS &mpi_class);
@@ -94,36 +98,45 @@ public:
 	// ******* processor 0  variable ********
 	// b_new_info is the global bd solution array
 	double *bd_x_g;
-	
+	double *internal_x_g;	
 	// ****** other processor *******
 	Matrix A;
 
 	// solution array for each processor
-	double *bd_x;
+	double *bd_x;	
+	double *internal_x;
 
 	// stores boundary nodes value
 	int *bd_base;
+	int *internal_base;
 
 	// stores 4 boundary base of each processor
 	// into processor 0
 	int *bd_base_gd;
+	int *internal_base_gd;
 
 	// stores the base for receiving bd_x_g
 	int *bd_base_g;
+	int *internal_base_g;
 	
 	// bd_size_g store the total bd_size of each block
 	int *bd_size_g;
+	int *internal_size_g;
 
 	// stores 4 boundary size
 	int *bd_dd_size;
+	int *internal_dd_size;
 	// stores toal block's 4 boundary size
 	int *bd_dd_size_g;
+	int *internal_dd_size_g;
 	
 	// total boundary node size
 	int bd_size;
+	int internal_size;
 	// stores the whole grid size
 	// into processor 0
 	int total_size;
+	int total_internal_size;
 
 	int total_blocks;
 	
@@ -135,6 +148,12 @@ public:
 	NodePtrVector bd_nodelist_e; // east bd nodelist
 	NodePtrVector bd_nodelist_s; // south bd nodelist
 	NodePtrVector bd_nodelist_n; // north bd nodelist
+
+	// 4 internal nodelist
+	NodePtrVector internal_nodelist_w; // west bd nodelist
+	NodePtrVector internal_nodelist_e; // east bd nodelist
+	NodePtrVector internal_nodelist_s; // south bd nodelist
+	NodePtrVector internal_nodelist_n; // north bd nodelist
 
 private:
 	// member functions
@@ -165,8 +184,12 @@ private:
 	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
 	void boundary_init(int &my_id, int &num_procs);
+	
+	void internal_init(int &my_id, int &num_procs);
+
 	void assign_bd_array();
 	void assign_bd_base(int &my_id);
+	void assign_internal_base(int &my_id);
 	void assign_bd_internal_array(int &my_id);
 	void reorder_bd_x_g(MPI_CLASS &mpi_class);
 
@@ -273,6 +296,25 @@ inline bool Circuit::add_node_bd(int &count, Node * node){
 	// node is boundary node
 	node->flag_bd = 1;
 	map_node[node->name] = node;
+	return true;
+}
+
+// adds a node into nodelist
+inline bool Circuit::add_node_inter(int &count, Node * node){
+	if(count ==1){
+		internal_nodelist_s.push_back(node);
+	}
+	else if(count==2){
+		internal_nodelist_n.push_back(node);
+	}
+	else if(count==3){
+		internal_nodelist_w.push_back(node);
+	}
+	else if(count==4){
+		internal_nodelist_e.push_back(node);
+	}
+	// node is internal_bd boundary node
+	node->internal_bd = 1;
 	return true;
 }
 
