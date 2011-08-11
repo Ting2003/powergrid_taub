@@ -92,24 +92,20 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			nd_ptr[i]->rep = nd_ptr[i];  // set rep to be itself
 			count = cpr_nd_block(nd_ptr[i], mpi_class.block_geo, my_id);
 			
-			if (count==0) // internal node
+			if (count==1) // internal node
 				ckt->add_node(nd_ptr[i]);
-			else{ // bd node, push into 4 bd netlist
-				ckt->add_node_bd(count,nd_ptr[i]);
-			}
 
 			if( nd_ptr[i]->isX() )	     // determine circuit type
 				ckt->set_type(WB);
-
 		}
 	}
 
 	if((line[0]=='r' || line[0] =='R') && 
 		!(nd[0].pt.x == nd[1].pt.x && 
 		nd[0].pt.y == nd[1].pt.y)){
-
-		add_node_inter(nd_ptr[0], nd_ptr[1], mpi_class.block_geo, mpi_class.block_geo_origin, ckt, my_id);
-
+		// add node into bd and internal vector
+		add_node_inter(nd_ptr[0], nd_ptr[1], 
+			mpi_class, ckt, my_id);
 	}
 	
 	NET_TYPE net_type = RESISTOR;
@@ -293,6 +289,9 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 
 	// update block geometry
 	if(my_id==0) set_block_geometry(mpi_class.geo, mpi_class);
+	int total_blocks = 4 * mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
+	MPI_Bcast(mpi_class.geo, total_blocks, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
 	MPI_Bcast(&mpi_class.len_ovr_x, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&mpi_class.len_ovr_y, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -575,109 +574,115 @@ int Parser::cpr_nd_block(Node *nd, float *geo, int &bid){
 	   nd->pt.x <= geo[2] &&
 	   nd->pt.y >= geo[1] &&
 	   nd->pt.y <= geo[3]){
-		return 0; // internal node
+		return 1;
 	}
-	else if(nd->pt.x >= geo[0] &&
-	   nd->pt.x <= geo[2] &&
-	   nd->pt.y < geo[1]){
-		return 1; // bottom boundary
-	}
-	else if(nd->pt.x >= geo[0] &&
-	   nd->pt.x <= geo[2] &&
-	   nd->pt.y > geo[3]){
-		return 2; // top boundary
-	}
-	else if(nd->pt.x < geo[0] &&
-		nd->pt.y >= geo[1] &&
-	   	nd->pt.y <= geo[3]){
-		return 3; // west boundary
-	}
-	else if(nd->pt.x > geo[2] &&
-		nd->pt.y >= geo[1] &&
-		nd->pt.y <= geo[3]){
-		return 4; // east boundary
-	}
+	else return 0;
 }
 
-int Parser::cpr_nd_block_x(Node *nd, float *geo, int &bid){
-	if(nd->pt.x >= geo[0] &&
-	   nd->pt.x <= geo[2]){
-		return 0; // internal node
+int Parser::cpr_nd_block(Node *nd, float &lx, float &ly, float &ux, float &uy){
+	if(nd->pt.x >= lx&&
+	   nd->pt.x <= ux &&
+	   nd->pt.y >= ly &&
+	   nd->pt.y <= uy){
+		return 1;
 	}
-	else if(nd->pt.x < geo[0] ){
-		return 1; // west boundary
-	}
-	else if(nd->pt.x > geo[2]){
-		return 2; // east boundary
-	}
-}
-
-int Parser::cpr_nd_block_y(Node *nd, float *geo, int &bid){
-	if(nd->pt.y >= geo[1] &&
-	   nd->pt.y <= geo[3]){
-		return 0; // internal node
-	}
-	else if(nd->pt.y < geo[1]){
-		return 1; // south boundary
-	}
-	else if(nd->pt.y > geo[3]){
-		return 2; // north boundary
+	else {
+		return 0;
 	}
 }
 
 void Parser::add_node_inter(Node *nd_0, Node *nd_1, 
-	float *geo, float *geo_origin, Circuit *ckt, int &my_id){
-	int count_x1, count_x2;
-	int count_y1, count_y2;
+	MPI_CLASS &mpi_class, Circuit *ckt, int &my_id){
+	int bx, by;
+	int bid_nbr;
+	float lx, ly, ux, uy;
+	float lx_0, ly_0, ux_0, uy_0;
+	int count_1, count_2;
+	int count_10, count_20;
 
-	// handle whether east case
-	count_x1 = cpr_nd_block_x(nd_0, geo_origin, my_id);
-	count_x2 = cpr_nd_block_x(nd_1, geo_origin, my_id);
-	count_y1 = cpr_nd_block_y(nd_0, geo, my_id);
-	count_y2 = cpr_nd_block_y(nd_1, geo, my_id);
+	by = my_id / mpi_class.X_BLOCKS;
+	bx = my_id % mpi_class.X_BLOCKS;
+
+	find_bound_line(my_id, mpi_class, lx_0, ly_0,
+			ux_0, uy_0);
+	
+	count_10 = cpr_nd_block(nd_0, lx_0, ly_0, ux_0, uy_0);
+	count_20 = cpr_nd_block(nd_1, lx_0, ly_0, ux_0, uy_0);
+	
+	if(count_10 ==1 && count_20 ==0)
+		nd_1->flag_bd = 1;
+	else if(count_10 == 0 && count_20 ==1)
+		nd_0->flag_bd = 1;	
+
+	// sw block
+	if((by>=1 && bx>=1)){
+		bid_nbr = my_id - mpi_class.X_BLOCKS - 1;
 		
-	if(count_y1==0 && count_y2 ==0){
-		if(count_x1 ==0 ){
-			if(count_x2 ==2){
-				ckt->internal_nodelist_e.push_back(nd_0);
-			}
-			else if(count_x2 ==1){
-				ckt->internal_nodelist_w.push_back(nd_0);
-			}
-		}
-		else if(count_x2 ==0){
-			if(count_x1 ==2){
-				ckt->internal_nodelist_e.push_back(nd_1);
-			}
-			else if(count_x1 ==1){
-				ckt->internal_nodelist_w.push_back(nd_1);
-			}
-		}
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_sw, ckt->internal_nodelist_sw, 
+		nd_0, nd_1, count_10, count_20);
 	}
 
-	// handle whether north or south case
-	count_x1 = cpr_nd_block_x(nd_0, geo, my_id);
-	count_x2 = cpr_nd_block_x(nd_1, geo, my_id);
-	count_y1 = cpr_nd_block_y(nd_0, geo_origin, my_id);
-	count_y2 = cpr_nd_block_y(nd_1, geo_origin, my_id);
+	// s block
+	if(by>=1){
+		bid_nbr = my_id - mpi_class.X_BLOCKS;
+		
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_s, ckt->internal_nodelist_s, 
+		nd_0, nd_1, count_10, count_20);
+	}
+	
+	// se block
+	if((by>=1 && bx<mpi_class.X_BLOCKS-1)){
+		bid_nbr = my_id - mpi_class.X_BLOCKS + 1;
+	
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_se, ckt->internal_nodelist_se, 
+		nd_0, nd_1, count_10, count_20);
+	}
 
-	if(count_x1==0 && count_x2 ==0){
-		if(count_y1 ==0 ){
-			if(count_y2 ==2){
-				ckt->internal_nodelist_n.push_back(nd_0);
-			}
-			else if(count_y2 ==1){
-				ckt->internal_nodelist_s.push_back(nd_0);
-			}
-		}
-		else if(count_y2 ==0){
-			if(count_y1 ==2){
-				ckt->internal_nodelist_n.push_back(nd_1);
-			}
-			else if(count_y1 ==1){
-				ckt->internal_nodelist_s.push_back(nd_1);
-			}
-		}
+	// w block
+	if(bx>=1){
+		bid_nbr = my_id - 1;
+		
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_w, ckt->internal_nodelist_w, 
+		nd_0, nd_1, count_10, count_20);	
+	}
+
+	// e block
+	if((bx<mpi_class.X_BLOCKS-1)){
+		bid_nbr = my_id + 1;
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_e, ckt->internal_nodelist_e, 
+		nd_0, nd_1, count_10, count_20);
+	}
+
+	// nw block
+	if((by<mpi_class.Y_BLOCKS-1 && bx>=1)){
+		bid_nbr = my_id + mpi_class.X_BLOCKS -1;
+		
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_nw, ckt->internal_nodelist_nw, 
+		nd_0, nd_1, count_10, count_20);
+	}
+
+	// n block
+	if((by<mpi_class.Y_BLOCKS-1)){
+		bid_nbr = my_id + mpi_class.X_BLOCKS;
+		
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_n, ckt->internal_nodelist_n, 
+		nd_0, nd_1, count_10, count_20);
+	}
+
+	// ne block
+	if((by<mpi_class.Y_BLOCKS-1 && bx<mpi_class.X_BLOCKS-1)){
+		bid_nbr = my_id + mpi_class.X_BLOCKS + 1;
+		
+		insert_node_dir(bid_nbr, mpi_class, 
+		ckt->bd_nodelist_ne, ckt->internal_nodelist_ne, 
+		nd_0, nd_1, count_10, count_20);
 	}
 }
 
@@ -708,3 +713,39 @@ bool Parser::Is_Top_Layer_Net(Node &p, Node &q){
 	return flag;
 }
 
+void Parser::insert_node_list(Node *nd_0, Node *nd_1, int &count_10, 
+		int &count_20, int &count_1, int &count_2, NodePtrVector &list){
+	// add into bd boundary list
+	if(count_10 ==1 && count_20 ==0 && count_2 ==1){
+		list.push_back(nd_1);
+	}
+	else if(count_10 ==0 && count_20 ==1 && count_1 ==1){
+		list.push_back(nd_0);
+	}	
+}
+
+void Parser::find_bound_line(int &bid_nbr, MPI_CLASS &mpi_class, float &lx, float &ly,  float &ux, float &uy){
+	lx = mpi_class.geo[4*bid_nbr];
+	ux = mpi_class.geo[4*bid_nbr+2];
+	ly = mpi_class.geo[4*bid_nbr+1];
+	uy = mpi_class.geo[4*bid_nbr+3];
+}
+
+void Parser::insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, NodePtrVector &bd_list, NodePtrVector &inter_list, Node *nd_0, Node *nd_1, int &count_10, int &count_20){
+	float lx, ly, ux, uy;
+	int count_1, count_2;
+	
+	find_bound_line(bid_nbr, mpi_class, lx, ly,
+			ux, uy);
+
+	count_1 = cpr_nd_block(nd_0, lx, ly, ux, uy);
+	count_2 = cpr_nd_block(nd_1, lx, ly, ux, uy);
+
+	insert_node_list(nd_0, nd_1, count_1, 
+			count_2, count_10, count_20, 
+			inter_list);
+
+	insert_node_list(nd_0, nd_1, count_10, 
+			count_20, count_1, count_2, 
+			bd_list);
+}

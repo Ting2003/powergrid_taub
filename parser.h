@@ -44,8 +44,23 @@ public:
 	int cpr_nd_block_x(Node *nd, float *geo, int &bid);
 
 	int cpr_nd_block_y(Node *nd, float *geo, int &bid);
+
+	int cpr_nd_block(Node *nd, float &lx, float &ly, 
+		float &ux, float &uy);
+
+	void add_node_inter(Node *nd_0, Node *nd_1, 
+		MPI_CLASS &mpi_class, Circuit *ckt, int &bid);
 	
-	void add_node_inter(Node *nd_0, Node *nd_1, float *geo, float *geo_origin, Circuit *ckt, int &bid);
+	void insert_node_list(Node *nd_0, Node *nd_1, 
+		int &count_10, int &count_20, int &count_1, 
+		int &count_2, NodePtrVector &list);
+	
+	void find_bound_line(int &bid_nbr, MPI_CLASS &mpi_class, 
+		float &lx, float &ly,  float &ux, float &uy);
+	
+	void insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, 
+		NodePtrVector &bd_list, NodePtrVector &inter_list, 
+		Node *nd_0, Node *nd_1, int &count_10, int &count_20);
 	
 	void net_to_block(float *geo, MPI_CLASS &mpi_class);
 

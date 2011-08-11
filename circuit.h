@@ -143,17 +143,25 @@ public:
 	// block_size is either 0 or 1
 	int block_size;
 
-	// 4 boundary nodelist
-	NodePtrVector bd_nodelist_w; // west bd nodelist
-	NodePtrVector bd_nodelist_e; // east bd nodelist
-	NodePtrVector bd_nodelist_s; // south bd nodelist
-	NodePtrVector bd_nodelist_n; // north bd nodelist
+	// 8 boundary nodelist
+	NodePtrVector bd_nodelist_sw;
+	NodePtrVector bd_nodelist_s;
+	NodePtrVector bd_nodelist_se;
+	NodePtrVector bd_nodelist_w;
+	NodePtrVector bd_nodelist_e;
+	NodePtrVector bd_nodelist_nw;
+	NodePtrVector bd_nodelist_n;
+	NodePtrVector bd_nodelist_ne;
 
-	// 4 internal nodelist
-	NodePtrVector internal_nodelist_w; // west bd nodelist
-	NodePtrVector internal_nodelist_e; // east bd nodelist
-	NodePtrVector internal_nodelist_s; // south bd nodelist
-	NodePtrVector internal_nodelist_n; // north bd nodelist
+	// 8 internal nodelist	
+	NodePtrVector internal_nodelist_sw;
+	NodePtrVector internal_nodelist_s;
+	NodePtrVector internal_nodelist_se;
+	NodePtrVector internal_nodelist_w;
+	NodePtrVector internal_nodelist_e;
+	NodePtrVector internal_nodelist_nw;
+	NodePtrVector internal_nodelist_n;
+	NodePtrVector internal_nodelist_ne;
 
 private:
 	// member functions
@@ -188,9 +196,17 @@ private:
 	void internal_init(int &my_id, int &num_procs);
 
 	void assign_bd_array();
+	void assign_bd_array_dir(int &base, NodePtrVector &list);
+	
 	void assign_bd_base(int &my_id);
+	void assign_bd_dd_size(int &my_id);
 	void assign_internal_base(int &my_id);
+
 	void assign_bd_internal_array(int &my_id);
+
+	void assign_bd_internal_array_dir(int &base, 
+		NodePtrVector &list, double *internal_x);
+
 	void reorder_bd_x_g(MPI_CLASS &mpi_class);
 
 	void update_block_rhs(Block & block, int dir);

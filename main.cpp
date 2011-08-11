@@ -115,7 +115,7 @@ int main(int argc, char * argv[]){
 	
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		if(ckt->get_name()=="VDD"){	
+		if(ckt->get_name()=="VDD"){
 		ckt->solve(my_id, num_procs, mpi_class);
 		//if(my_id ==0){
 			//cktlist[i]->print();

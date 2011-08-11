@@ -1,6 +1,7 @@
 #include "mpi_class.h"
 
 MPI_CLASS::MPI_CLASS(){
+	NUM_NET_TYPE =3;
 	X_BLOCKS = 2; // # of blocks along x axis
 	Y_BLOCKS = 2; // # of blocks along y axis
 	x_max = 0;

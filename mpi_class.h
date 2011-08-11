@@ -11,6 +11,7 @@ public:
 	MPI_CLASS();
 	~MPI_CLASS();
 	// member
+	int NUM_NET_TYPE;
 	int X_BLOCKS;
 	int Y_BLOCKS;
 	long x_max;
