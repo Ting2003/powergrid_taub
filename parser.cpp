@@ -292,7 +292,7 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 	// update block geometry
 	if(my_id==0) set_block_geometry(mpi_class.geo, mpi_class);
 	int total_blocks = 4 * mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
-	MPI_Bcast(mpi_class.geo, total_blocks, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Bcast(mpi_class.geo, total_blocks, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
 	MPI_Bcast(&mpi_class.len_ovr_x, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&mpi_class.len_ovr_y, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);

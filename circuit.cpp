@@ -533,13 +533,13 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	float diff = .0;
 	float diff_root=0;
 
-	if(mpi_class.block_size ==0);
-	else{
-			// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
-		MPI_Scatterv(bd_x_g, bd_size_g, 
+	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
+	MPI_Scatterv(bd_x_g, bd_size_g, 
 			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
 			MPI_FLOAT, 0, MPI_COMM_WORLD);
 			
+	if(mpi_class.block_size ==0);
+	else{	
 		assign_bd_array();
 
 		// new rhs store in bnewp
