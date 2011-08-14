@@ -53,6 +53,7 @@ void Parser::extract_node(char * str, Node & nd){
 
 	nd.pt.set(x,y,z);
 	nd.flag = flag;
+	nd.rid = -1;
 }
 
 // given a line, extract net and node information
@@ -91,9 +92,10 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			nd_ptr[i] = new Node(nd[i]); // copy constructor
 			nd_ptr[i]->rep = nd_ptr[i];  // set rep to be itself
 			count = cpr_nd_block(nd_ptr[i], mpi_class.block_geo, my_id);
-			
 			if (count==1) // internal node
 				ckt->add_node(nd_ptr[i]);
+			else
+				nd_ptr[i]->flag_bd = 1;
 
 			if( nd_ptr[i]->isX() )	     // determine circuit type
 				ckt->set_type(WB);
@@ -302,6 +304,8 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 	if(my_id==0){
 		net_to_block(mpi_class.geo, mpi_class);
 	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
 
 	// stores the geo boundary line for internal node:
 	// e, w, n, s
@@ -515,6 +519,8 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	static Node nd[2];
 	double value;
 
+	int temp = 0;
+
 	FILE *f;
 	f = fopen(this->filename, "r");
 	if(f==NULL) report_exit("Input file not exist!\n");
@@ -527,12 +533,14 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
 	clog<<"num_blocks. "<<num_blocks<<endl;
 	InitialOF(of, num_blocks, color);
+	//clog<<"after initial ofs. "<<endl;
 
 	int count_1 = 0, count_2 = 0;
 	while( fgets(line, MAX_BUF,f)!=NULL){
 		if(line[0]=='r' || line[0] =='R' ||
 		   line[0]=='v' || line[0] =='V' ||
 		   line[0]=='i' || line[0]=='I'){
+			//clog<<line<<endl;
 			sscanf(line, "%s %s %s %lf", 
 					sname, sa, sb, &value);
 			if( sa[0] == '0' ){ nd[0].pt.set(-1,-1,-1); }
@@ -540,22 +548,26 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 			if( sb[0] == '0' ){ nd[1].pt.set(-1,-1,-1); }
 			else	extract_node(sb, nd[1]);
 		
-			for(int i=0;i<mpi_class.X_BLOCKS 
-				*mpi_class.Y_BLOCKS;i++){
+			for(int i=0;i<num_blocks;i++){
 				// at least one node is inside block
 				count_1 = cpr_nd_block(nd[0], geo, i);
 				count_2 = cpr_nd_block(nd[1], geo, i);
 
 				// write all voltage sources
-				if((count_1 + count_2 >=1))
-					fprintf(of[i], "%s", line);				
+				if((count_1 + count_2 >=1)){
+					temp = fprintf(of[i], "%s", line);
+					//clog<<temp<<" "<<i<<" "<<line<<endl;
+				}
 			}
 		}
 	}
+	//clog<<"finish output. "<<endl;
 	fclose(f);
+	//clog<<"close original file. "<<endl;
 	for(int i=0;i<num_blocks;i++){
 		fclose(of[i]);
 	}
+	//clog<<"close all output file. "<<endl;
 	of.clear();
 }
 
@@ -609,11 +621,6 @@ void Parser::add_node_inter(Node *nd_0, Node *nd_1,
 	count_10 = cpr_nd_block(nd_0, lx_0, ly_0, ux_0, uy_0);
 	count_20 = cpr_nd_block(nd_1, lx_0, ly_0, ux_0, uy_0);
 	
-	if(count_10 ==1 && count_20 ==0)
-		nd_1->flag_bd = 1;
-	else if(count_10 == 0 && count_20 ==1)
-		nd_0->flag_bd = 1;	
-
 	// sw block
 	if((by>=1 && bx>=1)){
 		bid_nbr = my_id - mpi_class.X_BLOCKS - 1;
@@ -714,14 +721,18 @@ bool Parser::Is_Top_Layer_Net(Node &p, Node &q){
 }
 
 void Parser::insert_node_list(Node *nd_0, Node *nd_1, int &count_10, 
-		int &count_20, int &count_1, int &count_2, NodePtrVector &list){
+		int &count_20, int &count_1, int &count_2, NodePtrVector &list, bool &flag){
 	// add into bd boundary list
 	if(count_10 ==1 && count_20 ==0 && count_2 ==1){
 		list.push_back(nd_1);
+		if(flag == true)
+			nd_1->internal_bd = 1;
 	}
 	else if(count_10 ==0 && count_20 ==1 && count_1 ==1){
 		list.push_back(nd_0);
-	}	
+		if(flag == true)
+			nd_0->internal_bd = 1;
+	}
 }
 
 void Parser::find_bound_line(int &bid_nbr, MPI_CLASS &mpi_class, float &lx, float &ly,  float &ux, float &uy){
@@ -734,6 +745,7 @@ void Parser::find_bound_line(int &bid_nbr, MPI_CLASS &mpi_class, float &lx, floa
 void Parser::insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, NodePtrVector &bd_list, NodePtrVector &inter_list, Node *nd_0, Node *nd_1, int &count_10, int &count_20){
 	float lx, ly, ux, uy;
 	int count_1, count_2;
+	bool flag = true;
 	
 	find_bound_line(bid_nbr, mpi_class, lx, ly,
 			ux, uy);
@@ -743,9 +755,10 @@ void Parser::insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, NodePtrVector &
 
 	insert_node_list(nd_0, nd_1, count_1, 
 			count_2, count_10, count_20, 
-			inter_list);
+			inter_list, flag);
+	flag = false;
 
 	insert_node_list(nd_0, nd_1, count_10, 
 			count_20, count_1, count_2, 
-			bd_list);
+			bd_list, flag);
 }

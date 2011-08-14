@@ -97,14 +97,14 @@ public:
 	// member
 	// ******* processor 0  variable ********
 	// b_new_info is the global bd solution array
-	double *bd_x_g;
-	double *internal_x_g;	
+	float *bd_x_g;
+	float *internal_x_g;	
 	// ****** other processor *******
 	Matrix A;
 
 	// solution array for each processor
-	double *bd_x;	
-	double *internal_x;
+	float *bd_x;	
+	float *internal_x;
 
 	// stores boundary nodes value
 	int *bd_base;
@@ -184,11 +184,11 @@ private:
 	
 	void make_A_symmetric(double *bp);
 
-	void stamp_block_matrix(int &my_id, Matrix &A);
+	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
 	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
-	void stamp_block_current(int &my_id, Net * net);
+	void stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
 	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
 	void boundary_init(int &my_id, int &num_procs);
@@ -205,7 +205,7 @@ private:
 	void assign_bd_internal_array(int &my_id);
 
 	void assign_bd_internal_array_dir(int &base, 
-		NodePtrVector &list, double *internal_x);
+		NodePtrVector &list, float *internal_x);
 
 	void reorder_bd_x_g(MPI_CLASS &mpi_class);
 
@@ -367,7 +367,10 @@ inline void Circuit::merge_node(Node * node){
 
 		// probe for one step, if the line is only one step, don't do it.
 		Node * next = node->get_nbr_node(dir);
-		if( next == NULL || !next->is_mergeable() ) continue;
+		
+		if( next == NULL || !next->is_mergeable() ){
+			continue;
+		}
 		merge_along_dir(node, dir);
 	}
 }

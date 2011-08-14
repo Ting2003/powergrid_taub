@@ -53,7 +53,7 @@ public:
 	
 	void insert_node_list(Node *nd_0, Node *nd_1, 
 		int &count_10, int &count_20, int &count_1, 
-		int &count_2, NodePtrVector &list);
+		int &count_2, NodePtrVector &list, bool &flag);
 	
 	void find_bound_line(int &bid_nbr, MPI_CLASS &mpi_class, 
 		float &lx, float &ly,  float &ux, float &uy);

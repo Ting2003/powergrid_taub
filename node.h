@@ -53,11 +53,13 @@ public:
 	// {TOP, BOTTOM, NORTH, SOUTH}
 	Net * nbr[6];		// neighboring nets
 
-	size_t rid;		// id in rep_list
+	long rid;		// id in rep_list
 	// to record whether this node is
 	// a boundary node or internal node
 	// flag_bd = 1, bd node, else internal node
 	int flag_bd;
+	// if =1, internal bd node,
+	// if =0, general internal node.
 	int internal_bd;
 
 private:
@@ -93,14 +95,27 @@ inline Net * Node::get_nbr_net(DIRECTION dir) const{
 	return nbr[dir];
 }
 
-inline bool Node::is_mergeable() const{
-	return nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
-	     (((nbr[EAST]  != NULL && nbr[EAST]->flag_bd ==0) &&
-	       (nbr[WEST]  != NULL && nbr[WEST]->flag_bd ==0) &&
+/*inline bool Node::is_mergeable() const{
+	if(internal_bd ==1) return 0;
+	else
+		return nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
+	     	(((nbr[EAST]  != NULL && nbr[EAST]->flag_bd ==0)
+		  && (nbr[WEST]  != NULL && nbr[WEST]->flag_bd ==0) &&
 	       nbr[NORTH] == NULL && nbr[SOUTH] == NULL)
 	    ||((nbr[NORTH] != NULL && nbr[NORTH]->flag_bd==0)&&
 	      (nbr[SOUTH] != NULL && nbr[SOUTH]->flag_bd==0)&&
 	       nbr[EAST]  == NULL && nbr[WEST] == NULL));
+}*/
+
+inline bool Node::is_mergeable() const{
+	return nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
+	((nbr[EAST]  != NULL
+	&& nbr[WEST]  != NULL) &&
+	 (nbr[NORTH] == NULL && nbr[SOUTH] ==NULL)
+	    ||(nbr[NORTH] != NULL&&
+	      nbr[SOUTH] != NULL)&&
+	       (nbr[EAST]  == NULL && nbr[WEST] == NULL));
 }
+
 
 #endif

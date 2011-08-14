@@ -11,6 +11,9 @@ Node::Node():name(""),pt(Point(-1,-1,-1)), rid(0),
 		eqvr[i]=0.0;
 		end[i]=this;
 	}
+	rid = -1;
+	flag_bd = 0;
+	internal_bd = 0;
 }
 
 Node::Node(string n, Point _pt, bool x, double v): 
@@ -21,6 +24,9 @@ Node::Node(string n, Point _pt, bool x, double v):
 		eqvr[i]=0.0;
 		end[i]=this;
 	}
+	rid = -1;
+	flag_bd = 0;
+	internal_bd = 0;
 }
 
 Node::Node(const Node & nd){
@@ -35,6 +41,8 @@ Node::Node(const Node & nd){
 		eqvr[i]=0.0;
 		end[i]=this;
 	}
+	flag_bd = nd.flag_bd;
+	internal_bd = nd.internal_bd;
 }
 
 Node & Node::operator = (const Node & nd){

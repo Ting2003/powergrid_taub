@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 100;
+const int MAX_ITERATION = 1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -313,14 +313,14 @@ void Circuit::solve_init(int &my_id){
 		p=nodelist[i];
 
 		// test if it can be merged
-		if( p->is_mergeable() ){
+		/*if( p->is_mergeable() ){
 			mergelist.push_back(p);
 			continue;
-		}
-
+		}*/
+		
 		Net * net = p->nbr[TOP];
-		merge_node(p);
-
+		//merge_node(p);
+		
 		// find the VDD value
 		if( p->isX() ) VDD = p->get_value();
 
@@ -329,16 +329,32 @@ void Circuit::solve_init(int &my_id){
 		    net != NULL &&
 		    fzero(net->value) ){
 			// TODO: ensure ab[1] is not p itself
+			//if(my_id==0 && i <10)
+				//clog<<"two nodes: "<<*net->ab[1]<<" "<<*p<<endl;
 			assert( net->ab[1] != p );
 			p->rep = net->ab[1]->rep;
+			//if(my_id==0 && i<10)
+				//clog<<"p and its rep: "<<
+					//*p<<" "<<*p->rep<<endl;
 		} // else the representative is itself
 
 		// push the representatives into list
 		if( p->rep == p ) {
 			replist.push_back(p);
+			//if(my_id==0 && i<10)
+				//clog<<endl<<" rep: "<<*p<<" "<<nr<<endl;
 			p->rid = nr++;
 		}
 	}// end of for i
+
+	/*if(my_id==0){
+		clog<<endl;
+		for(int i=0;i<nodelist.size()-1;i++)
+			if(nodelist[i]->rid == 0)
+				clog <<*nodelist[i]<<endl;
+		clog<<endl;
+	}*/
+	
 
 	if(nr >=1)
 		block_info.count = nr;
@@ -347,6 +363,7 @@ void Circuit::solve_init(int &my_id){
 	size_t n_nodes = nodelist.size();
 	size_t n_reps  = replist.size();
 	double ratio = n_merge / (double) (n_merge + n_reps);
+	
 	/*clog<<"mergeable  "<<n_merge<<endl;
 	clog<<"replist    "<<n_reps <<endl;
 	clog<<"nodelist   "<<n_nodes<<endl;
@@ -362,14 +379,14 @@ void Circuit::solve_init(int &my_id){
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	block_info.update_block_geometry(mpi_class);
-	block_info.allocate_resource(cm);	
+	block_info.allocate_resource(cm);
 	copy_node_voltages_block();
-	stamp_block_matrix(my_id, A);
+	stamp_block_matrix(my_id, A, mpi_class);
 }
 
 // stamp the nets by sets, block version
 // *NOTE* at the same time insert the net into boundary netlist
-void Circuit::stamp_block_matrix(int &my_id, Matrix &A){	
+void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){	
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetList & ns = net_set[type];
 		NetList::iterator it;
@@ -387,7 +404,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A){
 			break;
 		case CURRENT:
 			for(it=ns.begin();it!=ns.end();++it){
-				stamp_block_current(my_id, (*it));
+				stamp_block_current(my_id, (*it), mpi_class);
 			}
 			break;
 		case VOLTAGE:
@@ -404,7 +421,12 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A){
 			break;
 		}
 	}
-	
+	//if(my_id==0)
+		//clog<<A<<endl;
+	/*if(my_id==0){
+		for(int i=0;i<10;i++)
+			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
+	}*/
 	make_A_symmetric(block_info.bp);
 	
 	A.set_row(block_info.count);
@@ -463,9 +485,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 
 	// before iteration, copy boundary nodes value to corresponding blocks
 	assign_bd_internal_array(my_id);
-	MPI_Gatherv(internal_x, internal_size, MPI_DOUBLE, 
+	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
 		internal_x_g, internal_size_g, 
-		internal_base_g, MPI_DOUBLE, 0, 
+		internal_base_g, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
 	
 	// reorder boundary array according to nbrs
@@ -485,7 +507,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;
-	if(my_id==0) clog<<replist<<endl;
+	if(my_id==0) cout<<replist<<endl;
 	/*if(my_id==0){
 		//clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
@@ -508,32 +530,31 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 // 4. track the maximum error of solution
 double Circuit::solve_iteration(int &my_id, int &iter,
 		int&num_procs, MPI_CLASS &mpi_class){	
-	double diff = .0;
-	double diff_root=0;
+	float diff = .0;
+	float diff_root=0;
 
 	if(mpi_class.block_size ==0);
 	else{
 			// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
 		MPI_Scatterv(bd_x_g, bd_size_g, 
-			bd_base_g, MPI_DOUBLE, bd_x, bd_size, 
-			MPI_DOUBLE, 0, MPI_COMM_WORLD);
+			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
+			MPI_FLOAT, 0, MPI_COMM_WORLD);
 			
 		assign_bd_array();
 
 		// new rhs store in bnewp
 		block_info.update_rhs(my_id);
-		//if(iter==0 &&my_id==3)
-			//for(int i=0;i<block_info.count;i++)
-				//clog<<i<<" "<<block_info.bnewp[i]<<endl;
-
+		//if(iter==0 &&my_id==0)
+			//for(int i=0;i<10;i++)
+				//clog<<"b: "<<i<<" "<<block_info.bnewp[i]<<endl;
 		// x_old stores old solution
 		for(size_t j=0;j<block_info.count;j++)
 			block_info.x_old[j] = block_info.xp[j];	
 
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		//if(iter==0 && my_id==2)
-			//for(int i=0;i< block_info.count;i++)
+		//if(iter==0 && my_id==0)
+			//for(int i=0;i< 10;i++)
 				//clog<<i<<" "<<block_info.xp[i]<<endl;
 
 		diff = modify_voltage(my_id, block_info, 
@@ -543,9 +564,9 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	}
 	// 0 rank cpu will gather all the solution from bd_x
 	// to bd_x_g
-	MPI_Gatherv(internal_x, internal_size, MPI_DOUBLE, 
+	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
 		internal_x_g, internal_size_g, 
-		internal_base_g, MPI_DOUBLE, 0, 
+		internal_base_g, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
 	
 	// reorder boundary array according to nbrs
@@ -563,8 +584,8 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 	}
 	
-	MPI_Reduce(&diff, &diff_root, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&diff_root, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);	
+	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
 	
 	if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
@@ -710,7 +731,6 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		else if( !nk->isX() ) {
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
-
 			A.push_back(k1,k1, G);
 			if(!nl->isX() && l1 < k1) // only store the lower triangular part
 				A.push_back(k1,l1,-G);
@@ -718,7 +738,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	}// end of for j	
 }
 
-void Circuit::stamp_block_current(int &my_id, Net * net){
+void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
 
@@ -878,6 +898,7 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 	// add a new net between `node' and its end
 	Net * net = new Net(RESISTOR, node->eqvr[dir], node, other);
 	node->nbr[dir] = other->nbr[ops] = net;
+	//clog<<"newly added net: "<<*net<<endl;
 	this->add_net(net);
 }
 
@@ -891,7 +912,7 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	MPI_Gather(bd_dd_size, 8, MPI_INT, bd_dd_size_g, 
 			8, MPI_INT, 0, MPI_COMM_WORLD);
 	
-	bd_x = new double[bd_size];
+	bd_x = new float[bd_size];
 
 	// assign bd_size_g value
 	bd_size_g = new int[num_procs];
@@ -902,7 +923,7 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	if(my_id ==0){
 		for(int i=0;i<total_blocks;i++)
 			total_size += bd_size_g[i];
-		bd_x_g = new double[total_size];
+		bd_x_g = new float[total_size];
 	}
 
 	bd_base_g = new int [num_procs];
@@ -1011,7 +1032,7 @@ void Circuit::assign_bd_internal_array(int &my_id){
 
 // assign 4 boundary internal nodes value, store
 // them in array bd_x
-void Circuit::assign_bd_internal_array_dir(int &base, NodePtrVector & list, double *internal_x){
+void Circuit::assign_bd_internal_array_dir(int &base, NodePtrVector & list, float *internal_x){
 	Node *nd;
 	for(size_t i=0;i<list.size();i++){
 		nd = list[i]->rep;
@@ -1238,7 +1259,7 @@ void Circuit::internal_init(int &my_id, int &num_procs){
 		  internal_nodelist_n.size()+
 		  internal_nodelist_ne.size();
 
-	internal_x = new double[internal_size];
+	internal_x = new float[internal_size];
 
 	// assign bd_size_g value
 	internal_size_g = new int[num_procs];
@@ -1250,11 +1271,11 @@ void Circuit::internal_init(int &my_id, int &num_procs){
 	if(my_id ==0){
 		for(int i=0;i<total_blocks;i++)
 			total_internal_size += internal_size_g[i];
-		internal_x_g = new double[total_internal_size];
+		internal_x_g = new float[total_internal_size];
 	}
 
 	internal_base_g = new int [num_procs];
-	if(my_id != 0) return;
+	//if(my_id != 0) return;
 	int base = 0;
 	for(int i=0;i<num_procs;i++){
 		internal_base_g[i] = base;
