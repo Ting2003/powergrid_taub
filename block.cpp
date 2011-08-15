@@ -19,9 +19,6 @@ Block::Block(size_t _count):
         b_ck(NULL),
 	b_new_ck(NULL),
 	x_old(NULL),
-	x_new(NULL),
-	b_init(NULL),
-	b_new(NULL),
 	//bp(NULL),
 	//bnewp(NULL),
 	//xp(NULL),
@@ -34,9 +31,6 @@ Block::Block(size_t _count):
 Block::~Block(){
     delete [] nodes;
     delete [] x_old;
-    delete [] b_init;
-    delete [] b_new;
-    delete [] x_new;
 }
 
 void Block::free_block_cholmod(cholmod_common *cm){
@@ -52,6 +46,7 @@ void Block::CK_decomp(Matrix & A, cholmod_common *cm){
 
 void Block::solve_CK(cholmod_common *cm){
 	x_ck = cholmod_solve(CHOLMOD_A, L, b_new_ck, cm);
+	//cholmod_solve_new(CHOLMOD_A, L, b_new_ck, x_ck, cm);
 }
 
 void Block::allocate_resource(cholmod_common *cm){
@@ -65,7 +60,6 @@ void Block::allocate_resource(cholmod_common *cm){
 	b_new_ck = cholmod_zeros(count, 1, CHOLMOD_REAL, cm);
 	bnewp = static_cast<double*>(b_new_ck->x);
 	x_old = new double [count];
-	x_new = new float [count];
 }
 
 // update rhs of each block with its boundary netlist

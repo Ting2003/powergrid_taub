@@ -39,10 +39,6 @@ public:
 
 	void update_block_geometry(MPI_CLASS &mpi_class);
 	
-	bool inside_bbox(long x, long y) const{
-		return (x>=lx && x<=ux && y>=ly && y<=uy);
-	}
-
 	NetPtrVector boundary_netlist;
 
 	cholmod_factor * L;
@@ -51,11 +47,6 @@ public:
 	cholmod_dense * b_ck, *b_new_ck;
 	// pointer to b_ck, b_new_ck, and x_ck;
 	double *bp, *bnewp, *xp, *x_old;
-	// x_new is the double array of xp
-	// for the transfer of mpi
-	float *x_new;
-	// doesn't exist in allocate resource
-	double *b_init, *b_new;
 	// solution
 	cholmod_dense *x_ck;
 
@@ -65,8 +56,7 @@ public:
 
 	Node ** nodes;
 
-	// geometric information of this block
-	double lx, ly, ux, uy;
+	float lx, ly, ux, uy;
 };
 
 #endif

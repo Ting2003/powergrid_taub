@@ -2,8 +2,8 @@
 
 MPI_CLASS::MPI_CLASS(){
 	NUM_NET_TYPE =3;
-	X_BLOCKS = 8; // # of blocks along x axis
-	Y_BLOCKS = 8; // # of blocks along y axis
+	X_BLOCKS = 4; // # of blocks along x axis
+	Y_BLOCKS = 3; // # of blocks along y axis
 	x_max = 0;
 	y_max = 0;
 	x_min = 0;

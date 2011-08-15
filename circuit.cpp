@@ -356,7 +356,7 @@ void Circuit::solve_init(int &my_id){
 	}*/
 	
 
-	if(nr >=1)
+	if(nr >=0)
 		block_info.count = nr;
 
 	size_t n_merge = mergelist.size();
@@ -370,6 +370,7 @@ void Circuit::solve_init(int &my_id){
 	clog<<"ratio =    "<<ratio  <<endl;*/
 
 	net_id.clear();
+	//clog<<my_id<<" "<<block_info.count<<endl;
 }
 
 // build up block info
@@ -492,7 +493,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);	
-	
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
@@ -507,14 +507,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;
-	if(my_id==0) cout<<replist<<endl;
-	/*if(my_id==0){
+	//if(my_id==4) cout<<replist<<endl;
+	if(my_id==0){
 		//clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
 		//clog<<replist<<endl;
 		get_voltages_from_block_LU_sol();
-		get_vol_mergelist();
-	}*/
+		//get_vol_mergelist();
+	}
 
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
@@ -538,30 +538,24 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
 			MPI_FLOAT, 0, MPI_COMM_WORLD);
 			
-	if(mpi_class.block_size ==0);
-	else{	
-		assign_bd_array();
+	assign_bd_array();
 
-		// new rhs store in bnewp
-		block_info.update_rhs(my_id);
-		//if(iter==0 &&my_id==0)
-			//for(int i=0;i<10;i++)
-				//clog<<"b: "<<i<<" "<<block_info.bnewp[i]<<endl;
-		// x_old stores old solution
-		for(size_t j=0;j<block_info.count;j++)
-			block_info.x_old[j] = block_info.xp[j];	
+	// new rhs store in bnewp
+	block_info.update_rhs(my_id);
 
+	// x_old stores old solution
+	for(size_t j=0;j<block_info.count;j++)
+		block_info.x_old[j] = block_info.xp[j];	
+
+	if(block_info.count>0){
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		//if(iter==0 && my_id==0)
-			//for(int i=0;i< 10;i++)
-				//clog<<i<<" "<<block_info.xp[i]<<endl;
-
-		diff = modify_voltage(my_id, block_info, 
-				block_info.x_old);
-	
-		assign_bd_internal_array(my_id);
 	}
+
+	diff = modify_voltage(my_id, block_info, 
+			block_info.x_old);
+
+	assign_bd_internal_array(my_id);
 	// 0 rank cpu will gather all the solution from bd_x
 	// to bd_x_g
 	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
@@ -571,17 +565,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0){
-		//if(iter==1)
-		//clog<<"total_inter: "<<total_internal_size<<endl;
-		//for(int i=0;i<total_internal_size;i++)
-			//clog<<i<<" "<<internal_x_g[i]<<endl;
-		//clog<<endl;
 		reorder_bd_x_g(mpi_class);
-		//clog<<total_size<<endl;
-		//if(iter==1)
-		//for(int i=0;i<total_size;i++)
-			//clog<<i<<" "<<bd_x_g[i]<<endl;
-
 	}
 	
 	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
@@ -659,9 +643,9 @@ void Circuit::get_vol_mergelist(){
 void Circuit::get_voltages_from_block_LU_sol(){
 	for(size_t i=0;i<nodelist.size()-1;i++){
 		Node * node = nodelist[i];
-		if( node->is_mergeable() ) continue;
+		//if( node->is_mergeable() ) continue;
 		size_t id = node->rep->rid;
-		double v = block_info.x_new[id];
+		double v = block_info.xp[id];
 		node->value = v;
 	}
 }

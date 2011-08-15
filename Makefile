@@ -19,7 +19,7 @@ UMFPACK_LIB_DIR=$(UMFPACK)/lib
 UMFPACK_INC_DIR=$(UMFPACK)/include
 UMFPACK_LIB=$(UMFPACK_LIB_DIR)/libumfpack.a \
 	    $(UMFPACK_LIB_DIR)/libamd.a \
-	    $(UMFPACK_LIB_DIR)/libcholmod.a \
+	    $(CHOLMOD_LIB_DIR)/libcholmod.a \
 	    $(UMFPACK_LIB_DIR)/libcolamd.a \
             $(UMFPACK_LIB_DIR)/libccolamd.a \
             $(UMFPACK_LIB_DIR)/libcamd.a \
