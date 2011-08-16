@@ -467,11 +467,15 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	
 	if(mpi_class.block_size>0){
 		solve_init(my_id);
+		if(my_id==0) clog<<"finish solve init. "<<endl;
 	}
 
 	block_init(my_id, A, mpi_class);
+	if(my_id==0) clog<<"finish block init. "<<endl;
 	boundary_init(my_id, num_procs);
+	if(my_id==0) clog<<"finish boundary init. "<<endl;
 	internal_init(my_id, num_procs);
+	if(my_id==0) clog<<"finish internal_init. "<<endl;
 	
 	// stores 4 boundary base into bd_base_gd
 	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
@@ -492,7 +496,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 		MPI_COMM_WORLD);
 	
 	// reorder boundary array according to nbrs
-	if(my_id==0)	reorder_bd_x_g(mpi_class);	
+	if(my_id==0)	reorder_bd_x_g(mpi_class);
+	if(my_id==0) clog<<"before iteration. "<<endl;
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
@@ -902,16 +907,16 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	bd_size_g = new int[num_procs];
 	MPI_Gather(&bd_size, 1, MPI_INT, bd_size_g, 1, MPI_INT,
 			0, MPI_COMM_WORLD);
-	
+
 	total_size = 0;
 	if(my_id ==0){
 		for(int i=0;i<total_blocks;i++)
 			total_size += bd_size_g[i];
-		bd_x_g = new float[total_size];
 	}
 
+	bd_x_g = new float[total_size];
 	bd_base_g = new int [num_procs];
-	if(my_id != 0) return;
+	//if(my_id != 0) return;
 	int base = 0;
 	for(int i=0;i<num_procs;i++){
 		bd_base_g[i] = base;
@@ -1255,9 +1260,9 @@ void Circuit::internal_init(int &my_id, int &num_procs){
 	if(my_id ==0){
 		for(int i=0;i<total_blocks;i++)
 			total_internal_size += internal_size_g[i];
-		internal_x_g = new float[total_internal_size];
 	}
 
+	internal_x_g = new float[total_internal_size];
 	internal_base_g = new int [num_procs];
 	//if(my_id != 0) return;
 	int base = 0;
