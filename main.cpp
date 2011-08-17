@@ -78,9 +78,16 @@ int main(int argc, char * argv[]){
 	}
 	open_logfile(logfile);
 	
+	// mpi variable for grouping
+	MPI_Comm comm, new_comm;
+	MPI_Group orig_group, new_group;
+	int new_rank, rank, new_size;
+
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
+	MPI_Comm_group(MPI_COMM_WORLD, &orig_group);
+
 	if(my_id==0) clog<<"num_procs: "<<num_procs<<endl;	
 
 	if( freopen(output, "w", stdout) == NULL )
@@ -97,47 +104,57 @@ int main(int argc, char * argv[]){
 		mpi_class.tasks_n = new int [num_procs];
 		mpi_class.MPI_Assign_Task(num_procs);
 	}
-	MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, 
-		&mpi_class.block_size, 
-		1, MPI_INT, 0, MPI_COMM_WORLD);
-		
+	mpi_class.num_blocks = mpi_class.X_BLOCKS * 
+				mpi_class.Y_BLOCKS;
+	//MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, 
+		//&mpi_class.block_size, 
+		//1, MPI_INT, 0, MPI_COMM_WORLD);
 	Parser parser(&cktlist);
+	parser.parse(my_id, input, mpi_class);
+	mpi_class.cktlist_size = cktlist.size();
+	mpi_class.Assign_color_ckt(my_id, num_procs);
+
+	MPI_Comm_split(MPI_COMM_WORLD, mpi_class.color, my_id, 
+		&new_comm);
+	MPI_Comm_group(new_comm, &new_group);
+	MPI_Group_size(new_group, &mpi_class.new_size);
+	MPI_Group_rank(new_group, &new_rank);
+	
 	clock_t t1,t2;
 	t1=clock();
-	parser.parse(my_id, input, mpi_class);
+	parser.second_parse(new_rank, mpi_class);
 	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-	
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
-	for(size_t i=0;i<cktlist.size();i++){
-		Circuit * ckt = cktlist[i];
-		if(ckt->get_name()=="VDD"){
-		ckt->solve(my_id, num_procs, mpi_class);
-		//if(my_id ==0){
-			//cktlist[i]->print();
-			//clog<<endl;
-		//}
-		// after that, this circuit can be released
-		}
-
-		free(ckt);
-	}
+	// now each group of processor only deals with its color ckt
+	int i= mpi_class.color;
+	Circuit *ckt = cktlist[i];
+	if(new_rank ==0)
+		clog<<"Solving "<<ckt->get_name()<<endl;
+	ckt->solve(my_id, new_rank, mpi_class.new_size, new_comm, 
+			mpi_class);
+	//if(my_id ==0){
+		//cktlist[i]->print();
+		//clog<<endl;
+	//}
+	// after that, this circuit can be released
+	free(ckt);
 
 	mpi_t12 = MPI_Wtime();
 	
 	// output a single ground node
-	if(my_id==0){
-		printf("G  %.5e\n", 0.0);
+	if(new_rank==0){
+		//printf("G  %.5e\n", 0.0);
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
-		//close_logfile();
 	}
-	//MPI_Barrier(MPI_COMM_WORLD);
+	if(my_id==0) close_logfile();
+
+	MPI_Group_free(&orig_group);
+
 	MPI_Finalize();
-	//close_logfile();
-	//cout<<"close logfile. "<<endl;
 	return 0;
 }

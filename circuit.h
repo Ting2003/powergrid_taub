@@ -29,6 +29,7 @@
 #include "triplet.h"
 #include "block.h"
 #include "mpi_class.h"
+#include "mpi.h"
 using namespace std;
 using namespace std::tr1;
 
@@ -81,7 +82,7 @@ public:
 	void sort_internal_nodes(int &my_id);
 
 	// solve for node voltage
-	void solve(int &my_id, int &num_procs, MPI_CLASS &mpi_class);
+	void solve(int &orig_rank, int &my_id, int &num_procs, MPI_Comm &comm, MPI_CLASS &mpi_class);
 	
 	static void set_parameters(double, double, double, size_t, int);
 	static void get_parameters(double&, double&, double&, size_t&, int&);
@@ -166,7 +167,7 @@ public:
 private:
 	// member functions
 
-	bool solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class);
+	bool solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi_class, MPI_Comm &comm);
 	void solve_block_LU();
 	void decomp_matrix(int &my_id, Matrix &A);
 	
@@ -175,7 +176,7 @@ private:
 	void solve_init_LU();
 
 	// updates nodes value in each iteration
-	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class);
+	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class, MPI_Comm &comm);
 
 	void block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void update_block_geometry();
@@ -191,9 +192,9 @@ private:
 	void stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
 	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
-	void boundary_init(int &my_id, int &num_procs);
+	void boundary_init(int &my_id, int &num_procs, MPI_Comm &comm);
 	
-	void internal_init(int &my_id, int &num_procs);
+	void internal_init(int &my_id, int &num_procs, MPI_Comm &comm);
 
 	void assign_bd_array();
 	void assign_bd_array_dir(int &base, NodePtrVector &list);

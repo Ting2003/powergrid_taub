@@ -65,7 +65,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 	Node * nd_ptr[2];	// this will be set to the two nodes found
 	double value;
 	int count=0;
-
+	int color = mpi_class.color;
 	sscanf(line, "%s %s %s %lf", sname, sa, sb, &value);
 
 	if( sa[0] == '0' ) { nd[0].pt.set(-1,-1,-1); }
@@ -82,7 +82,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 
 	int ckt_id = layer_in_ckt[layer];
 	Circuit * ckt = (*p_ckts)[ckt_id];
-	
+
 	for(int i=0;i<2;i++){
 		if ( nd[i].is_ground() ){
 			nd_ptr[i] = ckt->nodelist[0]; // ground node
@@ -91,9 +91,10 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			// create new node and insert
 			nd_ptr[i] = new Node(nd[i]); // copy constructor
 			nd_ptr[i]->rep = nd_ptr[i];  // set rep to be itself
-			count = cpr_nd_block(nd_ptr[i], mpi_class.block_geo, my_id);
-			if (count==1) // internal node
+			count = cpr_nd_block(nd_ptr[i], mpi_class.geo, my_id);
+			if (count==1){ // internal node
 				ckt->add_node(nd_ptr[i]);
+			}
 			else
 				nd_ptr[i]->flag_bd = 1;
 
@@ -261,8 +262,10 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class){
 	// processor 0 will extract layer info
 	// and bcast it into other processor
 	vector<CKT_LAYER >ckt_name_info;
-	if(my_id==0)
+	if(my_id==0){
 		extract_layer(my_id, ckt_name_info, mpi_class);
+		set_layer_color(ckt_name_info, mpi_class.layer_color);
+	}
 	
 	int ckt_name_info_size = ckt_name_info.size();
 	
@@ -280,7 +283,7 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class){
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	second_parse(my_id, mpi_class);
+	//second_parse(my_id, mpi_class);
 }
 
 void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
@@ -306,7 +309,6 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
-
 	// stores the geo boundary line for internal node:
 	// e, w, n, s
 	mpi_class.block_geo_origin = new float [4];
@@ -318,21 +320,16 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class){
 	char  buff[100];
 	FILE *f = NULL;
 
-	int color = 0;
-	int block_size = mpi_class.block_size;
-	if(block_size==0) return;
-	for(int i=0;i<block_size;i++){
-		sprintf(buff, "./INPUT_FILE/netlist_%d%d.txt", color, my_id);
-		f = fopen(buff, "r");
-		if(f==NULL) report_exit("Input file not exist!\n");
-	}
-	
+	int color = mpi_class.color;
+	if(my_id>= mpi_class.num_blocks) return;
+	sprintf(buff, "./INPUT_FILE/netlist_%d%d.txt", color, my_id);
+	f = fopen(buff, "r");
+	if(f==NULL) report_exit("Input file not exist!\n");
+
 	char line[MAX_BUF];
 	char type;
-
 	while( fgets(line, MAX_BUF,f)!=NULL){
 		type = line[0];
-		//clog<<line<<endl;
 		switch(type){
 			case 'r': // resistor
 			case 'R':
@@ -519,8 +516,6 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	static Node nd[2];
 	double value;
 
-	int temp = 0;
-
 	FILE *f;
 	f = fopen(this->filename, "r");
 	if(f==NULL) report_exit("Input file not exist!\n");
@@ -528,14 +523,16 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	char line[MAX_BUF];
 	string line_s;
 
-	int color = 0;
 	vector<FILE *> of;
-	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
-	clog<<"num_blocks. "<<num_blocks<<endl;
-	InitialOF(of, num_blocks, color);
-	//clog<<"after initial ofs. "<<endl;
+	int num_blocks = mpi_class.num_blocks;
+	int cktlist_size = (*p_ckts).size();
+	clog<<"num_blocks. "<<mpi_class.num_blocks<<endl;
+	InitialOF(of, num_blocks, cktlist_size);
 
 	int count_1 = 0, count_2 = 0;
+	int color = 0;
+	int index = 0;
+	map<int, int>::iterator it;
 	while( fgets(line, MAX_BUF,f)!=NULL){
 		if(line[0]=='r' || line[0] =='R' ||
 		   line[0]=='v' || line[0] =='V' ||
@@ -547,16 +544,27 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 			else extract_node(sa, nd[0]);
 			if( sb[0] == '0' ){ nd[1].pt.set(-1,-1,-1); }
 			else	extract_node(sb, nd[1]);
-		
+
+			if(nd[0].pt.z >=0){
+				it=mpi_class.layer_color.find(nd[0].pt.z); 
+				if(it != mpi_class.layer_color.end())
+					color = it->second;
+			}
+			else if(nd[1].pt.z >=0)
+			{
+				it=mpi_class.layer_color.find(nd[1].pt.z); 
+				if(it != mpi_class.layer_color.end())
+					color = it->second;
+			}
 			for(int i=0;i<num_blocks;i++){
 				// at least one node is inside block
 				count_1 = cpr_nd_block(nd[0], geo, i);
 				count_2 = cpr_nd_block(nd[1], geo, i);
 
 				// write all voltage sources
-				if((count_1 + count_2 >=1)){
-					temp = fprintf(of[i], "%s", line);
-					//clog<<temp<<" "<<i<<" "<<line<<endl;
+				if((count_1 + count_2 >=1)){	
+					index = i*cktlist_size+color; 
+					fprintf(of[index], "%s", line);
 				}
 			}
 		}
@@ -565,10 +573,14 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 	fclose(f);
 	//clog<<"close original file. "<<endl;
 	for(int i=0;i<num_blocks;i++){
-		fclose(of[i]);
+		for(int color =0; color <cktlist_size;color++){
+			int index = i*cktlist_size+color;
+			fclose(of[index]);
+		}
 	}
 	//clog<<"close all output file. "<<endl;
 	of.clear();
+	mpi_class.layer_color.clear();
 }
 
 int Parser::cpr_nd_block(Node &nd, float *geo, int &bid){
@@ -582,10 +594,10 @@ int Parser::cpr_nd_block(Node &nd, float *geo, int &bid){
 }
 
 int Parser::cpr_nd_block(Node *nd, float *geo, int &bid){
-	if(nd->pt.x >= geo[0] &&
-	   nd->pt.x <= geo[2] &&
-	   nd->pt.y >= geo[1] &&
-	   nd->pt.y <= geo[3]){
+	if(nd->pt.x >= geo[4*bid+0] &&
+	   nd->pt.x <= geo[4*bid+2] &&
+	   nd->pt.y >= geo[4*bid+1] &&
+	   nd->pt.y <= geo[4*bid+3]){
 		return 1;
 	}
 	else return 0;
@@ -693,13 +705,16 @@ void Parser::add_node_inter(Node *nd_0, Node *nd_1,
 	}
 }
 
-void Parser::InitialOF(vector<FILE *> & of, int &num_blocks, int &color){
+void Parser::InitialOF(vector<FILE *> & of, int &num_blocks, int &cktlist_size){
 	char  buff[100];
 	FILE *f;
 	for(int i=0;i<num_blocks;i++){
-		sprintf(buff, "./INPUT_FILE/netlist_%d%d.txt", color, i);
-		f = fopen(buff, "w");
-		of.push_back(f);
+		for(int color = 0; color<cktlist_size; color++){
+			sprintf(buff, "./INPUT_FILE/netlist_%d%d.txt", color, i);
+			f = fopen(buff, "w");
+			of.push_back(f);
+			//clog<<"buff: "<<buff<<endl;
+		}
 	}
 }
 
@@ -761,4 +776,21 @@ void Parser::insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, NodePtrVector &
 	insert_node_list(nd_0, nd_1, count_10, 
 			count_20, count_1, count_2, 
 			bd_list, flag);
+}
+
+void Parser::set_layer_color(vector<CKT_LAYER>&ckt_name_info,
+		map<int, int> &layer_color){
+	int i=0;
+	int j=0;
+	int color = 0;
+	for(;j<ckt_name_info.size();){
+		if(strcmp(ckt_name_info[j].name, ckt_name_info[i].name) ==0){
+			layer_color.insert(pair<int, int>(ckt_name_info[j].layer, color));
+			j++;
+		}
+		else{
+			color++;
+			i=j;
+		}
+	}
 }

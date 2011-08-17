@@ -73,6 +73,9 @@ public:
 	void InitialOF(vector<FILE *> & of, int &num_blocks, int &color);
 
 	void InitialIF(vector<FILE *> & ifs, int &my_id, int &block_size, int &color);
+
+	void set_layer_color(vector<CKT_LAYER>&ckt_name_info,
+		map<int, int> &layer_color);
 	
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits

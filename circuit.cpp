@@ -341,21 +341,10 @@ void Circuit::solve_init(int &my_id){
 		// push the representatives into list
 		if( p->rep == p ) {
 			replist.push_back(p);
-			//if(my_id==0 && i<10)
-				//clog<<endl<<" rep: "<<*p<<" "<<nr<<endl;
 			p->rid = nr++;
 		}
 	}// end of for i
-
-	/*if(my_id==0){
-		clog<<endl;
-		for(int i=0;i<nodelist.size()-1;i++)
-			if(nodelist[i]->rid == 0)
-				clog <<*nodelist[i]<<endl;
-		clog<<endl;
-	}*/
 	
-
 	if(nr >=0)
 		block_info.count = nr;
 
@@ -370,7 +359,7 @@ void Circuit::solve_init(int &my_id){
 	clog<<"ratio =    "<<ratio  <<endl;*/
 
 	net_id.clear();
-	//clog<<my_id<<" "<<block_info.count<<endl;
+	//clog<<"nodes: "<<my_id<<" "<<" "<<block_info.count<<endl;
 }
 
 // build up block info
@@ -445,13 +434,13 @@ void Circuit::find_block_size(MPI_CLASS &mpi_class){
 	block_info.allocate_resource(cm);
 }
 
-void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
+void Circuit::solve(int &orig_rank, int &my_id, int&num_procs, MPI_Comm &comm, MPI_CLASS &mpi_class){
 	// each block is solved by IT
-	solve_IT(my_id, num_procs, mpi_class);
+	solve_IT(orig_rank, my_id, num_procs, mpi_class, comm);
 }
 
 // solve Circuit
-bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){	
+bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi_class, MPI_Comm &comm){	
 	double time=0;
 	double t1, t2;
 	
@@ -459,30 +448,23 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	cholmod_start(cm);
 	cm->print = 5;	
 
-	total_blocks = mpi_class.X_BLOCKS *mpi_class.Y_BLOCKS;
+	total_blocks = mpi_class.num_blocks;
 
 	// did not find any `X' node
 	if( circuit_type == UNKNOWN )
 		circuit_type = C4;
-	
-	if(mpi_class.block_size>0){
+	if(my_id<num_procs){
 		solve_init(my_id);
-		if(my_id==0) clog<<"finish solve init. "<<endl;
 	}
-
 	block_init(my_id, A, mpi_class);
-	if(my_id==0) clog<<"finish block init. "<<endl;
-	boundary_init(my_id, num_procs);
-	if(my_id==0) clog<<"finish boundary init. "<<endl;
-	internal_init(my_id, num_procs);
-	if(my_id==0) clog<<"finish internal_init. "<<endl;
-	
+	boundary_init(my_id, num_procs, comm);
+	internal_init(my_id, num_procs, comm);
 	// stores 4 boundary base into bd_base_gd
 	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
-		0, MPI_COMM_WORLD);
+		0, comm);
 	
 	MPI_Gather(internal_base, 8, MPI_INT, internal_base_gd,
-		8, MPI_INT, 0, MPI_COMM_WORLD);
+		8, MPI_INT, 0, comm);
 		
 	int iter = 0;	
 	double diff=0;
@@ -492,16 +474,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	assign_bd_internal_array(my_id);
 	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
 		internal_x_g, internal_size_g, 
-		internal_base_g, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
+		internal_base_g, MPI_FLOAT, 0, comm);
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
-	if(my_id==0) clog<<"before iteration. "<<endl;
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
-		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
+		diff = solve_iteration(my_id, iter, num_procs, mpi_class, comm);
 		iter++;
 		//if(my_id ==0)
 			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
@@ -512,7 +492,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;
-	//if(my_id==4) cout<<replist<<endl;
+	if(my_id==0 && mpi_class.color ==0) cout<<replist<<endl;
 	if(my_id==0){
 		//clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
@@ -534,14 +514,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 // 3. update node voltages
 // 4. track the maximum error of solution
 double Circuit::solve_iteration(int &my_id, int &iter,
-		int&num_procs, MPI_CLASS &mpi_class){	
+		int&num_procs, MPI_CLASS &mpi_class, MPI_Comm &comm){	
 	float diff = .0;
 	float diff_root=0;
 
 	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
 	MPI_Scatterv(bd_x_g, bd_size_g, 
 			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
-			MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_FLOAT, 0, comm);
 			
 	assign_bd_array();
 
@@ -565,18 +545,17 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	// to bd_x_g
 	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
 		internal_x_g, internal_size_g, 
-		internal_base_g, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
+		internal_base_g, MPI_FLOAT, 0, comm);
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0){
 		reorder_bd_x_g(mpi_class);
 	}
 	
-	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
+	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, comm);
+	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, comm);	
 	
-	if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
+	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
 }
 
@@ -891,7 +870,7 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 	this->add_net(net);
 }
 
-void Circuit::boundary_init(int &my_id, int &num_procs){
+void Circuit::boundary_init(int &my_id, int &num_procs, MPI_Comm &comm){
 	assign_bd_base(my_id);
 	assign_bd_dd_size(my_id);
 
@@ -899,14 +878,14 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	bd_dd_size_g = new int [8*num_procs];	
 	
 	MPI_Gather(bd_dd_size, 8, MPI_INT, bd_dd_size_g, 
-			8, MPI_INT, 0, MPI_COMM_WORLD);
+			8, MPI_INT, 0, comm);
 	
 	bd_x = new float[bd_size];
 
 	// assign bd_size_g value
 	bd_size_g = new int[num_procs];
 	MPI_Gather(&bd_size, 1, MPI_INT, bd_size_g, 1, MPI_INT,
-			0, MPI_COMM_WORLD);
+			0, comm);
 
 	total_size = 0;
 	if(my_id ==0){
@@ -1219,7 +1198,7 @@ void Circuit::reorder_bd_x_g(MPI_CLASS &mpi_class){
 	}
 }
 
-void Circuit::internal_init(int &my_id, int &num_procs){
+void Circuit::internal_init(int &my_id, int &num_procs, MPI_Comm &comm){
 	assign_internal_base(my_id);
 
 	// allocate boundary_nodelist size
@@ -1236,8 +1215,7 @@ void Circuit::internal_init(int &my_id, int &num_procs){
 	internal_dd_size_g = new int [8*num_procs];
 	
 	MPI_Gather(internal_dd_size, 8, MPI_INT, 
-		internal_dd_size_g, 8, MPI_INT, 0, 
-		MPI_COMM_WORLD);
+		internal_dd_size_g, 8, MPI_INT, 0, comm);
 
 	internal_size = internal_nodelist_sw.size()+
 		  internal_nodelist_s.size()+
@@ -1254,7 +1232,7 @@ void Circuit::internal_init(int &my_id, int &num_procs){
 	internal_size_g = new int[num_procs];
 	MPI_Gather(&internal_size, 1, MPI_INT, 
 			internal_size_g, 1, MPI_INT,
-			0, MPI_COMM_WORLD);
+			0, comm);
 	
 	total_internal_size = 0;
 	if(my_id ==0){

@@ -2,6 +2,7 @@
 #define __MPI_CLASS_H_
 
 #include <iostream>
+#include <map>
 
 using namespace std;
 
@@ -14,6 +15,8 @@ public:
 	int NUM_NET_TYPE;
 	int X_BLOCKS;
 	int Y_BLOCKS;
+	int num_blocks;
+	int cktlist_size;
 	long x_max;
 	long y_max;
 	long x_min;
@@ -36,9 +39,21 @@ public:
 
 	int block_size;
 
+	int *start_proc;
+	int *end_proc;
+	int *procs_n;
+	int color, new_size;
+	int **ranks;
+	map<int, int> layer_color;
+
 	// function
 	void MPI_Assign_Task(int & num_procs);
 	void set_geo_origin(MPI_CLASS &mpi_class);
+
+	void Assign_Task(int &num_tasks, int & num_procs);
+
+	void Assign_color(int &my_id, int &n);
+	void Assign_color_ckt(int &my_id, int &num_procs);
 };
 
 #endif
