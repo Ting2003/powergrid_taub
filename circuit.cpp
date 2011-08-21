@@ -492,6 +492,7 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;
+	if(my_id==0 && mpi_class.color ==0) clog<<"iter time: "<<time<<endl;
 	if(my_id==0 && mpi_class.color ==0) cout<<replist<<endl;
 	if(my_id==0){
 		//clog<<"solve iteration time is: "<<time<<endl;
