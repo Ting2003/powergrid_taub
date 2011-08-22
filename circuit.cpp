@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 2;// 1000;
+const int MAX_ITERATION =  1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -454,9 +454,7 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 		solve_init(my_id);
 	}
 	block_init(my_id, A, mpi_class);
-	if(my_id==0) clog<<"finish block_init. "<<endl;
 	boundary_init(my_id, num_procs, comm);
-	if(my_id==0) clog<<"finish boundary_init. "<<endl;
 	internal_init(my_id, num_procs, comm);
 	// stores 4 boundary base into bd_base_gd
 	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
@@ -528,7 +526,6 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 	// new rhs store in bnewp or bnew
 	block_info.update_rhs(my_id);
-	if(my_id==0) clog<<block_info.bnew<<endl;
 	
 	// x_old stores old solution
 	for(size_t j=0;j<block_info.count;j++)
@@ -539,7 +536,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 		//block_info.solve_CK(cm);
 		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
 	}
-	if(my_id==0) clog<<block_info.x<<endl;
+	//if(my_id==0) clog<<block_info.x<<endl;
 	diff = modify_voltage(my_id, block_info, 
 			block_info.xold);
 

@@ -137,12 +137,9 @@ void Block::update_rhs(int &my_id){
 	size_t size = boundary_netlist.size();
 	size_t k=0, l=0;
 
-	int temp = 1;
 	bnew = b;
-	/*for(size_t i=0;i<count;i++){
-		bnewp[i] = bp[i];
-	}*/
-
+	int temp = 1;
+		
 	// for each net in this block
 	for(size_t i=0;i<size;i++){
 		Net * net = boundary_netlist[i];
@@ -161,7 +158,7 @@ void Block::update_rhs(int &my_id){
 		else if(c->flag_bd ==0){
 			l = c->rid;
 			if(!c->isX()){
-				bnew[l] += G * c->value;
+				bnew[l] += G * a->value;
 			}
 		}
 	} // end of for i
