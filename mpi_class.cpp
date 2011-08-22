@@ -2,15 +2,15 @@
 
 MPI_CLASS::MPI_CLASS(){
 	NUM_NET_TYPE =3;
-	X_BLOCKS = 13; // # of blocks along x axis
-	Y_BLOCKS = 13; // # of blocks along y axis
+	X_BLOCKS = 2; // # of blocks along x axis
+	Y_BLOCKS = 2; // # of blocks along y axis
 	num_blocks = 0;
 	cktlist_size = 0;
 	x_max = 0;
 	y_max = 0;
 	x_min = 0;
 	y_min = 0;
-	overlap_ratio = 0.2;
+	overlap_ratio = 0.0;
 
 	len_per_block_x = 0;
 	len_per_block_y = 0;

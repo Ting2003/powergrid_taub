@@ -183,7 +183,7 @@ private:
 
 	// methods of stamping the matrix
 	
-	void make_A_symmetric(double *bp);
+	void make_A_symmetric(Vec &bp);
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_boundary_matrix();
@@ -233,7 +233,7 @@ private:
 	void set_len_per_block();
 	void find_block_size (MPI_CLASS &mpi_class);
 
-	double modify_voltage(int &my_id, Block &block_info, double* x_old);
+	double modify_voltage(int &my_id, Block &block_info, Vec & x_old);
 
 	void solve_one_block(size_t block_id);
 

@@ -38,7 +38,7 @@ size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0;
 int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1000;
+const int MAX_ITERATION = 2;// 1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
@@ -369,7 +369,8 @@ void Circuit::solve_init(int &my_id){
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	block_info.update_block_geometry(mpi_class);
-	block_info.allocate_resource(cm);
+	//block_info.allocate_resource(cm);
+	block_info.allocate_resource_LU();
 	copy_node_voltages_block();
 	stamp_block_matrix(my_id, A, mpi_class);
 }
@@ -411,17 +412,13 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 			break;
 		}
 	}
-	//if(my_id==0)
-		//clog<<A<<endl;
-	/*if(my_id==0){
-		for(int i=0;i<10;i++)
-			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
-	}*/
-	make_A_symmetric(block_info.bp);
+	make_A_symmetric(block_info.b);
 	
 	A.set_row(block_info.count);
 	if(block_info.count >0){
-		block_info.CK_decomp(A, cm);
+		//block_info.CK_decomp(A, cm);
+		block_info.get_col_compressed(A);
+		block_info.LU_decomposition();
 	}
 }
 
@@ -431,7 +428,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 // 4. find local block index for each node
 void Circuit::find_block_size(MPI_CLASS &mpi_class){	
 	// for each block, allocate resource
-	block_info.allocate_resource(cm);
+	block_info.allocate_resource_LU();
 }
 
 void Circuit::solve(int &orig_rank, int &my_id, int&num_procs, MPI_Comm &comm, MPI_CLASS &mpi_class){
@@ -444,9 +441,9 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 	double time=0;
 	double t1, t2;
 	
-	cm = &c;
+	/*cm = &c;
 	cholmod_start(cm);
-	cm->print = 5;	
+	cm->print = 5;	*/
 
 	total_blocks = mpi_class.num_blocks;
 
@@ -457,7 +454,9 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 		solve_init(my_id);
 	}
 	block_init(my_id, A, mpi_class);
+	if(my_id==0) clog<<"finish block_init. "<<endl;
 	boundary_init(my_id, num_procs, comm);
+	if(my_id==0) clog<<"finish boundary_init. "<<endl;
 	internal_init(my_id, num_procs, comm);
 	// stores 4 boundary base into bd_base_gd
 	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
@@ -478,6 +477,7 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
+		
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
@@ -502,9 +502,9 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 		//get_vol_mergelist();
 	}
 
-	if(block_info.count > 0)
+	/*if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
-	cholmod_finish(cm);
+	cholmod_finish(cm);*/
 	return successful;
 }
 
@@ -523,23 +523,25 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	MPI_Scatterv(bd_x_g, bd_size_g, 
 			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
 			MPI_FLOAT, 0, comm);
-			
+	
 	assign_bd_array();
 
-	// new rhs store in bnewp
+	// new rhs store in bnewp or bnew
 	block_info.update_rhs(my_id);
-
+	if(my_id==0) clog<<block_info.bnew<<endl;
+	
 	// x_old stores old solution
 	for(size_t j=0;j<block_info.count;j++)
-		block_info.x_old[j] = block_info.xp[j];	
+		block_info.xold[j] = block_info.x[j];	
 
 	if(block_info.count>0){
-		block_info.solve_CK(cm);
-		block_info.xp = static_cast<double *>(block_info.x_ck->x);
+		block_info.solve_LU();
+		//block_info.solve_CK(cm);
+		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
 	}
-
+	if(my_id==0) clog<<block_info.x<<endl;
 	diff = modify_voltage(my_id, block_info, 
-			block_info.x_old);
+			block_info.xold);
 
 	assign_bd_internal_array(my_id);
 	// 0 rank cpu will gather all the solution from bd_x
@@ -560,17 +562,17 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	return diff_root;
 }
 
-double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
+double Circuit::modify_voltage(int &my_id, Block &block, Vec & x_old){
 	double max_diff = 0.0;
 	//if(get_name()=="VDDA") OMEGA = 1.0;
 	//else OMEGA = 1.15;
 	OMEGA = 1.0;
 	for(size_t i=0;i<block.count;i++){
-		block.xp[i] = (1-OMEGA)*x_old[i] + OMEGA*
-			block.xp[i];
+		block.x[i] = (1-OMEGA)*x_old[i] + OMEGA*
+			block.x[i];
 		// update block nodes value
-		block.nodes[i]->value = block.xp[i];
-		double diff = fabs(x_old[i] - block.xp[i]);
+		block.nodes[i]->value = block.x[i];
+		double diff = fabs(x_old[i] - block.x[i]);
 		if( diff > max_diff ) max_diff = diff;
 	}
 
@@ -630,7 +632,7 @@ void Circuit::get_voltages_from_block_LU_sol(){
 		Node * node = nodelist[i];
 		//if( node->is_mergeable() ) continue;
 		size_t id = node->rep->rid;
-		double v = block_info.xp[id];
+		double v = block_info.x[id];
 		node->value = v;
 	}
 }
@@ -645,12 +647,12 @@ void Circuit::copy_node_voltages_block(){
 	for(size_t i=0;i<replist.size();i++){
 		Node *node = replist[i];
 		id = node->rid;
-		block_info.xp[id] = replist[i]->value;
+		block_info.x[id] = replist[i]->value;
 		block_info.nodes[id] = replist[i];
 	}
 }
 
-void Circuit::make_A_symmetric(double *b){
+void Circuit::make_A_symmetric(Vec &b){
 	int type = RESISTOR;
 	NetList & ns = net_set[type];
 	NetList::iterator it;
@@ -701,7 +703,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
 			A.push_back(k1,k1, G);
-			if(!nl->isX() && l1 < k1) // only store the lower triangular part
+			if(!nl->isX() )//&& l1 < k1) // only store the lower triangular part
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	
@@ -714,12 +716,12 @@ void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	// only stamp for internal node
 	if( !nk->is_ground() && !nk->isX() && nk->flag_bd ==0) {
 		size_t k = nk->rid;
-		block_info.bp[k] += -net->value;
+		block_info.b[k] += -net->value;
 		//pk[k] += -net->value;
 	}
 	if( !nl->is_ground() && !nl->isX() && nl->flag_bd ==0) {
 		size_t l = nl->rid;
-		block_info.bp[l] += net->value;
+		block_info.b[l] += net->value;
 		//pl[l] +=  net->value;
 	}
 }
@@ -739,12 +741,12 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 		// this node connects to a VDD and a current
 		// the current should be stamped
 		//assert( feqn(1.0, q[id]) ); 
-		assert( feqn(1.0, block_info.bp[id]) );
-		block_info.bp[id] = net->value;
+		assert( feqn(1.0, block_info.b[id]) );
+		block_info.b[id] = net->value;
 		//q[id] = net->value;	    // modify it
 	}
 	else{
-		block_info.bp[id] += net->value;
+		block_info.b[id] += net->value;
 		//q[id] += net->value;
 	}
 }

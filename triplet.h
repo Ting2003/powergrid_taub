@@ -29,7 +29,7 @@ public:
 	size_t size() const;
 	long get_row() const;
 	void set_row(long row);
-	void to_arrays(long * Ti, long * Tj, double * Tx) const;
+	void to_arrays(size_t * Ti, size_t * Tj, double * Tx) const;
 	void diagonal_split(Triplet & L, Triplet & D, Triplet & U) const;
 
 	friend ostream & operator <<(ostream & os, const Triplet & t);
@@ -50,8 +50,8 @@ public:
 	friend class Algebra;
 	friend class Circuit;
 private:
-	vector<long> Ti;
-	vector<long> Tj;
+	vector<size_t> Ti;
+	vector<size_t> Tj;
 	vector<double> Tx;
 	long row;
 };

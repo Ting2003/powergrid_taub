@@ -28,11 +28,13 @@ public:
 	void LU_decomposition();
 	void CK_decomp(Matrix & A, cholmod_common *cm);
 	void solve_CK(cholmod_common *cm); // solve with cholesky decomp
+	void solve_LU();
 
 	// allocate space for the matrix and vectors accoding to count
 	void allocate_resource(cholmod_common*cm);
+	void allocate_resource_LU();
 	void allocate_mpi_resource(cholmod_common *cm);
-
+	void get_col_compressed(Matrix & A);
 	void update_x();
 
 	void update_rhs(int &my_id);
@@ -41,6 +43,7 @@ public:
 	
 	NetPtrVector boundary_netlist;
 
+	// ****** variable for CK solver ****
 	cholmod_factor * L;
 	
 	// vector b
@@ -49,8 +52,21 @@ public:
 	double *bp, *bnewp, *xp, *x_old;
 	// solution
 	cholmod_dense *x_ck;
+	
+	// ****** variable for CK solver *****
 
-	// number of *representative* nodes in this block
+	// ****** variable for LU solver *****
+	void *Numeric;
+	UF_long * Ap;   // n+1
+	UF_long * Ai;   // nz
+	double * Ax;    // nz
+
+	//vector b
+	Vec b, bnew;
+	// solution
+	Vec x, xold;
+	// ******** variable for LU solver ******
+
 	// equal to matrix size and b size
 	size_t count;
 
