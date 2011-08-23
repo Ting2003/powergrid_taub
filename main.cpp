@@ -17,9 +17,9 @@ const char * usage="Usage: %s [-eorbILifl] benchmark\n\
 const char * usage2="Usage: %s -i input -f output\n";
 
 int main(int argc, char * argv[]){
+	MPI_CLASS mpi_class;
 	int my_id;
 	int num_procs;
-
 	//double mpi_t1, mpi_t2;
 	//mpi_t1 = MPI_Wtime();
 	
@@ -82,12 +82,11 @@ int main(int argc, char * argv[]){
 	MPI_Comm comm, new_comm;
 	MPI_Group orig_group, new_group;
 	int new_rank, rank, new_size;
-
+	
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
 	MPI_Comm_group(MPI_COMM_WORLD, &orig_group);
-
 	if(my_id==0) clog<<"num_procs: "<<num_procs<<endl;	
 
 	if( freopen(output, "w", stdout) == NULL )
@@ -97,7 +96,6 @@ int main(int argc, char * argv[]){
 			max_block_nodes, mode);
 	// start to parfile
 	vector<Circuit *> cktlist;
-	MPI_CLASS mpi_class;
 	if(my_id==0){
 		mpi_class.start_task = new int [num_procs];
 		mpi_class.end_task = new int [num_procs];
@@ -106,11 +104,10 @@ int main(int argc, char * argv[]){
 	}
 	mpi_class.num_blocks = mpi_class.X_BLOCKS * 
 				mpi_class.Y_BLOCKS;
-	//MPI_Scatter(mpi_class.tasks_n, 1, MPI_INT, 
-		//&mpi_class.block_size, 
-		//1, MPI_INT, 0, MPI_COMM_WORLD);
+	
 	Parser parser(&cktlist);
 	parser.parse(my_id, input, mpi_class);
+
 	mpi_class.cktlist_size = cktlist.size();
 	mpi_class.Assign_color_ckt(my_id, num_procs);
 
@@ -124,6 +121,7 @@ int main(int argc, char * argv[]){
 	t1=clock();
 	parser.second_parse(new_rank, mpi_class);
 	MPI_Barrier(MPI_COMM_WORLD);
+	
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;

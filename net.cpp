@@ -11,6 +11,7 @@ Net::Net(NET_TYPE t, double v, Node * a, Node * b):
 	type(t),value(v){
 	ab[0]=a;
 	ab[1]=b;
+	flag_bd = false;
 }
 
 ostream & operator << (ostream & os, const Net & net){

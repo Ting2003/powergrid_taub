@@ -57,18 +57,15 @@ public:
 	// to record whether this node is
 	// a boundary node or internal node
 	// flag_bd = 1, bd node, else internal node
-	int flag_bd;
+	bool flag_bd;
 	// if =1, internal bd node,
 	// if =0, general internal node.
-	int internal_bd;
+	bool internal_bd;
 
 private:
 	double value;		// voltage
 	bool flag;		// mark if the node is an X
 	Node * rep;		// representative, if somewhere is short-circuit
-
-	Node * end[4];		// south - north (west-east) ends
-	double eqvr[4];		// equivalent resisotrs
 };      	
 
 inline bool Node::isX() const{return flag;}
@@ -107,7 +104,7 @@ inline Net * Node::get_nbr_net(DIRECTION dir) const{
 	       nbr[EAST]  == NULL && nbr[WEST] == NULL));
 }*/
 
-inline bool Node::is_mergeable() const{
+/*inline bool Node::is_mergeable() const{
 	return nbr[TOP] == NULL && nbr[BOTTOM] == NULL &&
 	(((nbr[EAST]  != NULL
 	&& nbr[WEST]  != NULL) &&
@@ -115,7 +112,7 @@ inline bool Node::is_mergeable() const{
 	    ||((nbr[NORTH] != NULL&&
 	      nbr[SOUTH] != NULL)&&
 	       (nbr[EAST]  == NULL && nbr[WEST] == NULL)));
-}
+}*/
 
 
 #endif

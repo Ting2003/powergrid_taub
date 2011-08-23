@@ -2,6 +2,7 @@
 #define __MPI_CLASS_H_
 
 #include <iostream>
+#include <stdio.h>
 #include <map>
 
 using namespace std;
@@ -54,6 +55,7 @@ public:
 
 	void Assign_color(int &my_id, int &n);
 	void Assign_color_ckt(int &my_id, int &num_procs);
+	void get_char();
 };
 
 #endif

@@ -32,7 +32,7 @@ Parser::~Parser(){ }
 // 19505 20721: coordinate
 void Parser::extract_node(char * str, Node & nd){
 	
-	long z, y, x;
+	static long z, y, x;
 	bool flag = false;
 	char * chs;
 	char * saveptr;
@@ -82,7 +82,6 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 
 	int ckt_id = layer_in_ckt[layer];
 	Circuit * ckt = (*p_ckts)[ckt_id];
-
 	for(int i=0;i<2;i++){
 		if ( nd[i].is_ground() ){
 			nd_ptr[i] = ckt->nodelist[0]; // ground node
@@ -96,13 +95,13 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 				ckt->add_node(nd_ptr[i]);
 			}
 			else
-				nd_ptr[i]->flag_bd = 1;
+				nd_ptr[i]->flag_bd = true;
 
 			if( nd_ptr[i]->isX() )	     // determine circuit type
-				ckt->set_type(WB);
+				ckt->set_type(WB);		
 		}
 	}
-
+	
 	if((line[0]=='r' || line[0] =='R') && 
 		!(nd[0].pt.x == nd[1].pt.x && 
 		nd[0].pt.y == nd[1].pt.y)){
@@ -248,6 +247,7 @@ int Parser::create_circuits(vector<CKT_LAYER > &ckt_name_info){
 // the first time is to find the layer information
 // and the second time is to create nodes
 void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class){	
+	
 	int MPI_Vector;
 	int count =2;
 	int lengths[2] = {10, 1};
@@ -741,12 +741,12 @@ void Parser::insert_node_list(Node *nd_0, Node *nd_1, int &count_10,
 	if(count_10 ==1 && count_20 ==0 && count_2 ==1){
 		list.push_back(nd_1);
 		if(flag == true)
-			nd_1->internal_bd = 1;
+			nd_1->internal_bd = true;
 	}
 	else if(count_10 ==0 && count_20 ==1 && count_1 ==1){
 		list.push_back(nd_0);
 		if(flag == true)
-			nd_0->internal_bd = 1;
+			nd_0->internal_bd = true;
 	}
 }
 

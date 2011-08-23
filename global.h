@@ -21,6 +21,8 @@ const double FLOAT_ZERO = 1e-30;
 const int OUTPUT_WIDTH_FLOAT = 15;
 const int OUTPUT_WIDTH_INDEX = 3;
 const int OUTPUT_WIDTH_STRING = 10;
+
+const int debug =1;
 // overlap_ratio should < 0.45, or will be divergence
 typedef pair<size_t,size_t> SizeTPair;
 class Triplet;

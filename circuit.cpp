@@ -282,44 +282,14 @@ void Circuit::solve_init(int &my_id){
 	sort_bd_nodes(my_id);
 	sort_internal_nodes(my_id);
 	
-	/*if(my_id==3){
-		clog<<"sw: "<<internal_nodelist_sw<<endl;
-		clog<<"s: "<<internal_nodelist_s<<endl;
-		clog<<"se: "<<internal_nodelist_se<<endl;
-		clog<<"w: "<<internal_nodelist_w<<endl;
-		clog<<"e: "<<internal_nodelist_e<<endl;
-		clog<<"nw: "<<internal_nodelist_nw<<endl;
-		clog<<"n: "<<internal_nodelist_n<<endl;
-		clog<<"ne: "<<internal_nodelist_ne<<endl;
-		clog<<endl;
-	}
-
-	if(my_id==3){
-		clog<<"sw: "<<bd_nodelist_sw<<endl;
-		clog<<"s: "<<bd_nodelist_s<<endl;
-		clog<<"se: "<<bd_nodelist_se<<endl;
-		clog<<"w: "<<bd_nodelist_w<<endl;
-		clog<<"e: "<<bd_nodelist_e<<endl;
-		clog<<"nw: "<<bd_nodelist_nw<<endl;
-		clog<<"n: "<<bd_nodelist_n<<endl;
-		clog<<"ne: "<<bd_nodelist_ne<<endl;
-	}*/
-
 	size_t size = nodelist.size() - 1;
 	Node * p = NULL;
+	Net * net = NULL;
 	size_t nr = 0;
 	size_t i=0;
 	for(i=0, nr=0;i<size;i++){
 		p=nodelist[i];
-
-		// test if it can be merged
-		/*if( p->is_mergeable() ){
-			mergelist.push_back(p);
-			continue;
-		}*/
-		
-		Net * net = p->nbr[TOP];
-		//merge_node(p);
+		net = p->nbr[TOP];
 		
 		// find the VDD value
 		if( p->isX() ) VDD = p->get_value();
@@ -329,13 +299,8 @@ void Circuit::solve_init(int &my_id){
 		    net != NULL &&
 		    fzero(net->value) ){
 			// TODO: ensure ab[1] is not p itself
-			//if(my_id==0 && i <10)
-				//clog<<"two nodes: "<<*net->ab[1]<<" "<<*p<<endl;
 			assert( net->ab[1] != p );
 			p->rep = net->ab[1]->rep;
-			//if(my_id==0 && i<10)
-				//clog<<"p and its rep: "<<
-					//*p<<" "<<*p->rep<<endl;
 		} // else the representative is itself
 
 		// push the representatives into list
@@ -345,21 +310,14 @@ void Circuit::solve_init(int &my_id){
 		}
 	}// end of for i
 	
-	if(nr >=0)
-		block_info.count = nr;
+	block_info.count = nr;
 
 	size_t n_merge = mergelist.size();
 	size_t n_nodes = nodelist.size();
 	size_t n_reps  = replist.size();
 	double ratio = n_merge / (double) (n_merge + n_reps);
 	
-	/*clog<<"mergeable  "<<n_merge<<endl;
-	clog<<"replist    "<<n_reps <<endl;
-	clog<<"nodelist   "<<n_nodes<<endl;
-	clog<<"ratio =    "<<ratio  <<endl;*/
-
 	net_id.clear();
-	//clog<<"nodes: "<<my_id<<" "<<" "<<block_info.count<<endl;
 }
 
 // build up block info
@@ -441,10 +399,6 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 	double time=0;
 	double t1, t2;
 	
-	/*cm = &c;
-	cholmod_start(cm);
-	cm->print = 5;	*/
-
 	total_blocks = mpi_class.num_blocks;
 
 	// did not find any `X' node
@@ -453,6 +407,7 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 	if(my_id<num_procs){
 		solve_init(my_id);
 	}
+	
 	block_init(my_id, A, mpi_class);
 	boundary_init(my_id, num_procs, comm);
 	internal_init(my_id, num_procs, comm);
@@ -475,7 +430,6 @@ bool Circuit::solve_IT(int &orig_rank, int &my_id, int&num_procs, MPI_CLASS &mpi
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
-		
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
@@ -588,7 +542,7 @@ void Circuit::get_voltages_from_LU_sol(double * x){
 }
 
 // compute value of mergelist nodes
-void Circuit::get_vol_mergelist(){
+/*void Circuit::get_vol_mergelist(){
 	DIRECTION p, q;
 	for(size_t i=0;i<mergelist.size();i++){
 		Node * node = mergelist[i];
@@ -621,7 +575,7 @@ void Circuit::get_vol_mergelist(){
 		}
 		//clog<<" node "<<*node<<endl;
 	}
-}
+}*/
 
 // copy solution of block into circuit
 void Circuit::get_voltages_from_block_LU_sol(){
@@ -656,7 +610,7 @@ void Circuit::make_A_symmetric(Vec &b){
 	Node *p, *q;
 
 	for(it=ns.begin();it!=ns.end();it++){
-		if( (*it) == NULL || (*it)->flag_bd ==1) 
+		if( (*it) == NULL || (*it)->flag_bd ==true) 
 			continue;
 		assert( fzero((*it)->value) == false );
 		Node *nd[] = {(*it)->ab[0]->rep, (*it)->ab[1]->rep};
@@ -682,14 +636,14 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	double G;	
 	G = 1./net->value;
 	
-	if(net->flag_bd ==1)
+	if(net->flag_bd ==true)
 		block_info.boundary_netlist.push_back(net);
 
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
 		// if boundary net
-		if(net->flag_bd ==1){
-			if(nk->flag_bd ==0 && !nk->isX()){
+		if(net->flag_bd ==true){
+			if(nk->flag_bd ==false && !nk->isX()){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
 				A.push_back(k1,k1, G);
@@ -711,12 +665,12 @@ void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	Node * nl = net->ab[1]->rep;
 
 	// only stamp for internal node
-	if( !nk->is_ground() && !nk->isX() && nk->flag_bd ==0) {
+	if( !nk->is_ground() && !nk->isX() && nk->flag_bd ==false) {
 		size_t k = nk->rid;
 		block_info.b[k] += -net->value;
 		//pk[k] += -net->value;
 	}
-	if( !nl->is_ground() && !nl->isX() && nl->flag_bd ==0) {
+	if( !nl->is_ground() && !nl->isX() && nl->flag_bd ==false) {
 		size_t l = nl->rid;
 		block_info.b[l] += net->value;
 		//pl[l] +=  net->value;
@@ -728,7 +682,7 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 	Node * X = net->ab[0];
 	if( X->is_ground() ) X = net->ab[1];
 
-	if(X->rep->flag_bd ==1) return;
+	if(X->rep->flag_bd ==true) return;
 	// do stamping for internal node
 	long id =X->rep->rid;
 	A.push_back(id, id, 1.0);
@@ -830,7 +784,7 @@ bool Circuit::check_diverge() const{
 	return false;
 }
 
-Node * Circuit::merge_along_dir_one_pass(Node * start, DIRECTION dir, bool remove){
+/*Node * Circuit::merge_along_dir_one_pass(Node * start, DIRECTION dir, bool remove){
 	double sum = 0.0;
 	DIRECTION ops = get_opposite_dir(dir);
 	Node * p = start;
@@ -868,7 +822,7 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 	node->nbr[dir] = other->nbr[ops] = net;
 	//clog<<"newly added net: "<<*net<<endl;
 	this->add_net(net);
-}
+}*/
 
 void Circuit::boundary_init(int &my_id, int &num_procs, MPI_Comm &comm){
 	assign_bd_base(my_id);
