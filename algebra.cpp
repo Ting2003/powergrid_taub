@@ -37,7 +37,7 @@ void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
 	UF_long * Ti = new UF_long[nz];
 	UF_long * Tj = new UF_long[nz];
 	double * Tx = new double[nz];
-	A.to_arrays((long*)Ti,(long*)Tj,Tx);
+	A.to_arrays((size_t*)Ti,(size_t*)Tj,Tx);
 
 	UF_long * Ap = new UF_long[n_col+1]; 
 	UF_long * Ai = new UF_long[nz];

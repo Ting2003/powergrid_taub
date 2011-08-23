@@ -59,10 +59,10 @@ void Triplet::push_back(long i, long j, double x){
 // return the number of elements in a triplet instance
 size_t Triplet::size() const {return Ti.size();}
 
-void Triplet::to_arrays(long * Ti, long* Tj, double * Tx) const{
+void Triplet::to_arrays(size_t * Ti, size_t* Tj, double * Tx) const{
 	assert(Ti!=NULL && Tj!=NULL && Tx!=NULL);
-	vector_to_array<long>(this->Ti, Ti);
-	vector_to_array<long>(this->Tj, Tj);
+	vector_to_array<size_t>(this->Ti, Ti);
+	vector_to_array<size_t>(this->Tj, Tj);
 	vector_to_array<double>(this->Tx, Tx);
 }
 

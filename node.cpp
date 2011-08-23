@@ -7,26 +7,20 @@ using namespace std;
 Node::Node():name(""),pt(Point(-1,-1,-1)), rid(0),
 	value(0.0), flag(false), rep(NULL){
 	for(int i=0;i<6;i++) this->nbr[i] = NULL;
-	for(int i=0;i<4;i++){
-		eqvr[i]=0.0;
-		end[i]=this;
-	}
+	
 	rid = -1;
-	flag_bd = 0;
-	internal_bd = 0;
+	flag_bd = false;
+	internal_bd = false;
 }
 
 Node::Node(string n, Point _pt, bool x, double v): 
 	name(n), pt(_pt), rid(0), 
 	value(v), flag(x), rep(NULL) {
 	for(int i=0;i<6;i++) this->nbr[i] = NULL;
-	for(int i=0;i<4;i++){
-		eqvr[i]=0.0;
-		end[i]=this;
-	}
+	
 	rid = -1;
-	flag_bd = 0;
-	internal_bd = 0;
+	flag_bd = false;
+	internal_bd = false;
 }
 
 Node::Node(const Node & nd){
@@ -37,10 +31,7 @@ Node::Node(const Node & nd){
 	flag = nd.flag;
 	rep = nd.rep;
 	for(int i=0;i<6;i++) this->nbr[i] = nd.nbr[i];
-	for(int i=0;i<4;i++){
-		eqvr[i]=0.0;
-		end[i]=this;
-	}
+	
 	flag_bd = nd.flag_bd;
 	internal_bd = nd.internal_bd;
 }

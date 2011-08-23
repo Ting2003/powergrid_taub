@@ -95,7 +95,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			if (count==1) // internal node
 				ckt->add_node(nd_ptr[i]);
 			else
-				nd_ptr[i]->flag_bd = 1;
+				nd_ptr[i]->flag_bd = true;
 
 			if( nd_ptr[i]->isX() )	     // determine circuit type
 				ckt->set_type(WB);
@@ -726,12 +726,12 @@ void Parser::insert_node_list(Node *nd_0, Node *nd_1, int &count_10,
 	if(count_10 ==1 && count_20 ==0 && count_2 ==1){
 		list.push_back(nd_1);
 		if(flag == true)
-			nd_1->internal_bd = 1;
+			nd_1->internal_bd = true;
 	}
 	else if(count_10 ==0 && count_20 ==1 && count_1 ==1){
 		list.push_back(nd_0);
 		if(flag == true)
-			nd_0->internal_bd = 1;
+			nd_0->internal_bd = true;
 	}
 }
 

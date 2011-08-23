@@ -182,7 +182,7 @@ private:
 
 	// methods of stamping the matrix
 	
-	void make_A_symmetric(double *bp);
+	void make_A_symmetric(Vec &bp);
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_boundary_matrix();
@@ -232,7 +232,7 @@ private:
 	void set_len_per_block();
 	void find_block_size (MPI_CLASS &mpi_class);
 
-	double modify_voltage(int &my_id, Block &block_info, double* x_old);
+	double modify_voltage(int &my_id, Block &block_info, Vec & x_old);
 
 	void solve_one_block(size_t block_id);
 
@@ -243,10 +243,6 @@ private:
 	void get_samples();
 
 	bool check_diverge() const;
-
-	void merge_along_dir(Node *, DIRECTION dir);
-	Node * merge_along_dir_one_pass(Node *, DIRECTION dir, bool remove);
-	void merge_node(Node * node);
 
 	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
@@ -289,7 +285,7 @@ inline size_t Circuit::get_total_num_layer(){return layer_dir.size();}
 
 // adds a node into nodelist
 inline bool Circuit::add_node(Node * node){
-	node->flag_bd = 0;
+	node->flag_bd = false;
 	nodelist.push_back(node);
 	map_node[node->name] = node;
 	return true;
@@ -310,7 +306,7 @@ inline bool Circuit::add_node_bd(int &count, Node * node){
 		bd_nodelist_e.push_back(node);
 	}
 	// node is boundary node
-	node->flag_bd = 1;
+	node->flag_bd = true;
 	map_node[node->name] = node;
 	return true;
 }
@@ -330,16 +326,16 @@ inline bool Circuit::add_node_inter(int &count, Node * node){
 		internal_nodelist_e.push_back(node);
 	}
 	// node is internal_bd boundary node
-	node->internal_bd = 1;
+	node->internal_bd = true;
 	return true;
 }
 
 // adds a net into netset
 inline bool Circuit::add_net(Net * net){
 	// has at least one bd node, then belongs to bd net
-	if(net->ab[0]->flag_bd ==1 || net->ab[1]->flag_bd ==1)
-		net->flag_bd = 1;
-	else net->flag_bd = 0;
+	if(net->ab[0]->flag_bd ==true || net->ab[1]->flag_bd ==true)
+		net->flag_bd = true;
+	else net->flag_bd = false;
 
 	if( net->type == RESISTOR )
 		net_id[net] = net_set[net->type].size();
@@ -358,21 +354,6 @@ inline Node * Circuit::get_node(string name){
 	unordered_map<string, Node*>::const_iterator it = map_node.find(name);
 	if( it != map_node.end() ) return it->second;
 	else return NULL;
-}
-
-inline void Circuit::merge_node(Node * node){
-	for(DIRECTION dir = WEST; dir <= NORTH; dir=DIRECTION(dir+1)){
-		// test whether this line has been processed
-		if( node->end[dir] != node ) continue;
-
-		// probe for one step, if the line is only one step, don't do it.
-		Node * next = node->get_nbr_node(dir);
-		
-		if( next == NULL || !next->is_mergeable() ){
-			continue;
-		}
-		merge_along_dir(node, dir);
-	}
 }
 
 /*
