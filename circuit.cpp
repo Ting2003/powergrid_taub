@@ -576,7 +576,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
 	
-	if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
+	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
 }
 
