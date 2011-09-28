@@ -135,7 +135,6 @@ int main(int argc, char * argv[]){
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 		//close_logfile();
 	}
-	//MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
 	//close_logfile();
 	//cout<<"close logfile. "<<endl;
