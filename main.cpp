@@ -101,14 +101,14 @@ int main(int argc, char * argv[]){
 		&mpi_class.block_size, 
 		1, MPI_INT, 0, MPI_COMM_WORLD);
 		
+	double t1,t2;
+	t1=MPI_Wtime();
 	Parser parser(&cktlist);
-	clock_t t1,t2;
-	t1=clock();
 	parser.parse(my_id, input, mpi_class);
 	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
-	t2=clock();
-	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	t2=MPI_Wtime();
+	if(my_id==0) cout<<"Parse time="<<t2-t1<<endl;
 	
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
@@ -131,8 +131,8 @@ int main(int argc, char * argv[]){
 	
 	// output a single ground node
 	if(my_id==0){
-		printf("G  %.5e\n", 0.0);
-		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
+		//printf("G  %.5e\n", 0.0);
+		cout<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 		//close_logfile();
 	}
 	//MPI_Barrier(MPI_COMM_WORLD);
