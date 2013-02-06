@@ -6,6 +6,7 @@ INPUT_FILE/
 package_ck/
 umfpack/
 test_grids/
+topprocs
 diff*
 memusg
 testjob
