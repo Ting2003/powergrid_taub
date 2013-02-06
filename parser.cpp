@@ -416,9 +416,14 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class){
 			case 'V':
 			case 'i': // current
 			case 'I':
+			case 'c':
+			case 'C':
+			case 'l':
+			case 'L':
 				insert_net_node(line, my_id, mpi_class);
 				break;
-			case '.': // command
+			case '.': 
+				parse_dot(line, tran, my_id);
 			case '*': // comment
 			case ' ':
 			case '\n':
@@ -439,6 +444,41 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class){
 }// end of parse
 
 int Parser::get_num_layers() const{ return n_layer; }
+
+void Parser::parse_dot(char *line, Tran &tran, int &my_id){
+	char *chs;
+	char *saveptr;
+	char sname[MAX_BUF];
+	Node_TR_PRINT item;
+	const char *sep = "= v() \n";
+	switch(line[1]){
+		case 't': // transient steps
+			sscanf(line, "%s %lf %lf", sname, 
+				&tran.step_t, &tran.tot_t);
+			tran.isTran = 1; // do transient ana;
+			//clog<<"step: "<<tran.step_t<<" tot: "<<tran.tot_t<<endl;
+			break;
+		case 'w': // output length
+			chs = strtok_r(line, sep, &saveptr);
+			chs = strtok_r(NULL, sep, &saveptr);
+			chs = strtok_r(NULL, sep, &saveptr);
+			tran.length = atoi(chs);
+			//clog<<"out len: "<<tran.length<<endl;
+			break;
+		case 'p': // print
+			chs = strtok_r(line, sep, &saveptr);
+			chs = strtok_r(NULL, sep, &saveptr);
+			while(chs != NULL){
+				chs = strtok_r(NULL, sep, &saveptr);
+				if(chs == NULL) break;
+				item.name = chs;
+				tran.nodes.push_back(item);
+			};
+			break;
+		default: 
+			break;
+	}
+}
 
 int Parser::extract_layer(int &my_id, 
 		vector<CKT_LAYER > &ckt_layer_info,

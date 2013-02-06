@@ -2,8 +2,8 @@
 
 MPI_CLASS::MPI_CLASS(){
 	NUM_NET_TYPE =3;
-	X_BLOCKS = 5; // # of blocks along x axis
-	Y_BLOCKS = 5; // # of blocks along y axis
+	X_BLOCKS = 20; // # of blocks along x axis
+	Y_BLOCKS = 18; // # of blocks along y axis
 	x_max = 0;
 	y_max = 0;
 	x_min = 0;
@@ -35,7 +35,7 @@ MPI_CLASS::~MPI_CLASS(){
 	delete [] block_geo_origin;
 }
 
-// assgign tasks
+// assgign tasks: allocate start and end task
 void MPI_CLASS::MPI_Assign_Task(int & num_procs){
 	int num_tasks = X_BLOCKS * Y_BLOCKS;
 	size_t base = 0;

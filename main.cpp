@@ -91,6 +91,8 @@ int main(int argc, char * argv[]){
 	// start to parfile
 	vector<Circuit *> cktlist;
 	MPI_CLASS mpi_class;
+	// allocate class Tran for all cores
+	Tran tran;
 	if(my_id==0){
 		mpi_class.start_task = new int [num_procs];
 		mpi_class.end_task = new int [num_procs];
@@ -104,7 +106,7 @@ int main(int argc, char * argv[]){
 	Parser parser(&cktlist);
 	clock_t t1,t2;
 	t1=clock();
-	parser.parse(my_id, input, mpi_class);
+	parser.parse(my_id, input, mpi_class, tran);
 	MPI_Barrier(MPI_COMM_WORLD);
 	// after parsing, this mem can be released
 	t2=clock();
@@ -127,6 +129,9 @@ int main(int argc, char * argv[]){
 		free(ckt);
 	}
 
+	// need to print out nodes for all cores
+	// tran.print_tr_nodes();
+	
 	mpi_t12 = MPI_Wtime();
 	
 	// output a single ground node
