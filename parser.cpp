@@ -83,11 +83,8 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 
 	sscanf(line, "%s %s %s %lf", sname, sa, sb, &value);
 
-	if( sa[0] == '0' ) { nd[0].pt.set(-1,-1,-1); }
-	else extract_node(sa, nd[0]);
-
-	if( sb[0] == '0' ) { nd[1].pt.set(-1,-1,-1); }
-	else extract_node(sb, nd[1]);
+	extract_node(sa, nd[0]);
+	extract_node(sb, nd[1]);
 
 	int layer;
 	if( nd[0].is_ground() ) 
@@ -112,7 +109,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			else
 				nd_ptr[i]->flag_bd = 1;
 
-			if( nd_ptr[i]->isX() )	     // determine circuit type
+			if( nd_ptr[i]->isS()==Y)	     // determine circuit type
 				ckt->set_type(WB);
 		}
 	}
@@ -140,6 +137,14 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 	case 'I':
 		net_type = CURRENT;
 		break;
+	case 'c': // capacitance
+	case 'C':
+		net_type = CAPACITANCE;
+		break;
+	case 'l':
+	case 'L':
+		net_type = INDUCTANCE;
+		break;
 	default:
 		report_exit("Invalid net type!\n");
 		break;
@@ -147,12 +152,33 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 
 	// create a Net
 	Net * net = new Net(net_type, value, nd_ptr[0], nd_ptr[1]);
-
+	// assign pulse paramter for pulse input
+	chs = strtok_r(line, sep, &saveptr);
+	for(int i=0;i<3;i++)
+		chs = strtok_r(NULL, sep, &saveptr);
+	if(chs != NULL)
+		chs = strtok_r(NULL, sep, &saveptr);
+	if(chs != NULL){
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->V1 = atof(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->V2 = atof(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->TD = atof(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->Tr = atof(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->Tf = atof(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->PW = atof(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		net->Period = atof(chs);
+	}
 	// trick: when the value of a resistor via is below a threshold,
 	// treat it as a 0-voltage via
-	if( Circuit::MODE == (int)IT ) {
+	//if( Circuit::MODE == (int)IT ) {
 		try_change_via(net);
-	}
+	//}
 
 	// insert this net into circuit
 	ckt->add_net(net);
