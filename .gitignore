@@ -4,5 +4,9 @@ INPUT_FILE/
 *.txt
 .circuit*
 package_ck/
+umfpack/
+test_grids/
+diff*
+memusg
 testjob
-
+out*
