@@ -202,8 +202,43 @@ void Parser::update_node(Net * net){
 	// ground node for CURRENT
 	Node *a=net->ab[0], *b=net->ab[1];
 	//cout<<"setting "<<net->name<<" nd1="<<nd1->name<<" nd2="<<nd2->name<<endl;
-
-	if( a->get_layer() == b->get_layer() && a->pt != b->pt ){
+	if(net->type == CAPACITANCE){
+		// make sure a is the Z node, b is ground
+		if(a->isS() != Z) swap<Node*>(a,b);
+		// only needs single dir nbr net for index
+		// TOP for resistance
+		// BOTTOM for capacitance
+		a->set_nbr(BOTTOM, net);
+	}
+	else if(net->type == INDUCTANCE){
+		// a is Y, b is X
+		if(a->isS()== X) swap<Node*>(a,b);
+		a->set_nbr(BOTTOM, net);
+		b->set_nbr(TOP, net);
+	}
+	// resistance type net with special nodes
+	else if(net->type == RESISTOR && a->isS()!= -1 
+		&& b->isS() == -1){
+		if(a->isS()== X){
+			a->set_nbr(BOTTOM, net);
+			b->set_nbr(TOP, net);
+		}
+		else if(a->isS() == Z){
+			// bottom for z node has been taken by 
+			// current
+			a->set_nbr(TOP, net);
+		}
+	}
+	else if(net->type == RESISTOR && b->isS()!= -1 && a->isS() ==-1){
+		if(b->isS()== X){
+			b->set_nbr(BOTTOM, net);
+			a->set_nbr(TOP, net);
+		}
+		else if(b->isS() == Z){
+			b->set_nbr(TOP, net);
+		}
+	}
+	else if( a->get_layer() == b->get_layer() && a->pt != b->pt ){
 		// horizontal or vertical resistor in the same layer
 		int layer = a->get_layer();
 		if( a->pt.y == b->pt.y ){// horizontal
@@ -232,7 +267,7 @@ void Parser::update_node(Net * net){
 		// one is X node, one is ground node
 		// Let a be X node, b be another
 		if( a->is_ground() ) swap<Node*>(a,b);
-		a->flag = true;		// set a to be X node
+		a->flag = Y;		// set a to be X node
 		a->set_nbr(TOP, net);	// X -- VDD -- Ground
 		a->set_value(net->value);
 	}
