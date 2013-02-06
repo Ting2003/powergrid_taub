@@ -1,2 +1,8 @@
 *.o
-out*
+*.out*
+INPUT_FILE/
+*.txt
+.circuit*
+package_ck/
+testjob
+
