@@ -31,7 +31,22 @@ Parser::~Parser(){ }
 // n2: layer 2
 // 19505 20721: coordinate
 void Parser::extract_node(char * str, Node & nd){
-	
+	//static Node gnd(string("0"), Point(-1,-1,-1));
+	if( str[0] == '0' ) {
+		nd.name="0";
+		nd.pt.set(-1,-1,-1);
+		return;
+	}
+
+	long z, y, x;
+	int flag = -1;
+	char * chs;
+	char * saveptr;
+	char l[MAX_BUF];
+	strcpy(l, str);
+	const char * sep = "_n";
+	chs = strtok_r(l, sep, &saveptr); // initialize
+	// for transient, 'Y' is the VDD source node
 	long z, y, x;
 	bool flag = false;
 	char * chs;
