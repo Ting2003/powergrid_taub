@@ -14,6 +14,7 @@
 #include "global.h"
 #include "circuit.h"
 #include "mpi_class.h"
+#include "transient.h"
 #include <algorithm>
 #include <map>
 #include <string>
@@ -31,7 +32,7 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(int &my_id, char * filename, MPI_CLASS &mpi_class);
+	void parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran);
 
 	int get_num_layers() const;
 
@@ -68,7 +69,8 @@ public:
 
 	void set_vdd_map(map<string, string> &vdd_map);
 
-	void second_parse(int &my_id, MPI_CLASS &mpi_class);
+	void second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
+	void Parser::parse_dot(char *line, Tran &tran, int &my_id);
 	
 	void InitialOF(vector<FILE *> & of, int &num_blocks, int &color);
 

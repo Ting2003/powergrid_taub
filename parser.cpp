@@ -322,7 +322,7 @@ int Parser::create_circuits(vector<CKT_LAYER > &ckt_name_info){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class){	
+void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran){	
 	int MPI_Vector;
 	int count =2;
 	int lengths[2] = {10, 1};
@@ -356,7 +356,7 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class){
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	second_parse(my_id, mpi_class);
+	second_parse(my_id, mpi_class, Tran &tran);
 }
 
 void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
@@ -390,7 +390,7 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 	mpi_class.set_geo_origin(mpi_class);
 }
 
-void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class){
+void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 	char  buff[100];
 	FILE *f = NULL;
 

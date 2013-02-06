@@ -1,6 +1,6 @@
 CC=mpicxx
 SRC= util.cpp point.cpp node.cpp circuit.cpp net.cpp parser.cpp vec.cpp \
-    main.cpp triplet.cpp algebra.cpp block.cpp mpi_class.cpp 
+    main.cpp triplet.cpp algebra.cpp block.cpp mpi_class.cpp transient.cpp 
 #hash_mat.cpp map_mat.cpp 
 HDR=$(SRC:.cpp=.h)
 OBJ=$(SRC:.cpp=.o) 
