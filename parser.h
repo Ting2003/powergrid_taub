@@ -70,7 +70,7 @@ public:
 	void set_vdd_map(map<string, string> &vdd_map);
 
 	void second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
-	void Parser::parse_dot(char *line, Tran &tran, int &my_id);
+	void Parser::parse_dot(char *line, Tran &tran);
 	
 	void InitialOF(vector<FILE *> & of, int &num_blocks, int &color);
 

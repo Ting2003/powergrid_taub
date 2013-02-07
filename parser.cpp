@@ -422,8 +422,8 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 			case 'L':
 				insert_net_node(line, my_id, mpi_class);
 				break;
-			case '.': 
-				parse_dot(line, tran, my_id);
+			case '.': // parse tran nodes
+				block_parse_dots(my_id);	
 			case '*': // comment
 			case ' ':
 			case '\n':
@@ -445,7 +445,7 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 
 int Parser::get_num_layers() const{ return n_layer; }
 
-void Parser::parse_dot(char *line, Tran &tran, int &my_id){
+void Parser::parse_dot(char *line, Tran &tran){
 	char *chs;
 	char *saveptr;
 	char sname[MAX_BUF];
@@ -473,6 +473,7 @@ void Parser::parse_dot(char *line, Tran &tran, int &my_id){
 				if(chs == NULL) break;
 				item.name = chs;
 				tran.nodes.push_back(item);
+				// disribute nodes into cores
 			};
 			break;
 		default: 
@@ -561,6 +562,9 @@ int Parser::extract_layer(int &my_id,
 				if(nd[i].pt.y>0 && nd[i].pt.y <y_min)
 					y_min = nd[i].pt.y;
 			}
+		}else if(line[0] == '.'){
+			// parse_dot by core 0
+			parse_dot(line, tran);
 		}
 	}
 	mpi_class.x_max = x_max;
@@ -628,7 +632,8 @@ void Parser::set_block_geometry(float *geo, MPI_CLASS &mpi_class){
 	}
 }
 
-void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
+// done by processor 0
+void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
@@ -677,6 +682,8 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class){
 			}
 		}
 	}
+	// then write tran nodes into files
+	
 	//clog<<"finish output. "<<endl;
 	fclose(f);
 	//clog<<"close original file. "<<endl;
