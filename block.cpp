@@ -84,7 +84,7 @@ void Block::update_rhs(int &my_id){
 		// if a is inside block
 		if(a->flag_bd == 0){
 			k = a->rid;
-			if(!a->isX()){
+			if(a->isS()!=Y){
 				//if(my_id==temp){
 					//clog<<k<<" "<<G<<" "<<*b<<endl;
 				//}
@@ -93,7 +93,7 @@ void Block::update_rhs(int &my_id){
 		}
 		else if(b->flag_bd ==0){
 			l = b->rid;
-			if(!b->isX()){
+			if(b->isS()!=Y){
 				//if(my_id==temp){
 					//clog<<l<<" "<<G<<" "<<*a<<endl;
 				//}

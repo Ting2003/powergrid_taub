@@ -47,25 +47,18 @@ void Parser::extract_node(char * str, Node & nd){
 	const char * sep = "_n";
 	chs = strtok_r(l, sep, &saveptr); // initialize
 	// for transient, 'Y' is the VDD source node
-	long z, y, x;
-	bool flag = false;
-	char * chs;
-	char * saveptr;
-	nd.name.assign(str);
-
-	char * l = str;
-	const char * sep = "_n";
-	chs = strtok_r(l, sep, &saveptr); // initialize
-	if( chs[0] == 'X' ){
-		flag = true;
+	if( chs[0] == 'X' || chs[0]== 'Y' || chs[0]== 'Z' ){
+		flag = chs[0]-'X';
 		chs = strtok_r(NULL, sep, &saveptr);
 	}
+	
 	z = atol(chs);
 	chs = strtok_r(NULL, sep, &saveptr);
 	x = atol(chs);
 	chs = strtok_r(NULL, sep, &saveptr);
 	y = atol(chs);
-
+	
+	nd.name.assign(str);
 	nd.pt.set(x,y,z);
 	nd.flag = flag;
 	nd.rid = -1;
@@ -73,6 +66,9 @@ void Parser::extract_node(char * str, Node & nd){
 
 // given a line, extract net and node information
 void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
+	char *chs, *saveptr;
+	const char* sep = " (),\n";
+
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
@@ -338,7 +334,7 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran
 	// and bcast it into other processor
 	vector<CKT_LAYER >ckt_name_info;
 	if(my_id==0)
-		extract_layer(my_id, ckt_name_info, mpi_class);
+		extract_layer(my_id, ckt_name_info, mpi_class, tran);
 	
 	int ckt_name_info_size = ckt_name_info.size();
 	
@@ -352,14 +348,15 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran
 	// first time parse:
 	create_circuits(ckt_name_info);
 
-	build_block_geo(my_id, mpi_class);
+	build_block_geo(my_id, mpi_class, tran);
 
 	MPI_Barrier(MPI_COMM_WORLD);
-	
-	second_parse(my_id, mpi_class, Tran &tran);
+
+	// temporary comment second parse	
+	// second_parse(my_id, mpi_class, Tran &tran);
 }
 
-void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
+void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 	// block info in cpu 0
 	mpi_class.geo = new float[mpi_class.X_BLOCKS *mpi_class.Y_BLOCKS *4];
 	// block info in other cpus
@@ -378,7 +375,7 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class){
 		0, MPI_COMM_WORLD);
 	
 	if(my_id==0){
-		net_to_block(mpi_class.geo, mpi_class);
+		net_to_block(mpi_class.geo, mpi_class, tran);
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -422,8 +419,8 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 			case 'L':
 				insert_net_node(line, my_id, mpi_class);
 				break;
-			case '.': // parse tran nodes
-				block_parse_dots(my_id);	
+			case '.': // parse tran nodes: need to write
+				// block_parse_dots(my_id);	
 			case '*': // comment
 			case ' ':
 			case '\n':
@@ -483,7 +480,8 @@ void Parser::parse_dot(char *line, Tran &tran){
 
 int Parser::extract_layer(int &my_id, 
 		vector<CKT_LAYER > &ckt_layer_info,
-		MPI_CLASS &mpi_class){
+		MPI_CLASS &mpi_class,
+		Tran &tran){
 	char line[MAX_BUF];
 	char word[MAX_BUF];
 	string word_s;
@@ -683,7 +681,16 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 		}
 	}
 	// then write tran nodes into files
-	
+	/*char *chs;
+	char *saveptr;
+	const char *sep = "_";
+	for(size_t i=0;i<tran.nodes.size();i++){
+		string tr_nd_name = tran.nodes[i].name;
+		chs = strtok_r(tr_nd_name, sep, &saveptr_;
+		if(chs == "Y")
+		for(int j=0;j<num_blocks;j++){
+		}
+	}*/
 	//clog<<"finish output. "<<endl;
 	fclose(f);
 	//clog<<"close original file. "<<endl;

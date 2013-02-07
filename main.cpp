@@ -112,7 +112,7 @@ int main(int argc, char * argv[]){
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	
-	double mpi_t11, mpi_t12;
+	/*double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
 	for(size_t i=0;i<cktlist.size();i++){
@@ -139,7 +139,7 @@ int main(int argc, char * argv[]){
 		printf("G  %.5e\n", 0.0);
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 		//close_logfile();
-	}
+	}*/
 	MPI_Finalize();
 	//close_logfile();
 	//cout<<"close logfile. "<<endl;

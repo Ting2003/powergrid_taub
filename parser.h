@@ -63,14 +63,14 @@ public:
 		NodePtrVector &bd_list, NodePtrVector &inter_list, 
 		Node *nd_0, Node *nd_1, int &count_10, int &count_20);
 	
-	void net_to_block(float *geo, MPI_CLASS &mpi_class);
+	void net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran);
 
-	void build_block_geo(int &my_id, MPI_CLASS &mpi_class);
+	void build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
 
 	void set_vdd_map(map<string, string> &vdd_map);
 
 	void second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
-	void Parser::parse_dot(char *line, Tran &tran);
+	void parse_dot(char *line, Tran &tran);
 	
 	void InitialOF(vector<FILE *> & of, int &num_blocks, int &color);
 
@@ -79,7 +79,7 @@ public:
 private:
 	int create_circuits(vector<CKT_LAYER> &ckt_name_info);		// parse the file and create circuits
 
-	int extract_layer(int &my_id, vector<CKT_LAYER >&ckt_layer_info, MPI_CLASS &mpi_class);
+	int extract_layer(int &my_id, vector<CKT_LAYER >&ckt_layer_info, MPI_CLASS &mpi_class, Tran &tran);
 	bool sort(vector <CKT_LAYER> &a);
 	
 	bool Is_Top_Layer_Net(Node &p, Node &q);

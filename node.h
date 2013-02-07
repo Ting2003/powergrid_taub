@@ -31,7 +31,7 @@ public:
 
 	int get_layer() const;
 
-	bool isX() const;
+	bool isS() const;
 	bool is_ground() const;
 
 	double get_value() const;
@@ -71,7 +71,7 @@ private:
 	double eqvr[4];		// equivalent resisotrs
 };      	
 
-inline bool Node::isX() const{return flag;}
+inline bool Node::isS() const{return flag;}
 
 //inline bool Node::is_ground() const{return name == "0";}
 // use a tricky way to speed up

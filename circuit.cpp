@@ -153,7 +153,7 @@ bool compare_node_ptr(const Node * a, const Node * b){
 	if( a->pt.y == b->pt.y ){
 		if( a->pt.x == b->pt.x ){
 			if( a->pt.z == b->pt.z ){
-				return a->isX();
+				return (a->isS() > b->isS());
 			}
 			else{
 				return (a->pt.z > b->pt.z);// top down
@@ -322,29 +322,24 @@ void Circuit::solve_init(int &my_id){
 		//merge_node(p);
 		
 		// find the VDD value
-		if( p->isX() ) VDD = p->get_value();
+		if( p->isS()==Y ) VDD = p->get_value();
 
 		// test short circuit
-		if( !p->isX() && // X must be representative 
+		if( p->isS() !=Y && // Y must be representative 
 		    net != NULL &&
 		    fzero(net->value) ){
 			// TODO: ensure ab[1] is not p itself
-			//if(my_id==0 && i <10)
-				//clog<<"two nodes: "<<*net->ab[1]<<" "<<*p<<endl;
 			assert( net->ab[1] != p );
 			p->rep = net->ab[1]->rep;
-			//if(my_id==0 && i<10)
-				//clog<<"p and its rep: "<<
-					//*p<<" "<<*p->rep<<endl;
 		} // else the representative is itself
 
 		// push the representatives into list
 		if( p->rep == p ) {
 			replist.push_back(p);
-			//if(my_id==0 && i<10)
-				//clog<<endl<<" rep: "<<*p<<" "<<nr<<endl;
-			p->rid = nr++;
-		}
+			//rep_id[p] = nr; // save the id
+			p->rid = nr;
+			++nr;
+		}	
 	}// end of for i
 
 	/*if(my_id==0){
@@ -674,25 +669,30 @@ void Circuit::make_A_symmetric(double *b){
 	int type = RESISTOR;
 	NetList & ns = net_set[type];
 	NetList::iterator it;
-	Node *p, *q;
+	Node *p=NULL, *q=NULL, *r =NULL;
 
 	for(it=ns.begin();it!=ns.end();it++){
-		if( (*it) == NULL || (*it)->flag_bd ==1) 
-			continue;
-		assert( fzero((*it)->value) == false );
-		Node *nd[] = {(*it)->ab[0]->rep, (*it)->ab[1]->rep};
-		// node a points to X node
-		if(nd[0]->isX()){
-			p = nd[0]; q = nd[1];
-		}
-		else if(nd[1]->isX()){
-			p = nd[1]; q = nd[0];
-		}
-		else continue;
-		size_t id = q->rid;
-		double G = 1.0 / (*it)->value;
-		b[id] += p->value * G;
-	}
+           if( (*it) == NULL ) continue;
+           assert( fzero((*it)->value) == false );
+           if(!((*it)->ab[0]->rep->isS()==X || (*it)->ab[1]->rep->isS()==X)) continue;
+           // node p points to X node
+           if((*it)->ab[0]->rep->isS()==X && ((*it)->ab[0]->rep->nbr[TOP]!=NULL && 
+                (*it)->ab[0]->rep->nbr[TOP]->type==INDUCTANCE)){
+              p = (*it)->ab[0]->rep; q = (*it)->ab[1]->rep;
+           } 
+           else if((*it)->ab[1]->rep->isS()==X && ((*it)->ab[1]->rep->nbr[TOP]!=NULL && 
+                (*it)->ab[1]->rep->nbr[TOP]->type==INDUCTANCE)){
+              p = (*it)->ab[1]->rep; q = (*it)->ab[0]->rep;
+           }           
+           r = p->nbr[TOP]->ab[0]->rep;
+           if(r->isS()!=Y) 
+              r = p->nbr[TOP]->ab[1]->rep;
+
+           size_t id = q->rid;
+           double G = 1.0 / (*it)->value;
+           
+           b[id] += r->value * G;
+        }
 }
 
 // =========== stamp block version of matrix =======
@@ -710,18 +710,18 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		Node *nk = nd[j], *nl = nd[1-j];
 		// if boundary net
 		if(net->flag_bd ==1){
-			if(nk->flag_bd ==0 && !nk->isX()){
+			if(nk->flag_bd ==0 && nk->isS()!=Y){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
 				A.push_back(k1,k1, G);
 			}
 		}
 		// else internal net
-		else if( !nk->isX() ) {
+		else if( nk->isS()!=Y ) {
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
 			A.push_back(k1,k1, G);
-			if(!nl->isX() && l1 < k1) // only store the lower triangular part
+			if(nl->isS()!=Y && l1 < k1) // only store the lower triangular part
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	
@@ -732,12 +732,12 @@ void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	Node * nl = net->ab[1]->rep;
 
 	// only stamp for internal node
-	if( !nk->is_ground() && !nk->isX() && nk->flag_bd ==0) {
+	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
 		size_t k = nk->rid;
 		block_info.bp[k] += -net->value;
 		//pk[k] += -net->value;
 	}
-	if( !nl->is_ground() && !nl->isX() && nl->flag_bd ==0) {
+	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
 		size_t l = nl->rid;
 		block_info.bp[l] += net->value;
 		//pl[l] +=  net->value;
