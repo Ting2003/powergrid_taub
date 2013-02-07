@@ -681,16 +681,34 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 		}
 	}
 	// then write tran nodes into files
-	/*char *chs;
+	char *chs;
 	char *saveptr;
 	const char *sep = "_";
+	string ndname;
 	for(size_t i=0;i<tran.nodes.size();i++){
 		string tr_nd_name = tran.nodes[i].name;
-		chs = strtok_r(tr_nd_name, sep, &saveptr_;
-		if(chs == "Y")
+		chs = strtok_r(tr_nd_name, sep, &saveptr);
+		ndname = string(chs);
+		// skip the X or Y part
+		if(ndname[0]=='X' || ndname[0]=='Y') 
+			chs = strtok_r(NULL, sep, &saveptr);
+		// skip the nz
+		chs = strtok_r(NULL, sep, &saveptr);
+		// extract x coordinate
+		double x = atoi(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		// extract y coordinate
+		double y = atoi(chs);
+
+		// judge which blocks this (x,y) belongs to
 		for(int j=0;j<num_blocks;j++){
+			if(x >= block_geo_origin[0] && x<= block_geo_origin[2]){
+				if(y>=block_geo_origin[1]&& y<=block_geo_origin[3]){
+					
+				}
+			}
 		}
-	}*/
+	}
 	//clog<<"finish output. "<<endl;
 	fclose(f);
 	//clog<<"close original file. "<<endl;
