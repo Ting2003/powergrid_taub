@@ -72,6 +72,7 @@ public:
 	void second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
 	void parse_dot(char *line, Tran &tran);
 	void block_parse_dots(char *line, Tran &tran);
+	void write_print(Tran &tran, vector<FILE *> &of,  MPI_CLASS &mpi_class);
 	
 	void InitialOF(vector<FILE *> & of, int &num_blocks, int &color);
 

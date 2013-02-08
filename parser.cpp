@@ -335,6 +335,7 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran
 	vector<CKT_LAYER >ckt_name_info;
 	if(my_id==0)
 		extract_layer(my_id, ckt_name_info, mpi_class, tran);
+	// broadcast info for transient 
 	
 	int ckt_name_info_size = ckt_name_info.size();
 	
@@ -420,7 +421,8 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 				insert_net_node(line, my_id, mpi_class);
 				break;
 			case '.': // parse tran nodes: need to write
-				 block_parse_dots(line, tran);	
+				 block_parse_dots(line, tran);
+				 break;
 			case '*': // comment
 			case ' ':
 			case '\n':
@@ -658,7 +660,9 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 	while( fgets(line, MAX_BUF,f)!=NULL){
 		if(line[0]=='r' || line[0] =='R' ||
 		   line[0]=='v' || line[0] =='V' ||
-		   line[0]=='i' || line[0]=='I'){
+		   line[0]=='i' || line[0]=='I' ||
+		   line[0]=='c' || line[0] == 'C' ||
+		   line[0]=='l' || line[0] == 'L'){
 			//clog<<line<<endl;
 			sscanf(line, "%s %s %s %lf", 
 					sname, sa, sb, &value);
@@ -679,45 +683,24 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 				}
 			}
 		}
-	}
-	// then write tran nodes into files
-	char *chs;
-	char *saveptr;
-	const char *sep = "_";
-	string ndname;
-	ndname = ".print tran ";
-	// first print .tran to each file
-	for(int j=0;j<num_blocks;j++)
-		fprintf(of[j], "%s", ndname.c_str());
-	// then print the nodes
-	for(size_t i=0;i<tran.nodes.size();i++){
-		string tr_nd_name = tran.nodes[i].name;
-		//clog<<"name: "<<tr_nd_name<<endl;
-		char *p = &tr_nd_name[0];
-		chs = strtok_r(p, sep, &saveptr);
-		ndname = string(chs);
-		// skip the X or Y part
-		if(ndname[0]=='X' || ndname[0]=='Y') 
-			chs = strtok_r(NULL, sep, &saveptr);
-		// skip the nz
-		chs = strtok_r(NULL, sep, &saveptr);
-		// extract x coordinate
-		double x = atoi(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		// extract y coordinate
-		double y = atoi(chs);
+		else{
+			switch(line[1]){
+				case 't':
+				case 'w':
+					for(int i=0;i<num_blocks;i++){
+						fprintf(of[i], "%s", line);
+					}
+					break;
+				case 'p': // print
+					write_print(tran, of, mpi_class);
+					break;
+				default:
+					break;
 
-		// judge which blocks this (x,y) belongs to
-		for(int j=0;j<num_blocks;j++){
-			if(x >= mpi_class.geo[4*j] && x<= mpi_class.geo[4*j+2]){
-				if(y >= mpi_class.geo[4*j+1]&& y <= mpi_class.geo[4*j+3]){
-					//clog<<"name again: "<<tran.nodes[i].name<<endl;
-					//clog<<"belongs to block: "<<j<<" "<<x<<" "<<mpi_class.geo[4*j]<<" "<<mpi_class.geo[4*j+2]<<" "<<y<<" "<<mpi_class.geo[4*j+1]<<" "<<mpi_class.geo[4*j+3]<<endl;
-					fprintf(of[j], "v(%s) ", tran.nodes[i].name.c_str());	
-				}
 			}
 		}
 	}
+	
 	// finally print end file symbol (not need to)
 	//clog<<"finish output. "<<endl;
 	fclose(f);
@@ -957,5 +940,48 @@ void Parser::block_parse_dots(char *line, Tran &tran){
 			break;
 		default: 
 			break;
+	}
+}
+
+void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class){
+// then write tran nodes into files
+	char *chs;
+	char *saveptr;
+	const char *sep = "_";
+	string ndname;
+	ndname = ".print tran ";
+
+	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
+	// first print .tran to each file
+	for(int j=0;j<num_blocks;j++)
+		fprintf(of[j], "%s", ndname.c_str());
+	// then print the nodes
+	for(size_t i=0;i<tran.nodes.size();i++){
+		string tr_nd_name = tran.nodes[i].name;
+		//clog<<"name: "<<tr_nd_name<<endl;
+		char *p = &tr_nd_name[0];
+		chs = strtok_r(p, sep, &saveptr);
+		ndname = string(chs);
+		// skip the X or Y part
+		if(ndname[0]=='X' || ndname[0]=='Y') 
+			chs = strtok_r(NULL, sep, &saveptr);
+		// skip the nz
+		chs = strtok_r(NULL, sep, &saveptr);
+		// extract x coordinate
+		double x = atoi(chs);
+		chs = strtok_r(NULL, sep, &saveptr);
+		// extract y coordinate
+		double y = atoi(chs);
+
+		// judge which blocks this (x,y) belongs to
+		for(int j=0;j<num_blocks;j++){
+			if(x >= mpi_class.geo[4*j] && x<= mpi_class.geo[4*j+2]){
+				if(y >= mpi_class.geo[4*j+1]&& y <= mpi_class.geo[4*j+3]){
+					//clog<<"name again: "<<tran.nodes[i].name<<endl;
+					//clog<<"belongs to block: "<<j<<" "<<x<<" "<<mpi_class.geo[4*j]<<" "<<mpi_class.geo[4*j+2]<<" "<<y<<" "<<mpi_class.geo[4*j+1]<<" "<<mpi_class.geo[4*j+3]<<endl;
+					fprintf(of[j], "v(%s) ", tran.nodes[i].name.c_str());	
+				}
+			}
+		}
 	}
 }
