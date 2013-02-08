@@ -412,6 +412,12 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 				stamp_block_VDD(my_id,(*it), A);
 			}
 			break;
+		case CAPACITANCE:
+			break;
+		case INDUCTANCE:
+			//for(size_t i=0;i<ns.size();i++)
+				//stamp_inductance_dc(my_id, A, b, ns[i]);
+			break;
 		default:
 			report_exit("Unknwon net type\n");
 			break;
@@ -710,7 +716,11 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		Node *nk = nd[j], *nl = nd[1-j];
 		// if boundary net
 		if(net->flag_bd ==1){
-			if(nk->flag_bd ==0 && nk->isS()!=Y){
+			if(!nl->is_ground() && 
+				nk->flag_bd ==0 && 
+				nk->isS()!=Y &&
+				(nk->nbr[TOP]==NULL || 
+				 nk->nbr[TOP]->type!=INDUCTANCE)){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
 				A.push_back(k1,k1, G);
@@ -720,8 +730,14 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		else if( nk->isS()!=Y ) {
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
-			A.push_back(k1,k1, G);
-			if(nl->isS()!=Y && l1 < k1) // only store the lower triangular part
+			if( !nk->is_ground()&& 
+				nk->isS()!=Y && 
+          			(nk->nbr[TOP]== NULL ||
+				 nk->nbr[TOP]->type != INDUCTANCE)) 
+				A.push_back(k1,k1, G);
+			if(!nl->is_ground() && 
+				nl->isS()!=Y && l1 < k1 
+				&&(nl->nbr[TOP] ==NULL ||nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	
