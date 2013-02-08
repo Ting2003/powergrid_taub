@@ -444,6 +444,7 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 
 int Parser::get_num_layers() const{ return n_layer; }
 
+// done by core 0
 void Parser::parse_dot(char *line, Tran &tran){
 	char *chs;
 	char *saveptr;
@@ -452,16 +453,16 @@ void Parser::parse_dot(char *line, Tran &tran){
 	const char *sep = "= v() \n";
 	switch(line[1]){
 		case 't': // transient steps
-			sscanf(line, "%s %lf %lf", sname, 
+			/*sscanf(line, "%s %lf %lf", sname, 
 				&tran.step_t, &tran.tot_t);
-			tran.isTran = 1; // do transient ana;
+			tran.isTran = 1; // do transient ana;*/
 			//clog<<"step: "<<tran.step_t<<" tot: "<<tran.tot_t<<endl;
 			break;
 		case 'w': // output length
-			chs = strtok_r(line, sep, &saveptr);
+			/*chs = strtok_r(line, sep, &saveptr);
 			chs = strtok_r(NULL, sep, &saveptr);
 			chs = strtok_r(NULL, sep, &saveptr);
-			tran.length = atoi(chs);
+			tran.length = atoi(chs);*/
 			//clog<<"out len: "<<tran.length<<endl;
 			break;
 		case 'p': // print
@@ -687,6 +688,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 			switch(line[1]){
 				case 't':
 				case 'w':
+				case 'e':
 					for(int i=0;i<num_blocks;i++){
 						fprintf(of[i], "%s", line);
 					}
@@ -983,5 +985,8 @@ void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class){
 				}
 			}
 		}
+	}
+	for(int j=0;j<num_blocks;j++){
+		fprintf(of[j], "\n");
 	}
 }
