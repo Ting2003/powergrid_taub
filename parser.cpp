@@ -110,6 +110,7 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 		}
 	}
 
+	// if there is a cap with it, need to modify
 	if((line[0]=='r' || line[0] =='R') && 
 		!(nd[0].pt.x == nd[1].pt.x && 
 		nd[0].pt.y == nd[1].pt.y)){
