@@ -420,7 +420,7 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 				insert_net_node(line, my_id, mpi_class);
 				break;
 			case '.': // parse tran nodes: need to write
-				// block_parse_dots(my_id);	
+				 block_parse_dots(line, tran);	
 			case '*': // comment
 			case ' ':
 			case '\n':
@@ -710,7 +710,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 		// judge which blocks this (x,y) belongs to
 		for(int j=0;j<num_blocks;j++){
 			if(x >= mpi_class.geo[4*j] && x<= mpi_class.geo[4*j+2]){
-				if(y >= mpi_class.geo[4*j+1]&& y<= mpi_class.geo[4*j+3]){
+				if(y >= mpi_class.geo[4*j+1]&& y <= mpi_class.geo[4*j+3]){
 					//clog<<"name again: "<<tran.nodes[i].name<<endl;
 					//clog<<"belongs to block: "<<j<<" "<<x<<" "<<mpi_class.geo[4*j]<<" "<<mpi_class.geo[4*j+2]<<" "<<y<<" "<<mpi_class.geo[4*j+1]<<" "<<mpi_class.geo[4*j+3]<<endl;
 					fprintf(of[j], "v(%s) ", tran.nodes[i].name.c_str());	
@@ -919,4 +919,43 @@ void Parser::insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, NodePtrVector &
 	insert_node_list(nd_0, nd_1, count_10, 
 			count_20, count_1, count_2, 
 			bd_list, flag);
+}
+
+//every core parses in data simultaneously
+void Parser::block_parse_dots(char *line, Tran &tran){
+	char *chs;
+	char *saveptr;
+	char sname[MAX_BUF];
+	Node_TR_PRINT item;
+	// clear tran.nodes, especially for core 0
+	tran.nodes.clear();
+	const char *sep = "= v() \n";
+	switch(line[1]){
+		case 't': // transient steps
+			sscanf(line, "%s %lf %lf", sname, 
+				&tran.step_t, &tran.tot_t);
+			tran.isTran = 1; // do transient ana;
+			//clog<<"step: "<<tran.step_t<<" tot: "<<tran.tot_t<<endl;
+			break;
+		case 'w': // output length
+			chs = strtok_r(line, sep, &saveptr);
+			chs = strtok_r(NULL, sep, &saveptr);
+			chs = strtok_r(NULL, sep, &saveptr);
+			tran.length = atoi(chs);
+			//clog<<"out len: "<<tran.length<<endl;
+			break;
+		case 'p': // print
+			chs = strtok_r(line, sep, &saveptr);
+			chs = strtok_r(NULL, sep, &saveptr);
+			while(chs != NULL){
+				chs = strtok_r(NULL, sep, &saveptr);
+				if(chs == NULL) break;
+				item.name = chs;
+				tran.nodes.push_back(item);
+				// disribute nodes into cores
+			};
+			break;
+		default: 
+			break;
+	}
 }
