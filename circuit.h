@@ -189,6 +189,7 @@ private:
 	void stamp_boundary_net(Net * net);
 	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
 	void stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
+	void stamp_inductance_dc(Matrix & A, Net * net);
 	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
 	void boundary_init(int &my_id, int &num_procs);

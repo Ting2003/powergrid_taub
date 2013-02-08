@@ -415,8 +415,8 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		case CAPACITANCE:
 			break;
 		case INDUCTANCE:
-			//for(size_t i=0;i<ns.size();i++)
-				//stamp_inductance_dc(my_id, A, b, ns[i]);
+			for(size_t i=0;i<ns.size();i++)
+				stamp_inductance_dc(A, ns[i]);
 			break;
 		default:
 			report_exit("Unknwon net type\n");
@@ -491,7 +491,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 
 	// before iteration, copy boundary nodes value to corresponding blocks
 	assign_bd_internal_array(my_id);
-	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
+	MPI_Gatherv(internal_x, internal_size, 
+		MPI_FLOAT, 
 		internal_x_g, internal_size_g, 
 		internal_base_g, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
@@ -517,11 +518,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 	if(my_id==0){
 		//clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
+	}
 		//clog<<replist<<endl;
 		get_voltages_from_block_LU_sol();
 		//get_vol_mergelist();
-	}
+	//}
 
+	// finish dc solution
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
 	cholmod_finish(cm);
@@ -782,6 +785,37 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 	else{
 		block_info.bp[id] += net->value;
 		//q[id] += net->value;
+	}
+}
+
+// all cores stamp dc inductance
+void Circuit::stamp_inductance_dc(Matrix & A, Net * net){
+	//clog<<"net: "<<*net<<endl;
+	double G;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+	G = 1./net->value;
+	if( nk->isS()!=Y && !nk->is_ground()&&nk->flag_bd==0) {
+		A.push_back(k,k, 1);
+		// general stamping
+		if(!nl->is_ground())
+		// A.push_back(k,l,-1);
+		// make it symmetric
+			block_info.bp[k] = block_info.bp[l];
+		//clog<<"("<<k<<" "<<k<<" "<<1<<")"<<endl;
+		//clog<<"("<<k<<" "<<l<<" "<<-1<<")"<<endl;
+	}
+
+	if( nl->isS() !=Y && !nl->is_ground() &&nl->flag_bd==0) {
+		A.push_back(l,l, 1);
+		if(!nk->is_ground())
+		// general stamping
+		// A.push_back(l,k,-1);
+		block_info.bp[l] = block_info.bp[k];
+		//clog<<"("<<l<<" "<<l<<" "<<1<<")"<<endl;
+		//clog<<"("<<l<<" "<<k<<" "<<-1<<")"<<endl;
 	}
 }
 
