@@ -421,10 +421,7 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 				insert_net_node(line, my_id, mpi_class);
 				break;
 			case '.': // parse tran nodes: need to write
-				 block_parse_dots(line, tran);
-				 //if(my_id<=1)
-					// clog<<"id_"<<my_id<<".tran: "<<tran.step_t<<" "<<tran.tot_t<<endl;
-				 
+				 block_parse_dots(line, tran); 
 				 break;
 			case '*': // comment
 			case ' ':
