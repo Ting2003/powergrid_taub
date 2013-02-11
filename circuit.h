@@ -28,6 +28,7 @@
 #include "vec.h"
 #include "triplet.h"
 #include "block.h"
+#include "transient.h"
 #include "mpi_class.h"
 using namespace std;
 using namespace std::tr1;
@@ -81,7 +82,7 @@ public:
 	void sort_internal_nodes(int &my_id);
 
 	// solve for node voltage
-	void solve(int &my_id, int &num_procs, MPI_CLASS &mpi_class);
+	void solve(int &my_id, int &num_procs, MPI_CLASS &mpi_class, Tran &tran);
 	
 	static void set_parameters(double, double, double, size_t, int);
 	static void get_parameters(double&, double&, double&, size_t&, int&);
@@ -166,7 +167,7 @@ public:
 private:
 	// member functions
 
-	bool solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class);
+	bool solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran);
 	void solve_block_LU();
 	void decomp_matrix(int &my_id, Matrix &A);
 	
@@ -216,7 +217,17 @@ private:
 	// solve circuit with preconditioned pcg method
 	void copy_node_voltages_block();
 
-	// after solving, copy node voltage from replist to nodes
+	void release_tr_nodes(Tran &tran);
+	void release_ckt_nodes(Tran &tran);
+	void print_ckt_nodes(Tran &tran);
+	void save_ckt_nodes_to_tr(Tran &tran);
+	void link_tr_nodes(Tran &tran);
+	void link_ckt_nodes(Tran &tran);
+	void save_tr_nodes(Tran &tran, double *x);
+	void save_ckt_nodes(Tran &tran, double *x);
+
+	void print_tr_nodes(Tran &tran);
+
 	void get_voltages_from_LU_sol(double* x);
 	void get_voltages_from_block_LU_sol();
 	void get_vol_mergelist();
@@ -249,6 +260,7 @@ private:
 	Node * merge_along_dir_one_pass(Node *, DIRECTION dir, bool remove);
 	void merge_node(Node * node);
 
+	vector<Node_TR_PRINT> ckt_nodes;
 	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes

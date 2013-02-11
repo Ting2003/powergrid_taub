@@ -446,13 +446,13 @@ void Circuit::find_block_size(MPI_CLASS &mpi_class){
 	block_info.allocate_resource(cm);
 }
 
-void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
+void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){
 	// each block is solved by IT
-	solve_IT(my_id, num_procs, mpi_class);
+	solve_IT(my_id, num_procs, mpi_class, tran);
 }
 
 // solve Circuit
-bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){	
+bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){	
 	double time=0;
 	double t1, t2;
 	
@@ -524,7 +524,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class){
 		//get_vol_mergelist();
 	//}
 
-	// finish dc solution
+	// finish dc solution, start tran
+	// link transient nodes
+	link_ckt_nodes(tran);
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
 	cholmod_finish(cm);
@@ -1333,4 +1335,23 @@ void Circuit::assign_bd_array_dir(int &base, NodePtrVector &list){
 		p = list[i]->rep;
 		p->value = bd_x[base+i];
 	}
+}
+
+// link transient nodes with nodelist
+void Circuit:: link_ckt_nodes(Tran &tran){
+   Node_TR_PRINT nodes_temp;
+   for(size_t i=0;i<nodelist.size();i++){
+      for(size_t j=0;j<tran.nodes.size();j++){
+         if(nodelist[i]->name == tran.nodes[j].name){
+	    // record the index in tran.nodes
+	    nodes_temp.flag = j;
+	    //cout<<"tran.nodes, index: "<<
+		//nodelist[i]->name<<" "<<nodes_temp.flag<<endl;
+	    nodes_temp.node = nodelist[i];
+	    ckt_nodes.push_back(nodes_temp);
+            // record the id for ckt_nodes
+            break;
+         }
+      }
+   }
 }
