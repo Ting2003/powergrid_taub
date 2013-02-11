@@ -919,6 +919,32 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 	}
 }
 
+// stamp a voltage source
+void Circuit::stamp_block_VDD_tr(int &my_id, Net * net, Matrix &A){
+	// find the non-ground node
+	Node * X = net->ab[0];
+	if( X->is_ground() ) X = net->ab[1];
+
+	if(X->rep->flag_bd ==1) return;
+	// do stamping for internal node
+	long id =X->rep->rid;
+	// A.push_back(id, id, 1.0);
+	Net * south = X->rep->nbr[SOUTH];
+	if( south != NULL &&
+	    south->type == CURRENT ){
+		// this node connects to a VDD and a current
+		// the current should be stamped
+		//assert( feqn(1.0, q[id]) ); 
+		assert( feqn(1.0, block_info.bp[id]) );
+		block_info.bp[id] = net->value;
+		//q[id] = net->value;	    // modify it
+	}
+	else{
+		block_info.bp[id] += net->value;
+		//q[id] += net->value;
+	}
+}
+
 // all cores stamp dc inductance
 void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
 	double G;
