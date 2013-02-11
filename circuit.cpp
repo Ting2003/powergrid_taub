@@ -393,9 +393,6 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 			for(it=ns.begin();it!=ns.end();++it){
 				Net * net = *it;
 				if( net == NULL ) continue;
-				if(net->ab[0]->is_ground() || 
-				   net->ab[1]->is_ground()) 
-					continue;
 				assert( fzero(net->value) == false );
 				stamp_block_resistor(my_id, *it, A);
 			}
@@ -439,6 +436,52 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	}
 }
 
+// stamp the nets by sets, block version
+// *NOTE* at the same time insert the net into boundary netlist
+void Circuit::stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class, Tran &tran){	
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetList & ns = net_set[type];
+		NetList::iterator it;
+		switch(type){
+		case RESISTOR:
+			for(it=ns.begin();it!=ns.end();++it){
+				Net * net = *it;
+				if( net == NULL ) continue;
+				assert( fzero(net->value) == false );
+				stamp_block_resistor_tr(my_id, *it, A);
+			}
+			break;
+		case CURRENT:
+			break;
+		case VOLTAGE:
+			for(it=ns.begin();it!=ns.end();++it){
+				if( fzero((*it)->value)  && 
+				    !(*it)->ab[0]->is_ground() &&
+				    !(*it)->ab[1]->is_ground() )
+					continue; // it's a 0v via
+				stamp_block_VDD_tr(my_id,(*it), A);
+			}
+			break;
+		case CAPACITANCE:
+			for(size_t i=0;i<ns.size();i++)
+				stamp_capacitance_tr(A, ns[i], tran, my_id);
+			break;
+		case INDUCTANCE:
+			for(size_t i=0;i<ns.size();i++)
+				stamp_inductance_tr(A, ns[i], my_id, tran);
+			break;
+		default:
+			report_exit("Unknwon net type\n");
+			break;
+		}
+	}
+	//if(my_id==0)
+		//clog<<A<<endl;
+	/*if(my_id==0){
+		for(int i=0;i<10;i++)
+			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
+	}*/	
+}
 // 1. mark rep nodes into corresponding blocks
 // 2. find block size of replist nodes
 // 3. allocate rhs size of each block
@@ -516,22 +559,27 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	time = t2-t1;
 	//if(my_id==4) cout<<replist<<endl;
 	if(my_id==0){
-		//clog<<"solve iteration time is: "<<time<<endl;
 		clog<<"# iter: "<<iter<<endl;
 	}
-		//clog<<replist<<endl;
-		get_voltages_from_block_LU_sol();
-		//get_vol_mergelist();
-	//}
-	// output dc solution
-	/*if(my_id==1){
-		cout<<"dc solution. "<<endl;
-		cout<<nodelist<<endl;
-	}*/
+	get_voltages_from_block_LU_sol();
 
-	// finish dc solution, start tran
+	///***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran);
+	block_info.bnew_ck = cholmod_zeros(count,1,CHOLMOD_REAL, cm);
+   	block_info.bnewp = static_cast<double *>(bnew->x);
+	stamp_block_matrix_tr(my_id, A, tran);
+	make_A_symmetric_tr(my_id, tran);
+   
+   	stamp_current_tr(my_id, time);
+  
+   	Algebra::CK_decomp(A, L, cm);
+   	Lp = static_cast<int *>(L->p);
+   	Lx = static_cast<double*> (L->x);
+   	Li = static_cast<int*>(L->i) ;
+   	Lnz = static_cast<int *>(L->nz); 
+   	A.clear();
+
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
 	cholmod_finish(cm);
@@ -768,6 +816,62 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	
+}
+
+// only stamp resistor node connected to inductance
+void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
+	// skip boundary nets
+	if(net->flag_bd ==1)
+		return;
+
+	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
+	
+	double G;	
+	G = 1./net->value;
+
+	for(size_t j=0;j<2;j++){
+		Node *nk = nd[j], *nl = nd[1-j];	
+		// else internal net
+		if( nk->isS()!=Y ) {
+			size_t k1 = nk->rid;
+			size_t l1 = nl->rid;
+			if( !nk->is_ground()&& 
+				nk->isS()!=Y && 
+          			(nk->nbr[TOP]!= NULL &&
+				 nk->nbr[TOP]->type == INDUCTANCE))
+
+				//if(my_id==3) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+				A.push_back(k1,k1, G);
+			if(!nl->is_ground() 
+			    &&(nl->nbr[TOP] ==NULL ||
+			    nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
+				//if(my_id==3) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				if(l1 < k1)
+					A.push_back(k1,l1,-G);
+				else if(l1>k1)
+					A.push_back(l1, k1, -G);
+		}
+	}// end of for j	
+}
+
+void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+
+	// only stamp for internal node
+	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
+		size_t k = nk->rid;
+
+		block_info.bp[k] += -net->value;
+		//pk[k] += -net->value;
+	}
+	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
+		size_t l = nl->rid;
+
+		block_info.bp[l] += net->value;
+		//if(my_id==1) clog<<"bk: "<<l<<" "<<block_info.bp[l]<<endl;
+		//pl[l] +=  net->value;
+	}
 }
 
 void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){

@@ -186,6 +186,7 @@ private:
 	void make_A_symmetric(double *bp, int &my_id);
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
+	void stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class, Tran &tran);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
 	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
