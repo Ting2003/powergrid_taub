@@ -108,17 +108,18 @@ int main(int argc, char * argv[]){
 	t1=clock();
 	parser.parse(my_id, input, mpi_class, tran);
 	MPI_Barrier(MPI_COMM_WORLD);
+
 	// after parsing, this mem can be released
 	t2=clock();
 	if(my_id==0) clog<<"Parse time="<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	
-	/*double mpi_t11, mpi_t12;
+	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
-		ckt->solve(my_id, num_procs, mpi_class);
+		ckt->solve(my_id, num_procs, mpi_class, tran);
 		if(my_id ==0){
 			cktlist[i]->print();
 			clog<<endl;
@@ -139,7 +140,7 @@ int main(int argc, char * argv[]){
 		printf("G  %.5e\n", 0.0);
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 		//close_logfile();
-	}*/
+	}
 	MPI_Finalize();
 	//close_logfile();
 	//cout<<"close logfile. "<<endl;

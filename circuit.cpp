@@ -452,7 +452,8 @@ void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran)
 }
 
 // solve Circuit
-bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){	
+bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){
+	if(my_id==0) clog<<"enter solve_IT. "<<endl;
 	double time=0;
 	double t1, t2;
 	
@@ -524,8 +525,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		//get_vol_mergelist();
 	//}
 	// output dc solution
-	cout<<"dc solution. "<<endl;
-	cout<<nodelist<<endl;
+	if(my_id==0){
+		cout<<"dc solution. "<<endl;
+		cout<<nodelist<<endl;
+	}
 
 	// finish dc solution, start tran
 	// link transient nodes
@@ -710,7 +713,6 @@ void Circuit::make_A_symmetric(double *b){
 }
 
 // =========== stamp block version of matrix =======
-
 void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
 	
@@ -720,8 +722,10 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	if(net->flag_bd ==1)
 		block_info.boundary_netlist.push_back(net);
 
+	if(my_id==0) clog<<*net<<endl;
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
+		if(my_id==0) clog<<*nk<<" "<<*nl<<endl;
 		// if boundary net
 		if(net->flag_bd ==1){
 			if(!nl->is_ground() && 
@@ -731,6 +735,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				 nk->nbr[TOP]->type!=INDUCTANCE)){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
+				if(my_id==0) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 				A.push_back(k1,k1, G);
 			}
 		}
@@ -746,6 +751,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			if(!nl->is_ground() && 
 				nl->isS()!=Y && l1 < k1 
 				&&(nl->nbr[TOP] ==NULL ||nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
+				if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	

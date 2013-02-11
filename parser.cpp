@@ -435,7 +435,6 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 		}
 	}
 	fclose(f);
-
 	// release map_node resource
 	for(size_t i=0;i<(*p_ckts).size();i++){
 		Circuit * ckt = (*p_ckts)[i];
