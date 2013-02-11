@@ -523,6 +523,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		get_voltages_from_block_LU_sol();
 		//get_vol_mergelist();
 	//}
+	// output dc solution
+	cout<<"dc solution. "<<endl;
+	cout<<nodelist<<endl;
 
 	// finish dc solution, start tran
 	// link transient nodes
