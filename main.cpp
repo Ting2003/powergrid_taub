@@ -120,7 +120,7 @@ int main(int argc, char * argv[]){
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
 		ckt->solve(my_id, num_procs, mpi_class, tran);
-		if(my_id ==0){
+		if(my_id ==1){
 			cktlist[i]->print();
 			clog<<endl;
 		}
@@ -136,7 +136,7 @@ int main(int argc, char * argv[]){
 	mpi_t12 = MPI_Wtime();
 	
 	// output a single ground node
-	if(my_id==0){
+	if(my_id==1){
 		printf("G  %.5e\n", 0.0);
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
 		//close_logfile();

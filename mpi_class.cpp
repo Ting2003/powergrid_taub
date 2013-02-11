@@ -8,7 +8,7 @@ MPI_CLASS::MPI_CLASS(){
 	y_max = 0;
 	x_min = 0;
 	y_min = 0;
-	overlap_ratio = 0.2;
+	overlap_ratio = 0;//0.2;
 
 	len_per_block_x = 0;
 	len_per_block_y = 0;

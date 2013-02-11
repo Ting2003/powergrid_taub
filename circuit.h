@@ -183,14 +183,14 @@ private:
 
 	// methods of stamping the matrix
 	
-	void make_A_symmetric(double *bp);
+	void make_A_symmetric(double *bp, int &my_id);
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
 	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
 	void stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
-	void stamp_inductance_dc(Matrix & A, Net * net);
+	void stamp_inductance_dc(Matrix & A, Net * net, int &my_id);
 	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
 
 	void boundary_init(int &my_id, int &num_procs);

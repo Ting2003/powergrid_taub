@@ -279,6 +279,8 @@ void Circuit::print(){
 // 4. get representative lists
 void Circuit::solve_init(int &my_id){
 	sort_nodes();
+	//if(my_id==0)
+		//clog<<nodelist<<endl;
 	sort_bd_nodes(my_id);
 	sort_internal_nodes(my_id);
 	
@@ -416,7 +418,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 			break;
 		case INDUCTANCE:
 			for(size_t i=0;i<ns.size();i++)
-				stamp_inductance_dc(A, ns[i]);
+				stamp_inductance_dc(A, ns[i], my_id);
 			break;
 		default:
 			report_exit("Unknwon net type\n");
@@ -429,7 +431,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		for(int i=0;i<10;i++)
 			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
 	}*/
-	make_A_symmetric(block_info.bp);
+	make_A_symmetric(block_info.bp, my_id);
 	
 	A.set_row(block_info.count);
 	if(block_info.count >0){
@@ -469,13 +471,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	if(mpi_class.block_size>0){
 		solve_init(my_id);
-		if(my_id==0) clog<<"finish solve init. "<<endl;
 	}
 
 	block_init(my_id, A, mpi_class);
-	if(my_id==0) clog<<"finish block init. "<<endl;
 	boundary_init(my_id, num_procs);
-	if(my_id==0) clog<<"finish boundary init. "<<endl;
 	internal_init(my_id, num_procs);
 	if(my_id==0) clog<<"finish internal_init. "<<endl;
 	
@@ -506,8 +505,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
 		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if(my_id ==0)
+			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
@@ -525,10 +524,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		//get_vol_mergelist();
 	//}
 	// output dc solution
-	if(my_id==0){
+	/*if(my_id==1){
 		cout<<"dc solution. "<<endl;
 		cout<<nodelist<<endl;
-	}
+	}*/
 
 	// finish dc solution, start tran
 	// link transient nodes
@@ -557,8 +556,19 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 			
 	assign_bd_array();
 
+	/*if(my_id==1) {
+		for(int i=0;i<replist.size();i++)
+			clog<<i<<" "<<*replist[i]<<" "<<block_info.bp[i]<<endl;
+	clog<<endl;
+	}*/
+
 	// new rhs store in bnewp
 	block_info.update_rhs(my_id);
+	/*if(my_id==1) {
+		clog<<"replist size: "<<replist.size()<<endl;
+		for(int i=0;i<replist.size();i++)
+			clog<<"bp: "<<i<<" "<<*replist[i]<<" "<<block_info.bnewp[i]<<endl;
+	}*/
 
 	// x_old stores old solution
 	for(size_t j=0;j<block_info.count;j++)
@@ -567,6 +577,9 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	if(block_info.count>0){
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
+		/*if(my_id==1)
+		for(int i=0;i<replist.size();i++)
+			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
 	}
 
 	diff = modify_voltage(my_id, block_info, 
@@ -682,7 +695,7 @@ void Circuit::copy_node_voltages_block(){
 	}
 }
 
-void Circuit::make_A_symmetric(double *b){
+void Circuit::make_A_symmetric(double *b, int &my_id){
 	int type = RESISTOR;
 	NetList & ns = net_set[type];
 	NetList::iterator it;
@@ -722,10 +735,9 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	if(net->flag_bd ==1)
 		block_info.boundary_netlist.push_back(net);
 
-	if(my_id==0) clog<<*net<<endl;
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
-		if(my_id==0) clog<<*nk<<" "<<*nl<<endl;
+
 		// if boundary net
 		if(net->flag_bd ==1){
 			if(!nl->is_ground() && 
@@ -735,7 +747,6 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				 nk->nbr[TOP]->type!=INDUCTANCE)){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
-				if(my_id==0) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 				A.push_back(k1,k1, G);
 			}
 		}
@@ -746,12 +757,14 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			if( !nk->is_ground()&& 
 				nk->isS()!=Y && 
           			(nk->nbr[TOP]== NULL ||
-				 nk->nbr[TOP]->type != INDUCTANCE)) 
+				 nk->nbr[TOP]->type != INDUCTANCE))
+
+				//if(my_id==3) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 				A.push_back(k1,k1, G);
 			if(!nl->is_ground() && 
 				nl->isS()!=Y && l1 < k1 
 				&&(nl->nbr[TOP] ==NULL ||nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
-				if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				//if(my_id==3) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	
@@ -764,12 +777,15 @@ void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	// only stamp for internal node
 	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
 		size_t k = nk->rid;
+
 		block_info.bp[k] += -net->value;
 		//pk[k] += -net->value;
 	}
 	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
 		size_t l = nl->rid;
+
 		block_info.bp[l] += net->value;
+		//if(my_id==1) clog<<"bk: "<<l<<" "<<block_info.bp[l]<<endl;
 		//pl[l] +=  net->value;
 	}
 }
@@ -800,8 +816,7 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 }
 
 // all cores stamp dc inductance
-void Circuit::stamp_inductance_dc(Matrix & A, Net * net){
-	//clog<<"net: "<<*net<<endl;
+void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
 	double G;
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
@@ -825,6 +840,7 @@ void Circuit::stamp_inductance_dc(Matrix & A, Net * net){
 		// general stamping
 		// A.push_back(l,k,-1);
 		block_info.bp[l] = block_info.bp[k];
+
 		//clog<<"("<<l<<" "<<l<<" "<<1<<")"<<endl;
 		//clog<<"("<<l<<" "<<k<<" "<<-1<<")"<<endl;
 	}
@@ -998,16 +1014,22 @@ void Circuit::assign_bd_base(int &my_id){
 	bd_base[0] = base;
 	base += bd_nodelist_sw.size();
 	bd_base[1] = base;
+
 	base += bd_nodelist_s.size();
 	bd_base[2] = base;
+
 	base += bd_nodelist_se.size();
 	bd_base[3] = base;
+
 	base += bd_nodelist_w.size();
 	bd_base[4] = base;
+
 	base += bd_nodelist_e.size();
 	bd_base[5] = base;
+
 	base += bd_nodelist_nw.size();
 	bd_base[6] = base;
+
 	base += bd_nodelist_n.size();
 	bd_base[7] = base;
 }

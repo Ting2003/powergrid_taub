@@ -382,6 +382,8 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
+	//if(my_id==3)
+		//clog<<"lx, ly, ux, uy: "<<mpi_class.block_geo[0]<<" "<<mpi_class.block_geo[1]<<" "<<mpi_class.block_geo[2]<<" "<<mpi_class.block_geo[3]<<endl;
 	// stores the geo boundary line for internal node:
 	// e, w, n, s
 	mpi_class.block_geo_origin = new float [4];

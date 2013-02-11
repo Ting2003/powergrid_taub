@@ -18,7 +18,7 @@ class Node{
 public:
 	// member functions
 	Node();
-	Node(string name, Point _pt, bool flag=false, double v=0.0);
+	Node(string name, Point _pt, int flag=-1, double v=0.0);
 	Node(const Node & nd);
 	Node & operator = (const Node & nd);
 	void set_nbr(DIRECTION dir, Net * name);
@@ -31,7 +31,7 @@ public:
 
 	int get_layer() const;
 
-	bool isS() const;
+	int isS() const;
 	bool is_ground() const;
 
 	double get_value() const;
@@ -64,14 +64,17 @@ public:
 
 private:
 	double value;		// voltage
-	bool flag;		// mark if the node is an X
+	// flag = 1 --> X
+	// flag = 2 --> Y
+	// flag = 3 --> Z
+	int flag;		// mark if the node is an X
 	Node * rep;		// representative, if somewhere is short-circuit
 
 	Node * end[4];		// south - north (west-east) ends
 	double eqvr[4];		// equivalent resisotrs
 };      	
 
-inline bool Node::isS() const{return flag;}
+inline int Node::isS() const{return flag;}
 
 //inline bool Node::is_ground() const{return name == "0";}
 // use a tricky way to speed up
