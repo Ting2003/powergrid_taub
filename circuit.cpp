@@ -648,10 +648,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// bnewp[i] = bp[i];
       for(size_t i=0;i<n;i++)
 	block_info.bnewp[i] = block_info.bp[i];
+
       stamp_current_tr_1(block_info.bp, block_info.bnewp, time);
-     // get the new bnewp
+      // get the new bnewp
       modify_rhs_tr(block_info.bnewp, block_info.xp); 
-	
+
+      // need to be modified into block version
       solve_eq_sp(block_info.xp, block_info.bnewp);
 
       //save_tr_nodes(tran, xp);
@@ -1857,19 +1859,8 @@ void Circuit::stamp_current_tr(int &my_id, double &time){
 // stamp transient current values into rhs
 void Circuit::stamp_current_tr_1(double *bp, double *b, double &time){
 	NetPtrVector & ns = net_set[CURRENT];
-	//if(ns.size()<THRESHOLD){
-		for(size_t i=0;i<ns.size();i++)
-			stamp_current_tr_net_1(bp, b, ns[i], time);
-	//}
-#if 0
-	// else work in parallel
-	else{
-		size_t i=0;
-#pragma omp parallel for private(i)
-		for(i=0;i<ns.size();i++)
-			stamp_current_tr_net_1(bp, b, ns[i], time);
-	}
-#endif
+	for(size_t i=0;i<ns.size();i++)
+		stamp_current_tr_net_1(bp, b, ns[i], time);
 }
 
 void Circuit::stamp_current_tr_net_1(double *bp, double * b, Net * net, double &time){
