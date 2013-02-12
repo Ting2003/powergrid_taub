@@ -468,7 +468,7 @@ void Circuit::stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class,
 			break;
 		case INDUCTANCE:
 			for(size_t i=0;i<ns.size();i++)
-				stamp_inductance_tr(A, ns[i], my_id, tran);
+				stamp_inductance_tr(A, ns[i], tran, my_id);
 			break;
 		default:
 			report_exit("Unknwon net type\n");
@@ -563,12 +563,15 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}
 	get_voltages_from_block_LU_sol();
 
+	for(size_t i=0;i<replist.size();i++)
+		block_info.bp[i] = 0;
+
 	///***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran);
-	block_info.bnew_ck = cholmod_zeros(count,1,CHOLMOD_REAL, cm);
-   	block_info.bnewp = static_cast<double *>(bnew->x);
-	stamp_block_matrix_tr(my_id, A, tran);
+	block_info.b_new_ck = cholmod_zeros(block_info.count,1,CHOLMOD_REAL, cm);
+   	block_info.bnewp = static_cast<double *>(block_info.b_new_ck->x);
+	stamp_block_matrix_tr(my_id, A, mpi_class, tran);
 	make_A_symmetric_tr(my_id, tran);
    
    	stamp_current_tr(my_id, time);
@@ -773,6 +776,34 @@ void Circuit::make_A_symmetric(double *b, int &my_id){
         }
 }
 
+// make A symmetric for tran
+void Circuit::make_A_symmetric_tr(int &my_id, Tran &tran){
+	int type = INDUCTANCE;
+	NetList & ns = net_set[type];
+	NetList::iterator it;
+	Node *p=NULL, *q=NULL, *r =NULL;
+
+	for(it=ns.begin();it!=ns.end();it++){
+           if( (*it) == NULL ) continue;
+           assert( fzero((*it)->value) == false );
+           if(!((*it)->ab[0]->rep->isS()==Y || (*it)->ab[1]->rep->isS()==Y)) continue;
+           // node p points to X node
+           if((*it)->ab[0]->rep->isS()==Y){
+              p = (*it)->ab[0]->rep; q = (*it)->ab[1]->rep;
+           } 
+           else if((*it)->ab[1]->rep->isS()==Y){
+              p = (*it)->ab[1]->rep; q = (*it)->ab[0]->rep;
+           }           
+
+           size_t id = q->rid;
+	   double G = tran.step_t / ((*it)->value*2);
+           
+           //b[id] += p->value * G;
+           block_info.bp[id] += block_info.xp[p->rid] *G;
+        }
+}
+
+
 // =========== stamp block version of matrix =======
 void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
@@ -819,7 +850,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 }
 
 // only stamp resistor node connected to inductance
-void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
+void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
 	// skip boundary nets
 	if(net->flag_bd ==1)
 		return;
@@ -852,26 +883,6 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 					A.push_back(l1, k1, -G);
 		}
 	}// end of for j	
-}
-
-void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
-	Node * nk = net->ab[0]->rep;
-	Node * nl = net->ab[1]->rep;
-
-	// only stamp for internal node
-	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
-		size_t k = nk->rid;
-
-		block_info.bp[k] += -net->value;
-		//pk[k] += -net->value;
-	}
-	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
-		size_t l = nl->rid;
-
-		block_info.bp[l] += net->value;
-		//if(my_id==1) clog<<"bk: "<<l<<" "<<block_info.bp[l]<<endl;
-		//pl[l] +=  net->value;
-	}
 }
 
 void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
@@ -973,6 +984,73 @@ void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
 
 		//clog<<"("<<l<<" "<<l<<" "<<1<<")"<<endl;
 		//clog<<"("<<l<<" "<<k<<" "<<-1<<")"<<endl;
+	}
+}
+
+// stamp capacitance Geq = 2C/delta_t
+void Circuit::stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran, int &my_id){
+	//clog<<"net: "<<*net<<endl;
+	double Geq = 0;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+	// Geq = 2*C / delta_t
+	Geq = (2*net->value) / tran.step_t;
+	//net->value = Geq;
+	//clog<<"C delta_t Geq: "<<net->value<<" "<<tran.step_t<<" "<<Geq<<endl;
+	// Ieq = i(t) + 2*C / delta_t * v(t)
+
+	if( nk->isS()!=Y  && !nk->is_ground() && nk->flag_bd==0) {
+		A.push_back(k,k, Geq);
+		//clog<<"("<<k<<" "<<k<<" "<<Geq<<")"<<endl;
+		if(!nl->is_ground()&& k > l){
+			A.push_back(k,l,-Geq);
+			//clog<<"("<<k<<" "<<l<<" "<<-Geq<<")"<<endl;
+		}
+	}
+
+	if( nl->isS() !=Y && !nl->is_ground() && nl->flag_bd==0) {
+		A.push_back(l,l, Geq);
+		//clog<<"("<<l<<" "<<l<<" "<<Geq<<")"<<endl;
+		if(!nk->is_ground()&& l > k){
+			A.push_back(l,k,-Geq);
+			//clog<<"("<<l<<" "<<k<<" "<<-Geq<<")"<<endl;
+		}
+	}
+}
+
+// stamp inductance Geq = delta_t/(2L)
+void Circuit::stamp_inductance_tr(Matrix & A, Net * net, Tran &tran, int &my_id){
+	//clog<<"net: "<<*net<<endl;
+	double Geq = 0;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+	// Geq = delta_t / (2*L)
+	Geq = tran.step_t / (2*net->value);
+	//net->value = Geq;
+
+	if( nk->isS()!=Y  && !nk->is_ground() && nk->flag_bd==0) {
+		// -1 is to clear formal inserted 1 at (k,k)
+		A.push_back(k,k, Geq-1);
+		//clog<<"("<<k<<" "<<k<<" "<<Geq-1<<")"<<endl;
+		//clog<<nl->isS()<<endl;
+		if(!nl->is_ground()&& nl->isS()!=Y && k>l){
+			A.push_back(k,l,-Geq);
+		        //clog<<"("<<k<<" "<<l<<" "<<-Geq<<")"<<endl;
+		}
+	}
+
+	if( nl->isS() !=Y && !nl->is_ground() && nl->flag_bd==0) {
+		// -1 is to clear formal inserted 1 at (l,l)
+		A.push_back(l,l, Geq-1);
+		//clog<<"("<<l<<" "<<l<<" "<<Geq-1<<")"<<endl;
+		if(!nk->is_ground() && nk->isS()!=Y && l>k){
+			A.push_back(l,k,-Geq);
+			//clog<<"("<<l<<" "<<k<<" "<<-Geq<<")"<<endl;
+		}
 	}
 }
 
@@ -1515,4 +1593,57 @@ void Circuit:: link_ckt_nodes(Tran &tran){
          }
       }
    }
+}
+
+// stamp transient current values into rhs
+void Circuit::stamp_current_tr(int &my_id, double &time){
+	NetPtrVector & ns = net_set[CURRENT];
+	for(size_t i=0;i<ns.size();i++)
+		stamp_current_tr_net(ns[i], time);
+}
+
+void Circuit::stamp_current_tr_net(Net * net, double &time){
+	current_tr(net, time);
+	//clog<<"net: "<<*net<<endl;
+	//clog<<"current: "<<current<<endl;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	if( !nk->is_ground()&& nk->isS()!=Y) { 
+		size_t k = nk->rid;
+		//clog<<"node, rid: "<<*nk<<" "<<k<<endl;
+		block_info.bp[k] += -net->value;//current;
+		//clog<<"time, k, b: "<<time<<" "<<k<<" "<<b[k]<<endl;
+	}
+	if( !nl->is_ground() && nl->isS()!=Y) {
+		size_t l = nl->rid;
+		//clog<<"node, rid: "<<*nl<<" "<<l<<endl;
+		block_info.bp[l] +=  net->value;// current;
+		//clog<<"time, l, b: "<<time<<" "<<l<<" "<<b[l]<<endl;
+	}
+}
+
+// decide transient step current values
+void Circuit::current_tr(Net *net, double &time){
+	double slope = 0;
+	double Tr = net->Tr;
+	double PW = Tr + net->PW;
+	double Tf = PW + net->Tf;
+	double t_temp = time - net->TD;
+	double t = fmod(t_temp, net->Period);
+	if(time <= net->TD)
+		net->value = net->V1;
+	else if(t > 0 && t<= Tr){
+		slope = (net->V2 - net->V1) / 
+			(net->Tr);
+		net->value = net->V1 + t*slope;
+	}
+	else if(t > Tr && t<= PW)
+		net->value = net->V2;
+	else if(t>PW && t<=Tf){
+		slope = (net->V1-net->V2)/(net->Tf);
+		net->value = net->V2 + slope*(t-PW);
+	}
+	else
+		net->value = net->V1;
+	//return current;
 }

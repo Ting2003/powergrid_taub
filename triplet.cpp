@@ -48,6 +48,13 @@ void Triplet::merge(){
 	}
 }
 
+void Triplet::clear(){
+	Ti.clear();
+	Tj.clear();
+	Tx.clear();
+	// row = 0;
+}
+
 // insert a triplet 
 // if index < 0, simply ignore
 void Triplet::push_back(long i, long j, double x){

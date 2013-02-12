@@ -101,24 +101,21 @@ void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
 }
 
 // deliver the address of x
-void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, cholmod_common *cm){
-	cholmod_factor *L;
-	//cm->final_ll = true; // stay in LL' format
-	clock_t t1, t2;
-	t1 = clock();
+void Algebra::solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod_dense *b, 
+  cholmod_common *cm){
+	//cholmod_factor *L;
+	cm->final_super = false;
+	cm->final_asis = false;
 	CK_decomp(A, L, cm);
-	t2 = clock();
-	clog<<"decomp: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-	// then solve
-	t1 = clock();
-	x = cholmod_solve(CHOLMOD_A, L, b, cm);
-	t2 = clock();
-	clog<<"solve: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-	//cholmod_print_dense(x, "x", cm);
-	//cholmod_print_dense(b, "b", cm);
 	//cholmod_print_factor(L, "L", cm);
-	cholmod_free_factor(&L, cm);
-	
+	//cholmod_print_common("CM", cm);
+	// then solve
+	//t1 = clock();
+	x = cholmod_solve(CHOLMOD_A, L, b, cm);
+	//t2 = clock();
+	//clog<<"time for solving: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+	//cholmod_print_dense(x, "x", cm);
+	//cholmod_free_factor(&L, cm);
 }
 
 // Given column compressed form of matrix A
@@ -176,9 +173,9 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 		Tx[k] = A.Tx[k];
 	}
 	T->nnz = nnz;
-	A.Ti.clear();
+	/*A.Ti.clear();
 	A.Tj.clear();
-	A.Tx.clear();
+	A.Tx.clear();*/
 	//cholmod_print_triplet(T, "T", cm);
 	cholmod_sparse * A_cholmod;
 	A_cholmod = cholmod_triplet_to_sparse(T, nnz, cm);

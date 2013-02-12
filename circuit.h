@@ -184,6 +184,7 @@ private:
 	// methods of stamping the matrix
 	
 	void make_A_symmetric(double *bp, int &my_id);
+	void current_tr(Net *net, double &time);
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class, Tran &tran);
@@ -218,6 +219,23 @@ private:
 	// solve circuit with preconditioned pcg method
 	void copy_node_voltages_block();
 
+	// ****** function for transient *******
+	double *temp;	
+        int *id_map;
+        cholmod_factor *L;
+	double *Lx;
+	int *Li, *Lp, *Lnz;
+
+	void make_A_symmetric_tr(int &my_id, Tran &tran);
+
+	void stamp_inductance_tr(Matrix & A, Net * net, Tran &tran, int &my_id);
+	void stamp_block_VDD_tr(int &my_id, Net * net, Matrix &A);
+	void stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A);
+	void stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran, int &my_id);
+
+	void stamp_current_tr(int &my_id, double &time);
+
+	void stamp_current_tr_net(Net * net, double &time);
 	void release_tr_nodes(Tran &tran);
 	void release_ckt_nodes(Tran &tran);
 	void print_ckt_nodes(Tran &tran);

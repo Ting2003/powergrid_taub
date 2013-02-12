@@ -25,6 +25,7 @@ public:
 	Triplet();
 	~Triplet();
 	void merge();
+	void clear();
 	void push_back(long i,long j,double x);
 	size_t size() const;
 	long get_row() const;

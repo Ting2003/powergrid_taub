@@ -18,8 +18,7 @@ class Vec;
 class Algebra{
 public:
 	static void solve(const Matrix & A, const Vec & b, Vec & x);
-	static void solve_CK(Matrix & A, cholmod_dense *&x, 
-			cholmod_dense *b, cholmod_common *cm);
+	static void solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod_dense *b, cholmod_common *cm);
 	static void LU_decomposition(int n, UF_long * Ap, UF_long * Ai, 
 			double * Ax,
 		void ** Numeric);
