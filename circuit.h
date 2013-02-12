@@ -310,12 +310,13 @@ private:
 	int flag_ck;
 	void find_super();
 	void update_node_set_bx();                               
-         void parse_path_table();
-         void build_path_graph();                
-         void build_FFS_path();
-         void build_FBS_path();                  
-         void set_up_path_table();               
-         void find_path(vector<size_t>&node_set, List_G &path);
+        void parse_path_table();
+	void push_bd_nodes(Path_Graph &pg);
+        void build_path_graph();                
+        void build_FFS_path();
+        void build_FBS_path();                  
+        void set_up_path_table();               
+        void find_path(vector<size_t>&node_set, List_G &path);
 
 
 	void get_samples();

@@ -633,6 +633,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		   }
 	   }
    }
+   // then push back boundary nodes into node_se_x
+   push_bd_nodes(pg);
    // get path_b, path_x, len_path_b, len_path_x
    build_path_graph();
 
@@ -2499,3 +2501,62 @@ void Circuit::find_super(){
        }
     }
  }
+
+// push the 8 set of internal bd nodes into node_set_x
+void Circuit::push_bd_nodes(Path_Graph &pg){
+	// sw direction
+	size_t n_sw = internal_nodelist_sw.size();
+	for(size_t i=0;i<n_sw;i++){
+		size_t id = bd_nodelist_sw[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// s direction
+	size_t n_s = internal_nodelist_s.size();
+	for(size_t i=0;i<n_s;i++){
+		size_t id = bd_nodelist_s[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// se direction
+	size_t n_se = internal_nodelist_se.size();
+	for(size_t i=0;i<n_se;i++){
+		size_t id = bd_nodelist_se[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// w direction
+	size_t n_w = internal_nodelist_w.size();
+	for(size_t i=0;i<n_w;i++){
+		size_t id = bd_nodelist_w[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// e direction
+	size_t n_e = internal_nodelist_e.size();
+	for(size_t i=0;i<n_e;i++){
+		size_t id = bd_nodelist_e[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// nw direction
+	size_t n_nw = internal_nodelist_nw.size();
+	for(size_t i=0;i<n_nw;i++){
+		size_t id = bd_nodelist_nw[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// n direction
+	size_t n_n = internal_nodelist_n.size();
+	for(size_t i=0;i<n_n;i++){
+		size_t id = bd_nodelist_n[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+
+	// ne direction
+	size_t n_ne = internal_nodelist_ne.size();
+	for(size_t i=0;i<n_ne;i++){
+		size_t id = bd_nodelist_ne[i]->rep->rid;
+		pg.node_set_x.push_back(id);
+	}
+}
