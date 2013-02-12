@@ -592,20 +592,20 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
    temp = new double [n];
    // then substitute all the nodes rid
-   //if(n<THRESHOLD){
-	   for(size_t i=0;i<n;i++){
-		   int id = id_map[i];
-		   replist[id]->rid = i;
-		   temp[i] = block_info.bp[i];
-	   }
-	   for(size_t i=0;i<n;i++)
-		   block_info.bp[i] = temp[id_map[i]];
-	   for(size_t i=0;i<n;i++)
-		   temp[i] = block_info.xp[i];
-	   for(size_t i=0;i<n;i++)
-		   block_info.xp[i] = temp[id_map[i]];
+   for(size_t i=0;i<n;i++){
+	int id = id_map[i];
+	replist[id]->rid = i;
+	temp[i] = block_info.bp[i];
+   }
+   for(size_t i=0;i<n;i++)
+	block_info.bp[i] = temp[id_map[i]];
+   for(size_t i=0;i<n;i++)
+        temp[i] = block_info.xp[i];
+   for(size_t i=0;i<n;i++)
+        block_info.xp[i] = temp[id_map[i]];
    delete [] temp;
    delete [] id_map;
+
    for(size_t i=0;i<replist.size();i++)
 	block_info.bnewp[i] = block_info.bp[i];
    
@@ -639,7 +639,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
-   solve_eq_sp(xp);
+   solve_eq_sp(block_info.xp, block_info.bnewp);
  
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
@@ -652,7 +652,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
      // get the new bnewp
       modify_rhs_tr(block_info.bnewp, block_info.xp); 
 	
-      solve_eq_sp(block_info.xp);
+      solve_eq_sp(block_info.xp, block_info.bnewp);
 
       //save_tr_nodes(tran, xp);
       save_ckt_nodes(tran, block_info.xp);
@@ -2307,7 +2307,7 @@ void Circuit::find_super(){
     }
  }
  
- void Circuit::solve_eq_sp(double *X){
+ void Circuit::solve_eq_sp(double *X, double *bnewp){
     int p, q, r, lnz, pend;
     int j, k, n = block_info.L->n ;
     for(int i=0;i<n;i++){

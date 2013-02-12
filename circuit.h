@@ -293,12 +293,12 @@ private:
 	void set_type(CIRCUIT_TYPE type){circuit_type = type;};
 	// ************* functions and members for thread **********
  
-        cholmod_dense *b, *x, *bnew;
+        /*cholmod_dense *b, *x, *bnew;
         double *bp, *xp;
-        double *bnewp;
+        double *bnewp;*/
 
 	void solve_eq(double *X);
-	void solve_eq_sp(double*X);
+	void solve_eq_sp(double*X, double *bnewp);
 	// set s_col_FFS and FBS
 	void solve_eq_set();
 	int* s_col_FFS;
