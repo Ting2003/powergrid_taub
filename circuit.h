@@ -242,7 +242,7 @@ private:
 	// ****** function for transient *******
 	double *temp;	
         int *id_map;
-        cholmod_factor *L;
+        //cholmod_factor *L;
 	double *Lx;
 	int *Li, *Lp, *Lnz;
 

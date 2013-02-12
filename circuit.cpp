@@ -576,18 +576,18 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    
    	stamp_current_tr(my_id, time);
   
-   	Algebra::CK_decomp(A, L, cm);
-   	Lp = static_cast<int *>(L->p);
-   	Lx = static_cast<double*> (L->x);
-   	Li = static_cast<int*>(L->i) ;
-   	Lnz = static_cast<int *>(L->nz); 
+   	Algebra::CK_decomp(A, block_info.L, cm);
+   	Lp = static_cast<int *>(block_info.L->p);
+   	Lx = static_cast<double*> (block_info.L->x);
+   	Li = static_cast<int*>(block_info.L->i) ;
+   	Lnz = static_cast<int *>(block_info.L->nz); 
    	A.clear();
 //#if 0 
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
    size_t n = replist.size();
    id_map = new int [n];
-   cholmod_build_id_map(CHOLMOD_A, L, cm, id_map);
+   cholmod_build_id_map(CHOLMOD_A, block_info.L, cm, id_map);
 
    temp = new double [n];
    // then substitute all the nodes rid
@@ -2183,7 +2183,7 @@ void Circuit::build_FBS_path(){
 }
 
 void Circuit::set_up_path_table(){
-   size_t n = L->n;
+   size_t n = block_info.L->n;
    //int *Lp, *Li, *Lnz;
    int p, lnz, s, e;
    //Lp = static_cast<int *> (L->p);
@@ -2312,7 +2312,7 @@ void Circuit::find_super(){
  
  void Circuit::solve_eq_sp(double *X){
     int p, q, r, lnz, pend;
-    int j, k, n = L->n ;
+    int j, k, n = block_info.L->n ;
     for(int i=0;i<n;i++){
        X[i] = bnewp[i];
     }
@@ -2332,7 +2332,7 @@ void Circuit::find_super(){
           /* solve with a single column of L */
           /* -------------------------------------------------------------- */
           double y = X [j] ;
-          if(L->is_ll == true){
+          if(block_info.L->is_ll == true){
              X[j] /= Lx [p] ;
           }
           for (p++ ; p < pend ; p++)
@@ -2347,7 +2347,7 @@ void Circuit::find_super(){
           {
              double y [2] ;
              q = Lp [j+1] ;
-             if(L->is_ll == true){
+             if(block_info.L->is_ll == true){
                 y [0] = X [j] / Lx [p] ;
                 y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
                 X [j  ] = y [0] ;
@@ -2375,7 +2375,7 @@ void Circuit::find_super(){
              q = Lp [j+1] ;
              r = Lp [j+2] ;
              //#ifdef LL
-             if(L->is_ll == true){
+             if(block_info.L->is_ll == true){
                 y [0] = X [j] / Lx [p] ;
                 y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
                 y [2] = (X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1]) / Lx [r] ;
@@ -2420,13 +2420,13 @@ void Circuit::find_super(){
           /* -------------------------------------------------------------- */
  
           double d = Lx [p] ;
-          if(L->is_ll == false)
+          if(block_info.L->is_ll == false)
              X[j] /= d ;
           for (p++ ; p < pend ; p++)
           {
              X[j] -= Lx [p] * X [Li [p]] ;
           }
-          if(L->is_ll == true)
+          if(block_info.L->is_ll == true)
              X [j] /=  d ;
           k--;
        }
@@ -2439,7 +2439,7 @@ void Circuit::find_super(){
              d [0] = Lx [p] ;
              d [1] = Lx [q] ;
              t = Lx [q+1] ;
-             if(L->is_ll == false){
+             if(block_info.L->is_ll == false){
                 y [0] = X [j  ] / d [0] ;
                 y [1] = X [j-1] / d [1] ;
              }
@@ -2453,7 +2453,7 @@ void Circuit::find_super(){
                 y [0] -= Lx [p] * X [i] ;
                 y [1] -= Lx [q] * X [i] ;
              }
-             if(L->is_ll == true){
+             if(block_info.L->is_ll == true){
                 y [0] /= d [0] ;
                 y [1] = (y [1] - t * y [0]) / d [1] ;
              }
@@ -2477,7 +2477,7 @@ void Circuit::find_super(){
              t [0] = Lx [q+1] ;
              t [1] = Lx [r+1] ;
              t [2] = Lx [r+2] ;
-             if(L->is_ll == false){
+             if(block_info.L->is_ll == false){
                 y [0] = X [j]   / d [0] ;
                 y [1] = X [j-1] / d [1] ;
                 y [2] = X [j-2] / d [2] ;
@@ -2494,7 +2494,7 @@ void Circuit::find_super(){
                 y [1] -= Lx [q] * X [i] ;
                 y [2] -= Lx [r] * X [i] ;
              }
-             if(L->is_ll == true){
+             if(block_info.L->is_ll == true){
                 y [0] /= d [0] ;
                 y [1] = (y [1] - t [0] * y [0]) / d [1] ;
                 y [2] = (y [2] - t [2] * y [0] - t [1] * y [1]) / d [2] ;
