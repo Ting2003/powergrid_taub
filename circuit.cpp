@@ -24,7 +24,7 @@
 #include <cassert>
 #include <vector>
 #include "cholmod.h"
-#include "umfpack.h"
+//#include "umfpack.h"
 #include "circuit.h"
 #include "util.h"
 #include "algebra.h"
@@ -136,7 +136,7 @@ void Circuit::check_sys() const{
 	clog<<"* int size     = "<< sizeof(int)<<endl;
 	clog<<"* long size    = "<< sizeof(long)<<endl;
 	clog<<"* size_t size  = "<< sizeof(size_t)<<endl;
-	clog<<"* UF_long size = "<< sizeof(UF_long)<<endl;
+	//clog<<"* UF_long size = "<< sizeof(UF_long)<<endl;
 	clog<<"* Max nodelist = "<<(size_t)nodelist.max_size()<<endl;
 	clog<<"****            END              ****"<<endl<<endl;
 }
@@ -562,11 +562,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		clog<<"# iter: "<<iter<<endl;
 	}
 	get_voltages_from_block_LU_sol();
-
+	//return 0;
+#if 1
 	for(size_t i=0;i<replist.size();i++)
 		block_info.bp[i] = 0;
 
-	///***** solve tran *********/
+	/***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran);
 	block_info.b_new_ck = cholmod_zeros(block_info.count,1,CHOLMOD_REAL, cm);
@@ -663,7 +664,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       
    delete [] s_col_FFS;
    delete [] s_col_FBS;
-
+#endif
 	/////////// release resources
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
@@ -945,32 +946,27 @@ void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
 		return;
 
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
-	
 	double G;	
 	G = 1./net->value;
 
 	for(size_t j=0;j<2;j++){
-		Node *nk = nd[j], *nl = nd[1-j];	
-		// else internal net
-		if( nk->isS()!=Y ) {
-			size_t k1 = nk->rid;
-			size_t l1 = nl->rid;
-			if( !nk->is_ground()&& 
-				nk->isS()!=Y && 
-          			(nk->nbr[TOP]!= NULL &&
-				 nk->nbr[TOP]->type == INDUCTANCE))
-
-				//if(my_id==3) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
-				A.push_back(k1,k1, G);
-			if(!nl->is_ground() 
-			    &&(nl->nbr[TOP] ==NULL ||
-			    nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
-				//if(my_id==3) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
-				if(l1 < k1)
-					A.push_back(k1,l1,-G);
-				else if(l1>k1)
-					A.push_back(l1, k1, -G);
-		}
+		Node *nk = nd[j], *nl = nd[1-j];
+		if(nk->isS()==Y) continue;
+		size_t k1 = nk->rid;
+		size_t l1 = nl->rid;
+		if( !nk->is_ground()&& 
+          		(nk->nbr[TOP]!= NULL &&
+			 nk->nbr[TOP]->type == INDUCTANCE))
+			//if(my_id==3) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+			A.push_back(k1,k1, G);
+		if(!nl->is_ground() 
+		    &&(nl->nbr[TOP] ==NULL ||
+		    nl->nbr[TOP]->type != INDUCTANCE))
+			//if(my_id==3) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+			if(l1 < k1)
+				A.push_back(k1,l1,-G);
+			else if(l1>k1)
+				A.push_back(l1, k1, -G);
 	}// end of for j	
 }
 
@@ -1831,6 +1827,7 @@ void Circuit::save_ckt_nodes_to_tr(Tran &tran){
 		}
 	}	
 }
+
 // link transient nodes with nodelist
 void Circuit:: link_ckt_nodes(Tran &tran){
    Node_TR_PRINT nodes_temp;

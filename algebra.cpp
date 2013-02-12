@@ -13,10 +13,11 @@
 #include "global.h"
 #include "util.h"
 #include "vec.h"
-#include "umfpack.h"
+//#include "umfpack.h"
 #include "algebra.h"
 #include "mpi.h"
 
+#if 0
 // solve x for linear system Ax=b
 // NOTE: UF_long and size_t must have the same size!
 void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
@@ -99,6 +100,7 @@ void Algebra::solve(const Matrix & A, const Vec & b, Vec & x){
 
 	//return x;
 }
+#endif
 
 // deliver the address of x
 void Algebra::solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod_dense *b, 
@@ -118,6 +120,7 @@ void Algebra::solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod
 	//cholmod_free_factor(&L, cm);
 }
 
+#if 0
 // Given column compressed form of matrix A
 // perform LU decomposition and store the result in Numeric
 // n is the dimension of matrix A
@@ -148,6 +151,7 @@ void Algebra::LU_decomposition(int n, UF_long * Ap, UF_long * Ai, double * Ax,
 
 	umfpack_dl_free_symbolic (&Symbolic) ;
 }
+#endif
 
 // doing cholesky decomposition
 void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){

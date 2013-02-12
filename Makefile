@@ -14,10 +14,10 @@ LDFLAGS=
 
 PACKAGE= ./package_ck
 
-UMFPACK=./umfpack
-UMFPACK_LIB_DIR=$(UMFPACK)/lib
-UMFPACK_INC_DIR=$(UMFPACK)/include
-UMFPACK_LIB=$(UMFPACK_LIB_DIR)/libumfpack.a \
+UMFPACK=#./umfpack
+UMFPACK_LIB_DIR=#$(UMFPACK)/lib
+UMFPACK_INC_DIR=#$(UMFPACK)/include
+UMFPACK_LIB=#$(UMFPACK_LIB_DIR)/libumfpack.a \
 	    $(UMFPACK_LIB_DIR)/libamd.a \
 	    $(CHOLMOD_LIB_DIR)/libcholmod.a \
 	    $(UMFPACK_LIB_DIR)/libcolamd.a \
@@ -30,24 +30,30 @@ CHOLMOD= $(PACKAGE)/CHOLMOD
 CHOLMOD_LIB_DIR=$(CHOLMOD)/Lib
 CHOLMOD_INC_DIR=$(CHOLMOD)/Include
 CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a \
-	    $(PACKAGE)/AMD/Lib/libamd.a
+	    $(PACKAGE)/AMD/Lib/libamd.a\
+	    $(CHOLMOD)/libcolamd.a\
+	    $(CHOLMOD)/libccolamd.a\
+	    $(CHOLMOD)/libcamd.a \
+            $(CHOLMOD)/libmetis.a \
+	    $(CHOLMOD)/libgoto2.a 
+
 
 main: $(OBJ)
 	@echo "Making project..."
-	$(CC) $(LDFLAGS) -o $(BIN) $(OBJ) $(UMFPACK_LIB) $(CHOLMOD_LIB)
+	$(CC) $(LDFLAGS) -o $(BIN) $(OBJ) $(CHOLMOD_LIB)
 
 release: $(OBJ)
-	$(CC) $(LDFLAGS) -static -o $(BIN) $(OBJ) $(UMFPACK_LIB) $(CHOLMOD_LIB)
+	$(CC) $(LDFLAGS) -static -o $(BIN) $(OBJ) $(CHOLMOD_LIB)
 
 test: 
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -I$(UMFPACK_INC_DIR)\
-	-I$(CHOLMOD_INC_DIR) -o test test.cpp $(UMFPACK_LIB) $(CHOLMOD_LIB)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS)\
+	-I$(CHOLMOD_INC_DIR) -o test test.cpp $(CHOLMOD_LIB)
 
 all: main
 	@echo "Making all..."
 
 %.o: %.cpp  %.h global.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(UMFPACK_INC_DIR) -I$(CHOLMOD_INC_DIR) -c $<  -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(CHOLMOD_INC_DIR) -c $<  -o $@
 
 .PHONY : clean
 clean:

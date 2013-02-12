@@ -13,7 +13,7 @@
 #include "vec.h"
 #include "net.h"
 #include "util.h"
-#include "umfpack.h"
+//#include "umfpack.h"
 #include "cholmod.h"
 #include "mpi_class.h"
 

@@ -13,7 +13,7 @@
 #include "block.h"
 #include "node.h"
 #include "util.h"
-#include "umfpack.h"
+//#include "umfpack.h"
 
 Block::Block(size_t _count):
         b_ck(NULL),
