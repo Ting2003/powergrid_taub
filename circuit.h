@@ -30,6 +30,11 @@
 #include "block.h"
 #include "transient.h"
 #include "mpi_class.h"
+#include <algorithm>
+#include "sp_graph_table.h"
+#include "sp_node.h"
+
+
 using namespace std;
 using namespace std::tr1;
 
@@ -188,6 +193,21 @@ private:
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class, Tran &tran);
+	void modify_rhs_tr_0(double *b, double *xp);
+	void modify_rhs_tr(double *b, double *xp);
+
+	void set_eq_induc(Tran &tran);
+	void set_eq_capac(Tran &tran);
+	void modify_rhs_c_tr_0(Net *net, double *rhs, double *xp);
+	void modify_rhs_l_tr_0(Net *net, double *rhs, double *xp);
+
+	void modify_rhs_c_tr(Net *net, double *rhs, double *xp);
+	void modify_rhs_l_tr(Net *net, double *rhs, double *xp);
+	void release_tr_nodes(Tran &tran);
+
+	
+	
+	// ******** end of transient ****
 	void stamp_boundary_matrix();
 	void stamp_boundary_net(Net * net);
 	void stamp_block_resistor(int &my_id, Net *net, Matrix &A);
@@ -234,9 +254,10 @@ private:
 	void stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran, int &my_id);
 
 	void stamp_current_tr(int &my_id, double &time);
+	void stamp_current_tr_1(double *bp, double *b, double &time);
+	void stamp_current_tr_net_1(double *bp, double * b, Net * net, double &time);
 
 	void stamp_current_tr_net(Net * net, double &time);
-	void release_tr_nodes(Tran &tran);
 	void release_ckt_nodes(Tran &tran);
 	void print_ckt_nodes(Tran &tran);
 	void save_ckt_nodes_to_tr(Tran &tran);
@@ -270,6 +291,32 @@ private:
 	void select_omega();
 
 	void set_type(CIRCUIT_TYPE type){circuit_type = type;};
+	// ************* functions and members for thread **********
+ 
+        cholmod_dense *b, *x, *bnew;
+        double *bp, *xp;
+        double *bnewp;
+
+	void solve_eq(double *X);
+	void solve_eq_sp(double*X);
+	// set s_col_FFS and FBS
+	void solve_eq_set();
+	int* s_col_FFS;
+	int* s_col_FBS;
+	// ********* sparse vectors ******
+	Path_Graph pg;
+	int *path_b, *path_x;
+	int len_path_b, len_path_x;
+	int flag_ck;
+	void find_super();
+	void update_node_set_bx();                               
+         void parse_path_table();
+         void build_path_graph();                
+         void build_FFS_path();
+         void build_FBS_path();                  
+         void set_up_path_table();               
+         void find_path(vector<size_t>&node_set, List_G &path);
+
 
 	void get_samples();
 

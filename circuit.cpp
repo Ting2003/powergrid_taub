@@ -582,7 +582,89 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    	Li = static_cast<int*>(L->i) ;
    	Lnz = static_cast<int *>(L->nz); 
    	A.clear();
+//#if 0 
+   /*********** the following 2 parts can be implemented with pthreads ***/
+   // build id_map immediately after transient factorization
+   size_t n = replist.size();
+   id_map = new int [n];
+   cholmod_build_id_map(CHOLMOD_A, L, cm, id_map);
 
+   temp = new double [n];
+   // then substitute all the nodes rid
+   //if(n<THRESHOLD){
+	   for(size_t i=0;i<n;i++){
+		   int id = id_map[i];
+		   replist[id]->rid = i;
+		   temp[i] = block_info.bp[i];
+	   }
+	   for(size_t i=0;i<n;i++)
+		   block_info.bp[i] = temp[id_map[i]];
+	   for(size_t i=0;i<n;i++)
+		   temp[i] = block_info.xp[i];
+	   for(size_t i=0;i<n;i++)
+		   block_info.xp[i] = temp[id_map[i]];
+   delete [] temp;
+   delete [] id_map;
+   for(size_t i=0;i<replist.size();i++)
+	block_info.bnewp[i] = block_info.bp[i];
+   
+   set_eq_induc(tran);
+   set_eq_capac(tran);
+   modify_rhs_tr_0(block_info.bnewp, block_info.xp);
+
+   // push rhs node into node_set b
+   for(size_t i=0;i<n;i++){
+	   if(block_info.bnewp[i] !=0)
+		   pg.node_set_b.push_back(i);
+   }
+
+   // push back all nodes in output list
+   vector<size_t>::iterator it;
+   size_t id;
+   for(size_t i=0;i<tran.nodes.size();i++){
+	   if(tran.nodes[i].node == NULL) continue;
+	   if(!tran.nodes[i].node->rep->is_ground()){
+		   id = tran.nodes[i].node->rep->rid;
+		   it = find(pg.node_set_x.begin(), pg.node_set_x.end(), 
+				   id);
+		   if(it == pg.node_set_x.end()){
+			   pg.node_set_x.push_back(id);
+		   }
+	   }
+   }
+   // get path_b, path_x, len_path_b, len_path_x
+   build_path_graph();
+
+   s_col_FFS = new int [len_path_b];
+   s_col_FBS = new int [len_path_x];
+   find_super();
+   solve_eq_sp(xp);
+ 
+   //save_tr_nodes(tran, xp);
+   save_ckt_nodes(tran, block_info.xp);
+   time += tran.step_t;
+   while(time < tran.tot_t){// && iter < 0){
+	// bnewp[i] = bp[i];
+      for(size_t i=0;i<n;i++)
+	block_info.bnewp[i] = block_info.bp[i];
+      stamp_current_tr_1(block_info.bp, block_info.bnewp, time);
+     // get the new bnewp
+      modify_rhs_tr(block_info.bnewp, block_info.xp); 
+	
+      solve_eq_sp(block_info.xp);
+
+      //save_tr_nodes(tran, xp);
+      save_ckt_nodes(tran, block_info.xp);
+      time += tran.step_t;
+      //iter ++;
+   }
+   save_ckt_nodes_to_tr(tran);
+   release_ckt_nodes(tran);
+      
+   delete [] s_col_FFS;
+   delete [] s_col_FBS;
+
+	/////////// release resources
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
 	cholmod_finish(cm);
@@ -746,6 +828,13 @@ void Circuit::copy_node_voltages_block(){
 	}
 }
 
+void Circuit:: release_ckt_nodes(Tran &tran){
+   for(size_t j=0;j<ckt_nodes.size();j++){
+         ckt_nodes[j].node = NULL;
+   }
+}
+
+
 void Circuit::make_A_symmetric(double *b, int &my_id){
 	int type = RESISTOR;
 	NetList & ns = net_set[type];
@@ -883,6 +972,142 @@ void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
 					A.push_back(l1, k1, -G);
 		}
 	}// end of for j	
+}
+
+// add Ieq into rhs
+// Ieq = i(t) + delta_t / (2*L) *v(t)
+void Circuit::modify_rhs_l_tr_0(Net *net, double *rhs, double *x){
+	//clog<<"l net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+	// nk point to X node
+	if(nk->isS() !=X){ 
+		swap<Node*>(nk, nl);
+		swap<Node*>(net->ab[0], net->ab[1]);
+	}
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+	double Ieq = 0;
+
+	double i_t = 0;
+	double temp = 0;
+	//temp = tran.step_t / (2*net->value) * 
+		//(nl->value - nk->value);
+	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
+	temp = net->value *(x[l] - x[k]);	
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+
+	//clog<<"delta_t/2L, nl-nk, temp: "<<tran.step_t / (2*net->value)<<" "<<(nl->value-nk->value)<<" "<<temp<<endl;
+	
+	Net *r = nk->nbr[BOTTOM];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to X node
+	if(a->isS()!=X) {
+		swap<Node*>(a, b);
+		swap<Node*>(r->ab[0], r->ab[1]);
+	}
+	size_t id_a = a->rid;
+	size_t id_b = b->rid;
+	i_t = (x[id_a] - x[id_b]) / r->value;
+	//i_t = (a->value - b->value) / r->value;
+        //if(b->value != x[id_b] || a->value != x[id_a])
+	   //clog<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+
+	//clog<<"resiste r: "<<*r<<endl;
+	//clog<<*a<<" "<<*b<<endl;
+	//clog<<"a, b, r, i_t: "<<a->value<<" "<<b->value<<" "<<
+		//r->value<<" "<<i_t<<endl;
+       
+        // push inductance nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+        //clog<<*b<<" "<<id_b<<endl;
+//#if 0
+        pg.node_set_x.push_back(k);
+        pg.node_set_x.push_back(id_b);
+//#endif
+	Ieq  = i_t + temp;
+	//clog<<"Ieq: "<<Ieq<<endl;
+	if(nk->isS() !=Y && !nk->is_ground()){
+		 rhs[k] += Ieq; // VDD circuit
+		//clog<<*nk<<" "<<rhs[k]<<endl;
+	}
+	if(nl->isS()!=Y && !nl->is_ground()){
+		 rhs[l] += -Ieq; // VDD circuit
+		//clog<<*nl<<" "<<rhs[l]<<endl;
+	}
+}
+
+
+
+// add Ieq into rhs
+// Ieq = i(t) + delta_t / (2*L) *v(t)
+void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x){
+	//clog<<"l net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+	// nk point to X node
+	//if(nk->isS() !=X){ 
+		//swap<Node*>(nk, nl);
+	//}
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+	double Ieq = 0;
+
+	double i_t = 0;
+	double temp = 0;
+	//temp = tran.step_t / (2*net->value) * 
+		//(nl->value - nk->value);
+	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
+	temp = net->value *(x[l] - x[k]);	
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+
+	//clog<<"delta_t/2L, nl-nk, temp: "<<tran.step_t / (2*net->value)<<" "<<(nl->value-nk->value)<<" "<<temp<<endl;
+	
+	Net *r = nk->nbr[BOTTOM];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to X node
+	//if(a->isS()!=X) {
+		//swap<Node*>(a, b);
+	//}
+	size_t id_a = a->rid;
+	size_t id_b = b->rid;
+	i_t = (x[id_a] - x[id_b]) / r->value;
+	//i_t = (a->value - b->value) / r->value;
+        //if(b->value != x[id_b] || a->value != x[id_a])
+	   //clog<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+
+	//clog<<"resiste r: "<<*r<<endl;
+	//clog<<*a<<" "<<*b<<endl;
+	//clog<<"a, b, r, i_t: "<<a->value<<" "<<b->value<<" "<<
+		//r->value<<" "<<i_t<<endl;
+       
+        // push inductance nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+        //clog<<*b<<" "<<id_b<<endl;
+ #if 0
+        if(iter==0){
+           pg.node_set_x.push_back(k);
+           pg.node_set_x.push_back(id_b);
+        }
+#endif
+	Ieq  = i_t + temp;
+	//clog<<"Ieq: "<<Ieq<<endl;
+	if(nk->isS() !=Y && !nk->is_ground()){
+		 rhs[k] += Ieq; // VDD circuit
+		//clog<<*nk<<" "<<rhs[k]<<endl;
+	}
+	if(nl->isS()!=Y && !nl->is_ground()){
+		 rhs[l] += -Ieq; // VDD circuit
+		//clog<<*nl<<" "<<rhs[l]<<endl;
+	}
 }
 
 void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
@@ -1576,6 +1801,36 @@ void Circuit::assign_bd_array_dir(int &base, NodePtrVector &list){
 	}
 }
 
+// assign value back to transient nodes
+void Circuit:: save_ckt_nodes(Tran &tran, double *x){
+   size_t id=0;
+   for(size_t j=0;j<ckt_nodes.size();j++){
+	 //cout<<"nodes: "<<ckt_nodes[j].node->name<<endl;
+         id = ckt_nodes[j].node->rep->rid;
+	 //cout<<"value: "<<x[id]<<endl;
+         ckt_nodes[j].value.push_back(x[id]);
+      }
+}
+
+void Circuit::save_ckt_nodes_to_tr(Tran &tran){
+	int index = 0;
+	double time = 0;
+	int j=0;
+	double value = 0;
+	for(size_t i=0;i<ckt_nodes.size();i++){
+		index = ckt_nodes[i].flag;
+		//cout<<"ckt_nodes, index: "<<ckt_nodes[i].node->name
+			//<<" "<<ckt_nodes[i].flag<<endl;
+		//tran.nodes[index].node = ckt_nodes[i];
+		j=0;
+		for(time = 0; time < tran.tot_t; time+=tran.step_t){
+			value = ckt_nodes[i].value[j];
+			//cout<<"time, value: "<<time<<" "<<value<<endl;
+			tran.nodes[index].value.push_back(value);
+			j++;
+		}
+	}	
+}
 // link transient nodes with nodelist
 void Circuit:: link_ckt_nodes(Tran &tran){
    Node_TR_PRINT nodes_temp;
@@ -1601,6 +1856,59 @@ void Circuit::stamp_current_tr(int &my_id, double &time){
 	for(size_t i=0;i<ns.size();i++)
 		stamp_current_tr_net(ns[i], time);
 }
+
+// stamp transient current values into rhs
+void Circuit::stamp_current_tr_1(double *bp, double *b, double &time){
+	NetPtrVector & ns = net_set[CURRENT];
+	//if(ns.size()<THRESHOLD){
+		for(size_t i=0;i<ns.size();i++)
+			stamp_current_tr_net_1(bp, b, ns[i], time);
+	//}
+#if 0
+	// else work in parallel
+	else{
+		size_t i=0;
+#pragma omp parallel for private(i)
+		for(i=0;i<ns.size();i++)
+			stamp_current_tr_net_1(bp, b, ns[i], time);
+	}
+#endif
+}
+
+void Circuit::stamp_current_tr_net_1(double *bp, double * b, Net * net, double &time){
+	double diff = 0;
+	double current = net->value;
+	current_tr(net, time);
+	//if(time / 1e-11 == 22)
+	//cout<<"time, co, cn: "<<time<<" "<<current<<" "<<net->value<<endl;
+	// only stamps when net got a different current
+	if(current != net->value){
+		diff = net->value - current;
+		
+		//cout<<"time, old, new, diff: "<<time <<" "<<current<<" "<<net->value<<" "<<diff<<endl;
+		//cout<<"net: "<<*net;
+		//clog<<"current: "<<current<<endl;
+		Node * nk = net->ab[0]->rep;
+		Node * nl = net->ab[1]->rep;
+		if( !nk->is_ground()&& nk->isS()!=Y) { 
+			size_t k = nk->rid;
+			//clog<<"node, rid: "<<*nk<<" "<<k<<endl;
+			//clog<<"time, k, b bef: "<<time<<" "<<k<<" "<<b[k]<<endl;
+			b[k] += -diff;//current;
+			bp[k] = b[k];
+			//clog<<"time, k, b: "<<time <<" "<<k<<" "<<b[k]<<endl;
+		}
+		if( !nl->is_ground() && nl->isS()!=Y) {
+			size_t l = nl->rid;
+			//clog<<"time, l, b bef: "<<time<<" "<<l<<" "<<b[l]<<endl;
+			//clog<<"node, rid: "<<*nl<<" "<<l<<endl;
+			b[l] +=  diff;// current;
+			bp[l] = b[l];
+			//clog<<"time, l, b: "<<time<<" "<<l<<" "<<b[l]<<endl;
+		}
+	}
+}
+
 
 void Circuit::stamp_current_tr_net(Net * net, double &time){
 	current_tr(net, time);
@@ -1647,3 +1955,559 @@ void Circuit::current_tr(Net *net, double &time){
 		net->value = net->V1;
 	//return current;
 }
+
+// add Ieq into rhs
+// Ieq = i(t) + 2*C / delta_t *v(t)
+void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x){
+	double i_t = 0;
+	double temp = 0;
+	double Ieq = 0;
+	//clog<<"c net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+        // nk point to Z node
+        if(nk->isS() != Z){
+		swap<Node *>(nk, nl);
+		swap<Node*>(net->ab[0], net->ab[1]);
+	}
+	//clog<<"nk, nl: "<<*nk<<" "<<*nl<<endl;
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+
+	Net *r = nk->nbr[TOP];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to Z node
+	if(a->isS()!=Z) {
+		swap<Node *>(a, b);
+		swap<Node*>(r->ab[0], r->ab[1]);
+	}
+	//clog<<"a, b: "<<*a<<" "<<*b<<endl;
+
+	size_t id_a = a->rid;
+	size_t id_b = b->rid;
+	//i_t = (b->value - a->value) / r->value;
+	i_t = (x[id_b] - x[id_a]) / r->value;
+	//if(b->value != x[id_b] || a->value != x[id_a])
+	   //cout<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+	//clog<<"i_t: "<<i_t<<endl;
+	//temp = 2*net->value / tran.step_t * 
+		//(nk->value - nl->value);
+       
+        // push 2 nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+//#if 0
+        pg.node_set_x.push_back(k);
+        if(!nl->is_ground()) {
+              //clog<<*nl<<" "<<l<<endl;
+           pg.node_set_x.push_back(l);
+        }
+        else if(!b->is_ground()){
+              //clog<<*b<<" "<<id_b<<endl;
+           pg.node_set_x.push_back(id_b);
+        }
+//#endif
+	if(nk->is_ground())
+	 //temp = 2*net->value/tran.step_t*(0-x[l]);
+	 temp = net->value *(-x[l]);
+        else if(nl->is_ground()){
+         //temp = 2*net->value/tran.step_t *(x[k]);
+	 temp = net->value *x[k];
+        }
+        else
+         //temp = 2*net->value/tran.step_t *(x[k] - x[l]);
+	 temp = net->value *(x[k]-x[l]);
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //cout<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+	//clog<<"nk-nl "<<(nk->value - nl->value)<<" "<<2*net->value/tran.step_t<<" "<<temp<<endl;
+	
+	Ieq  = (i_t + temp);
+	//clog<< "Ieq is: "<<Ieq<<endl;
+	//clog<<"Geq is: "<<2*net->value / tran.step_t<<endl;
+	if(!nk->is_ground()&& nk->isS()!=Y){
+		 rhs[k] += Ieq;	// for VDD circuit
+		//clog<<*nk<<" rhs +: "<<rhs[k]<<endl;
+	}
+	if(!nl->is_ground()&& nl->isS()!=Y){
+		 rhs[l] += -Ieq; 
+		//clog<<*nl<<" rhs +: "<<rhs[l]<<endl;
+	}
+}
+
+// add Ieq into rhs
+// Ieq = i(t) + 2*C / delta_t *v(t)
+void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x){
+	double temp = 0;
+	//clog<<"c net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+        
+	// nk point to Z node
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+
+	Net *r = nk->nbr[TOP];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to Z node
+
+	size_t id_a = a->rid;
+	size_t id_b = b->rid;
+	double i_t = (x[id_b] - x[id_a]) / r->value;
+	
+	if(nk->is_ground())
+	 temp = net->value *(-x[l]);
+        else if(nl->is_ground())
+	 temp = net->value *x[k];
+        else
+	 temp = net->value *(x[k]-x[l]);
+	
+	double Ieq  = i_t + temp;
+	if(!nk->is_ground()&& nk->isS()!=Y){
+		 rhs[k] += Ieq;	// for VDD circuit
+	}
+	if(!nl->is_ground()&& nl->isS()!=Y){
+		 rhs[l] -= Ieq; 
+	}
+}
+
+void Circuit::set_eq_induc(Tran &tran){
+	NetPtrVector &ns = net_set[INDUCTANCE];
+	for(size_t i=0;i<ns.size();i++)
+		ns[i]->value = tran.step_t /(2*ns[i]->value);
+}
+
+void Circuit::set_eq_capac(Tran &tran){
+	NetPtrVector &ns = net_set[CAPACITANCE];
+	for(size_t i=0;i<ns.size();i++)
+		ns[i]->value = 2*ns[i]->value/tran.step_t;
+}
+
+// update rhs by transient nets
+void Circuit::modify_rhs_tr_0(double * b, double *x){
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetPtrVector & ns = net_set[type];
+		if(type ==CAPACITANCE){	
+			for(size_t i=0;i<ns.size();i++)
+				modify_rhs_c_tr_0(ns[i], b, x);
+		}
+		else if(type == INDUCTANCE){
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_l_tr_0(ns[i], b, x);	
+			}
+		}
+	}
+}
+
+// update rhs by transient nets
+void Circuit::modify_rhs_tr(double * b, double *x){
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetPtrVector & ns = net_set[type];
+		if(type ==CAPACITANCE){
+			for(size_t i=0;i<ns.size();i++)
+				modify_rhs_c_tr(ns[i], b, x);
+		}
+		else if(type == INDUCTANCE){
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_l_tr(ns[i], b, x);
+			}
+		}
+	}
+}
+
+void Circuit::parse_path_table(){
+   // build up nodelist info
+      Node_G *node;
+      for(size_t i=0;i<replist.size();i++){
+         node = new Node_G();
+         node->value = i;
+         pg.nodelist.push_back(node);
+      }
+}
+
+void Circuit::build_path_graph(){
+   build_FFS_path();
+
+   build_FBS_path();
+
+   // only keep the 2 paths, switch from List into array
+   len_path_b = pg.path_FFS.get_size();
+   len_path_x = pg.path_FBS.get_size();
+
+   path_b = new int[len_path_b];
+   path_x = new int [len_path_x];
+   
+   Node_G *nd;
+   nd = pg.path_FFS.first;
+   for(int i=0;i<len_path_b;i++){
+      path_b[i] = nd->value;
+      if(nd->next != NULL)
+         nd = nd->next;
+   }
+   pg.path_FFS.destroy_list();
+
+   nd = pg.path_FBS.first;
+   for(int i=0;i<len_path_x;i++){
+      path_x[i] = nd->value;
+      if(nd->next != NULL)
+         nd = nd->next;
+   }
+   pg.path_FBS.destroy_list();
+
+   pg.nodelist.clear();
+   pg.node_set_b.clear();
+   pg.node_set_x.clear();
+}
+
+void Circuit::build_FFS_path(){
+   parse_path_table(); 
+
+   set_up_path_table();
+
+   find_path(pg.node_set_b, pg.path_FFS);
+
+   pg.path_FFS.assign_size();
+
+   for(size_t i=0;i<replist.size();i++)
+      pg.nodelist[i]->flag = 0;
+}
+
+void Circuit::build_FBS_path(){
+  pg.nodelist.clear();
+  parse_path_table();
+  set_up_path_table();
+  find_path(pg.node_set_x, pg.path_FBS);
+   pg.path_FBS.assign_size();
+}
+
+void Circuit::set_up_path_table(){
+   size_t n = L->n;
+   //int *Lp, *Li, *Lnz;
+   int p, lnz, s, e;
+   //Lp = static_cast<int *> (L->p);
+   //Lnz = (int *)L->nz;
+   //Li = static_cast<int *> (L->i);
+   for(size_t i=0;i<n;i++){
+      p = Lp[i];
+      lnz = Lnz[i];
+
+      s = Li[p];
+      e = s;
+      if(lnz >1) 
+         e = Li[p+1];
+
+      if(s<e)
+         pg.nodelist[s]->next = pg.nodelist[e];
+   }
+}
+
+bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2){
+   return (nd_1->value < nd_2->value);
+ }
+
+void Circuit::find_path(vector<size_t> &node_set, List_G &path){
+   Node_G* ne = pg.nodelist[pg.nodelist.size()-1];
+   vector <Node_G *> insert_list;
+   sort(node_set.begin(), node_set.end());
+   if(node_set.size() == 0) return;
+   
+   // build up the first path start with id = min 
+   int id = node_set[0];
+   do{
+      path.add_node(pg.nodelist[id]);
+      pg.nodelist[id]->flag =1;
+      if(pg.nodelist[id]->next == NULL) break;
+      pg.nodelist[id] = pg.nodelist[id]->next;
+   }while(pg.nodelist[id]->value != ne->value);
+   path.add_node(ne);
+
+   for(size_t i=0; i<node_set.size();i++){
+      int id = node_set[i];
+      if(pg.nodelist[id]->flag == 1) continue;
+      // stops at first place where flag = 0
+      // clog<<"stops at i: "<<i<<endl;
+      do{
+         if(pg.nodelist[id]->flag ==0){
+            insert_list.push_back(pg.nodelist[id]);
+            pg.nodelist[id]->flag =1;
+         }
+         if(pg.nodelist[id]->next == NULL || 
+           pg.nodelist[id]->next->flag ==1)
+            break;
+         // else clog<<"next node: "<<*pg.nodelist[id]->next;
+         pg.nodelist[id] = pg.nodelist[id]->next;
+      }while(pg.nodelist[id]->value != ne->value); 
+   }
+
+   //clog<<"insert_list.size: "<<insert_list.size()<<endl;
+   sort(insert_list.begin(), insert_list.end(), compare_Node_G);
+   //for(int i=0;i<insert_list.size();i++)
+      //clog<<"i, insert: "<<i<<" "<<*insert_list[i]<<endl;
+
+   //clog<<"path: "<<&path<<endl;
+   // p is the old pointer to the list
+   // will be updated into new one
+   Node_G *q=NULL;
+   Node_G *p=NULL;
+//#if 0
+   for(size_t k=0;k<insert_list.size();k++){
+      if(k ==0) p = path.first;
+      else p = q;
+      q = path.insert_node(insert_list[k], p);
+   }
+//#endif
+
+   //clog<<"path: "<<&path<<endl;
+   //clog<<endl;
+   insert_list.clear();
+}
+
+ // find super node columns for path_b and path_x
+void Circuit::find_super(){
+    int p, lnz;
+    int j, k;
+    // FFS loop
+    for(k=0;k<len_path_b;){
+       j = path_b[k];
+       p = Lp[j];
+       lnz = Lnz[j];
+       if (lnz < 4 || path_b[k+1]!=j+1 || lnz != Lnz [j+1] + 1
+         || Li [p+1] != j+1){
+          s_col_FFS[k]= 1;
+          k++;
+       }
+       else if (path_b[k+2]!= j+2 || lnz != Lnz [j+2] + 2
+         || Li [p+2] != j+2){
+         s_col_FFS[k]=2;
+         k+=2;
+       }
+       else{
+          s_col_FFS[k]=3;
+          k+=3;
+       }
+    }
+    //FBS loop
+    for(k=len_path_x-1;k>=0;){
+       j = path_x[k];
+       p = Lp[j];
+       lnz = Lnz[j];
+       if (j < 4 || path_x[k-1]!=j-1||lnz != Lnz [j-1] - 1
+         || Li [Lp [j-1]+1] != j){
+         s_col_FBS[k]=1;
+         k--;
+       }
+       else if (path_x[k-2] != j-2 ||lnz != Lnz [j-2]-2 ||
+         Li [Lp [j-2]+2] != j){
+         s_col_FBS[k]=2;
+         k-=2;
+       }
+       else{
+          s_col_FBS[k]=3;
+          k-=3;
+       }
+    }
+ }
+ 
+ void Circuit::solve_eq_sp(double *X){
+    int p, q, r, lnz, pend;
+    int j, k, n = L->n ;
+    for(int i=0;i<n;i++){
+       X[i] = bnewp[i];
+    }
+    // FFS solve
+    for(k=0; k < len_path_b;){
+       j = path_b[k];
+       //for (j = 0 ; j < n ; ){
+       /* get the start, end, and length of column j */
+       p = Lp [j] ;
+       lnz = Lnz [j] ;
+       pend = p + lnz ;
+ 
+       if (s_col_FFS[k]==1)//lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
+       {
+ 
+          /* -------------------------------------------------------------- */
+          /* solve with a single column of L */
+          /* -------------------------------------------------------------- */
+          double y = X [j] ;
+          if(L->is_ll == true){
+             X[j] /= Lx [p] ;
+          }
+          for (p++ ; p < pend ; p++)
+          {
+             X [Li [p]] -= Lx [p] * y ;
+          }
+          k++ ;  /* advance to next column of L */
+ 
+       }
+       else if (s_col_FFS[k]==2)//lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
+       {
+          {
+             double y [2] ;
+             q = Lp [j+1] ;
+             if(L->is_ll == true){
+                y [0] = X [j] / Lx [p] ;
+                y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
+                X [j  ] = y [0] ;
+                X [j+1] = y [1] ;
+             }
+ 
+             else{
+                y [0] = X [j] ;
+                y [1] = X [j+1] - Lx [p+1] * y [0] ;
+                X [j+1] = y [1] ;
+             }
+             for (p += 2, q++ ; p < pend ; p++, q++)
+             {
+                X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
+             }
+ 
+          }
+          k += 2 ;           /* advance to next column of L */
+ 
+       }
+       else
+       {
+          {
+             double y [3] ;
+             q = Lp [j+1] ;
+             r = Lp [j+2] ;
+             //#ifdef LL
+             if(L->is_ll == true){
+                y [0] = X [j] / Lx [p] ;
+                y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
+                y [2] = (X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1]) / Lx [r] ;
+                X [j  ] = y [0] ;
+                X [j+1] = y [1] ;
+                X [j+2] = y [2] ;
+             }
+ 
+             else{
+                y [0] = X [j] ;
+                y [1] = X [j+1] - Lx [p+1] * y [0] ;
+                y [2] = X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1] ;
+                X [j+1] = y [1] ;
+                X [j+2] = y [2] ;
+             }
+             for (p += 3, q += 2, r++ ; p < pend ; p++, q++, r++)
+             {
+                X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] + Lx [r] * y [2] ;
+             }
+          }
+             // marched to next 2 columns of L
+          k += 3;
+       }
+    }
+    // FBS solve
+    for(k = len_path_x - 1; k >=0;){
+       j = path_x[k];
+       //for(j = n-1; j >= 0; ){
+ 
+       /* get the start, end, and length of column j */
+       p = Lp [j] ;
+       lnz = Lnz [j] ;
+       pend = p + lnz ;
+ 
+       /* find a chain of supernodes (up to j, j-1, and j-2) */
+ 
+        if (s_col_FBS[k]==1)//j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
+       {
+ 
+          /* -------------------------------------------------------------- */
+          /* solve with a single column of L */
+          /* -------------------------------------------------------------- */
+ 
+          double d = Lx [p] ;
+          if(L->is_ll == false)
+             X[j] /= d ;
+          for (p++ ; p < pend ; p++)
+          {
+             X[j] -= Lx [p] * X [Li [p]] ;
+          }
+          if(L->is_ll == true)
+             X [j] /=  d ;
+          k--;
+       }
+       else if (s_col_FBS[k]==2)//lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
+       {
+          {
+             double y [2], t ;
+             q = Lp [j-1] ;
+             double d [2] ;
+             d [0] = Lx [p] ;
+             d [1] = Lx [q] ;
+             t = Lx [q+1] ;
+             if(L->is_ll == false){
+                y [0] = X [j  ] / d [0] ;
+                y [1] = X [j-1] / d [1] ;
+             }
+             else{
+                y [0] = X [j  ] ;
+                y [1] = X [j-1] ;
+             }
+             for (p++, q += 2 ; p < pend ; p++, q++)
+             {
+                int i = Li [p] ;
+                y [0] -= Lx [p] * X [i] ;
+                y [1] -= Lx [q] * X [i] ;
+             }
+             if(L->is_ll == true){
+                y [0] /= d [0] ;
+                y [1] = (y [1] - t * y [0]) / d [1] ;
+             }
+             else
+                y [1] -= t * y [0] ;
+             X [j  ] = y [0] ;
+             X [j-1] = y [1] ;
+          }
+          k -= 2;
+       }
+       else
+       {
+          {
+             double y [3], t [3] ;
+             q = Lp [j-1] ;
+             r = Lp [j-2] ;
+             double d [3] ;
+             d [0] = Lx [p] ;
+             d [1] = Lx [q] ;
+             d [2] = Lx [r] ;
+             t [0] = Lx [q+1] ;
+             t [1] = Lx [r+1] ;
+             t [2] = Lx [r+2] ;
+             if(L->is_ll == false){
+                y [0] = X [j]   / d [0] ;
+                y [1] = X [j-1] / d [1] ;
+                y [2] = X [j-2] / d [2] ;
+             }
+             else{
+                y [0] = X [j] ;
+                y [1] = X [j-1] ;
+                y [2] = X [j-2] ;
+             }
+             for (p++, q += 2, r += 3 ; p < pend ; p++, q++, r++)
+             {
+                int i = Li [p] ;
+                y [0] -= Lx [p] * X [i] ;
+                y [1] -= Lx [q] * X [i] ;
+                y [2] -= Lx [r] * X [i] ;
+             }
+             if(L->is_ll == true){
+                y [0] /= d [0] ;
+                y [1] = (y [1] - t [0] * y [0]) / d [1] ;
+                y [2] = (y [2] - t [2] * y [0] - t [1] * y [1]) / d [2] ;
+             }
+             else{
+                y [1] -= t [0] * y [0] ;
+                y [2] -= t [2] * y [0] + t [1] * y [1] ;
+             }
+             X [j-2] = y [2] ;
+             X [j-1] = y [1] ;
+             X [j  ] = y [0] ;
+          }
+          k -= 3;
+       }
+    }
+ }
