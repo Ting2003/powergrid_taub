@@ -261,7 +261,7 @@ private:
 	void stamp_current_tr_1(double *bp, double *b, double &time);
 	void stamp_current_tr_net_1(double *bp, double * b, Net * net, double &time);
 
-	void stamp_current_tr_net(Net * net, double &time);
+	void stamp_current_tr_net(Net * net, double &time, int &my_id);
 	void release_ckt_nodes(Tran &tran);
 	void print_ckt_nodes(Tran &tran);
 	void save_ckt_nodes_to_tr(Tran &tran);

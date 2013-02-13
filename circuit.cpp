@@ -562,6 +562,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		clog<<"# iter: "<<iter<<endl;
 	}
 	get_voltages_from_block_LU_sol();
+	// final time, still need to exchange bd info
+	//
+	// then sync
+	MPI_Barrier(MPI_COMM_WORLD);
 	//return 0;
 #if 1
 	for(size_t i=0;i<replist.size();i++)
@@ -576,7 +580,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	make_A_symmetric_tr(my_id, tran);
    
    	stamp_current_tr(my_id, time);
-  
+
    	Algebra::CK_decomp(A, block_info.L, cm);
    	Lp = static_cast<int *>(block_info.L->p);
    	Lx = static_cast<double*> (block_info.L->x);
@@ -608,7 +612,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
    for(size_t i=0;i<replist.size();i++)
 	block_info.bnewp[i] = block_info.bp[i];
-   
+
    set_eq_induc(tran);
    set_eq_capac(tran);
    modify_rhs_tr_0(block_info.bnewp, block_info.xp);
@@ -641,11 +645,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
-   solve_eq_sp(block_info.xp, block_info.bnewp);
+   // solve_eq_sp(block_info.xp, block_info.bnewp);
+   solve_tr_step(num_procs, my_id, mpi_class);
  
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
+
+   MPI_Barrier(MPI_COMM_WORLD);
    while(time < tran.tot_t){// && iter < 0){
 	// bnewp[i] = bp[i];
       for(size_t i=0;i<n;i++)
@@ -664,6 +671,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //save_tr_nodes(tran, xp);
       save_ckt_nodes(tran, block_info.xp);
       time += tran.step_t;
+      // sync in the end of each time step
+      MPI_Barrier(MPI_COMM_WORLD);
       //iter ++;
    }
    save_ckt_nodes_to_tr(tran);
@@ -967,7 +976,6 @@ void Circuit::make_A_symmetric_tr(int &my_id, Tran &tran){
            block_info.bp[id] += block_info.xp[p->rid] *G;
         }
 }
-
 
 // =========== stamp block version of matrix =======
 void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
@@ -1933,7 +1941,7 @@ void Circuit:: link_ckt_nodes(Tran &tran, int &my_id){
 void Circuit::stamp_current_tr(int &my_id, double &time){
 	NetPtrVector & ns = net_set[CURRENT];
 	for(size_t i=0;i<ns.size();i++)
-		stamp_current_tr_net(ns[i], time);
+		stamp_current_tr_net(ns[i], time, my_id);
 }
 
 // stamp transient current values into rhs
@@ -1977,8 +1985,7 @@ void Circuit::stamp_current_tr_net_1(double *bp, double * b, Net * net, double &
 	}
 }
 
-
-void Circuit::stamp_current_tr_net(Net * net, double &time){
+void Circuit::stamp_current_tr_net(Net * net, double &time, int &my_id){
 	current_tr(net, time);
 	//clog<<"net: "<<*net<<endl;
 	//clog<<"current: "<<current<<endl;
