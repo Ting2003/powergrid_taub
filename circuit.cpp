@@ -655,8 +655,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       // get the new bnewp
       modify_rhs_tr(block_info.bnewp, block_info.xp); 
 
+      // need to add bcast function for processors
       // need to be modified into block version
-      solve_eq_sp(block_info.xp, block_info.bnewp);
+      //solve_eq_sp(block_info.xp, block_info.bnewp);
+      // solution stored in block_info.xp
+      solve_tr_step(num_procs, my_id, mpi_class);
 
       //save_tr_nodes(tran, xp);
       save_ckt_nodes(tran, block_info.xp);
@@ -674,6 +677,74 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		block_info.free_block_cholmod(cm);
 	cholmod_finish(cm);
 	return successful;
+}
+
+// solve blocks with mpi: multi-core
+// One iteration during solving the circuit, for any block B:
+// 1. update the righthand-side of the matrix of B
+// 2. solve the matrix
+// 3. update node voltages
+// 4. track the maximum error of solution
+double Circuit::solve_iteration_tr(int &my_id, int &iter,
+		int&num_procs, MPI_CLASS &mpi_class){	
+	float diff = .0;
+	float diff_root=0;
+
+	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
+	MPI_Scatterv(bd_x_g, bd_size_g, 
+			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
+			MPI_FLOAT, 0, MPI_COMM_WORLD);
+			
+	assign_bd_array();
+
+	/*if(my_id==1) {
+		for(int i=0;i<replist.size();i++)
+			clog<<i<<" "<<*replist[i]<<" "<<block_info.bp[i]<<endl;
+	clog<<endl;
+	}*/
+
+	// new rhs store in bnewp
+	block_info.update_rhs(my_id);
+	/*if(my_id==1) {
+		clog<<"replist size: "<<replist.size()<<endl;
+		for(int i=0;i<replist.size();i++)
+			clog<<"bp: "<<i<<" "<<*replist[i]<<" "<<block_info.bnewp[i]<<endl;
+	}*/
+
+	// x_old stores old solution
+	for(size_t j=0;j<block_info.count;j++)
+		block_info.x_old[j] = block_info.xp[j];	
+
+	if(block_info.count>0){
+		//block_info.solve_CK(cm);
+		solve_eq_sp(block_info.xp, block_info.bnewp);
+		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
+		/*if(my_id==1)
+		for(int i=0;i<replist.size();i++)
+			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
+	}
+
+	diff = modify_voltage(my_id, block_info, 
+			block_info.x_old);
+
+	assign_bd_internal_array(my_id);
+	// 0 rank cpu will gather all the solution from bd_x
+	// to bd_x_g
+	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
+		internal_x_g, internal_size_g, 
+		internal_base_g, MPI_FLOAT, 0, 
+		MPI_COMM_WORLD);
+	
+	// reorder boundary array according to nbrs
+	if(my_id==0){
+		reorder_bd_x_g(mpi_class);
+	}
+	
+	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
+	
+	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
+	return diff_root;
 }
 
 // solve blocks with mpi: multi-core
@@ -2504,59 +2575,83 @@ void Circuit::find_super(){
 
 // push the 8 set of internal bd nodes into node_set_x
 void Circuit::push_bd_nodes(Path_Graph &pg){
+	size_t id;
 	// sw direction
 	size_t n_sw = internal_nodelist_sw.size();
 	for(size_t i=0;i<n_sw;i++){
-		size_t id = bd_nodelist_sw[i]->rep->rid;
+		id = bd_nodelist_sw[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// s direction
 	size_t n_s = internal_nodelist_s.size();
 	for(size_t i=0;i<n_s;i++){
-		size_t id = bd_nodelist_s[i]->rep->rid;
+		id = bd_nodelist_s[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// se direction
 	size_t n_se = internal_nodelist_se.size();
 	for(size_t i=0;i<n_se;i++){
-		size_t id = bd_nodelist_se[i]->rep->rid;
+		id = bd_nodelist_se[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// w direction
 	size_t n_w = internal_nodelist_w.size();
 	for(size_t i=0;i<n_w;i++){
-		size_t id = bd_nodelist_w[i]->rep->rid;
+		id = bd_nodelist_w[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// e direction
 	size_t n_e = internal_nodelist_e.size();
 	for(size_t i=0;i<n_e;i++){
-		size_t id = bd_nodelist_e[i]->rep->rid;
+		id = bd_nodelist_e[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// nw direction
 	size_t n_nw = internal_nodelist_nw.size();
 	for(size_t i=0;i<n_nw;i++){
-		size_t id = bd_nodelist_nw[i]->rep->rid;
+		id = bd_nodelist_nw[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// n direction
 	size_t n_n = internal_nodelist_n.size();
 	for(size_t i=0;i<n_n;i++){
-		size_t id = bd_nodelist_n[i]->rep->rid;
+		id = bd_nodelist_n[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
 
 	// ne direction
 	size_t n_ne = internal_nodelist_ne.size();
 	for(size_t i=0;i<n_ne;i++){
-		size_t id = bd_nodelist_ne[i]->rep->rid;
+		id = bd_nodelist_ne[i]->rep->rid;
 		pg.node_set_x.push_back(id);
 	}
+}
+
+// solve transient version
+void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
+	int iter = 0;	
+	double diff=0;
+	bool successful = false;
+	double time=0;
+	double t1, t2;	
+
+	t1= MPI_Wtime();
+	while( iter < MAX_ITERATION ){
+		diff = solve_iteration_tr(my_id, iter, num_procs, mpi_class);
+		iter++;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if( diff < EPSILON ){
+			successful = true;
+			break;
+		}
+	}
+	t2 = MPI_Wtime();
+	time = t2-t1;	
 }

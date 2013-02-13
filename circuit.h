@@ -205,7 +205,11 @@ private:
 	void modify_rhs_l_tr(Net *net, double *rhs, double *xp);
 	void release_tr_nodes(Tran &tran);
 
-	
+	double solve_iteration_tr(int &my_id, int &iter,
+		int&num_procs, MPI_CLASS &mpi_class);
+
+	void solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class);
+	void solve_tr(Tran &tran, int &my_id);
 	
 	// ******** end of transient ****
 	void stamp_boundary_matrix();
