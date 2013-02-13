@@ -407,6 +407,7 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 	char line[MAX_BUF];
 	char type;
 
+	tran.nodes.clear();
 	while( fgets(line, MAX_BUF,f)!=NULL){
 		type = line[0];
 		//clog<<line<<endl;
@@ -915,7 +916,6 @@ void Parser::block_parse_dots(char *line, Tran &tran){
 	char sname[MAX_BUF];
 	Node_TR_PRINT item;
 	// clear tran.nodes, especially for core 0
-	tran.nodes.clear();
 	const char *sep = "= v() \n";
 	switch(line[1]){
 		case 't': // transient steps

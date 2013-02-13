@@ -35,7 +35,8 @@ Node::Node(const Node & nd){
 	rid = nd.rid;
 	value = nd.value;
 	flag = nd.flag;
-	rep = nd.rep;
+	//rep = nd.rep;
+	rep = NULL;
 	for(int i=0;i<6;i++) this->nbr[i] = nd.nbr[i];
 	for(int i=0;i<4;i++){
 		eqvr[i]=0.0;

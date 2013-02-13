@@ -325,7 +325,7 @@ void Circuit::solve_init(int &my_id){
 		
 		// find the VDD value
 		if( p->isS()==Y ) VDD = p->get_value();
-
+		
 		// test short circuit
 		if( p->isS() !=Y && // Y must be representative 
 		    net != NULL &&
@@ -569,7 +569,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
 	/***** solve tran *********/
 	// link transient nodes
-	link_ckt_nodes(tran);
+	link_ckt_nodes(tran, my_id);
 	block_info.b_new_ck = cholmod_zeros(block_info.count,1,CHOLMOD_REAL, cm);
    	block_info.bnewp = static_cast<double *>(block_info.b_new_ck->x);
 	stamp_block_matrix_tr(my_id, A, mpi_class, tran);
@@ -1026,22 +1026,28 @@ void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
 
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
+
+		// skip resistor layer net
+		if(nk->isS()!=X && nl->isS()!=X) continue;
 		if(nk->isS()==Y) continue;
+
 		size_t k1 = nk->rid;
 		size_t l1 = nl->rid;
 		if( !nk->is_ground()&& 
           		(nk->nbr[TOP]!= NULL &&
 			 nk->nbr[TOP]->type == INDUCTANCE))
-			//if(my_id==3) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 			A.push_back(k1,k1, G);
-		if(!nl->is_ground() 
+		/*if(!nl->is_ground() 
 		    &&(nl->nbr[TOP] ==NULL ||
 		    nl->nbr[TOP]->type != INDUCTANCE))
-			//if(my_id==3) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
-			if(l1 < k1)
+			if(l1 < k1){
+				if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
-			else if(l1>k1)
+			}
+			else if(l1>k1){
+				if(my_id==0) clog<<"push ("<<l1<<","<<k1<<","<<-G<<")"<<endl;
 				A.push_back(l1, k1, -G);
+			}*/
 	}// end of for j	
 }
 
@@ -1904,14 +1910,15 @@ void Circuit::save_ckt_nodes_to_tr(Tran &tran){
 }
 
 // link transient nodes with nodelist
-void Circuit:: link_ckt_nodes(Tran &tran){
+void Circuit:: link_ckt_nodes(Tran &tran, int &my_id){ 
    Node_TR_PRINT nodes_temp;
    for(size_t i=0;i<nodelist.size();i++){
       for(size_t j=0;j<tran.nodes.size();j++){
          if(nodelist[i]->name == tran.nodes[j].name){
 	    // record the index in tran.nodes
 	    nodes_temp.flag = j;
-	    //cout<<"tran.nodes, index: "<<
+	    //if(my_id==3)
+	    	//clog<<"tran.nodes, index: "<<
 		//nodelist[i]->name<<" "<<nodes_temp.flag<<endl;
 	    nodes_temp.node = nodelist[i];
 	    ckt_nodes.push_back(nodes_temp);
