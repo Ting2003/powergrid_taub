@@ -615,6 +615,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
    set_eq_induc(tran);
    set_eq_capac(tran);
+   // already push back cap and induc into set_x and b
    modify_rhs_tr_0(block_info.bnewp, block_info.xp);
 
    // push rhs node into node_set b
@@ -637,11 +638,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		   }
 	   }
    }
+   
    // then push back boundary nodes into node_se_x
-   push_bd_nodes(pg);
+   push_bd_nodes(pg, my_id); 
    // get path_b, path_x, len_path_b, len_path_x
    build_path_graph();
-
+ 
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
@@ -651,7 +653,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
-
+      
    MPI_Barrier(MPI_COMM_WORLD);
    while(time < tran.tot_t){// && iter < 0){
 	// bnewp[i] = bp[i];
@@ -2588,62 +2590,79 @@ void Circuit::find_super(){
  }
 
 // push the 8 set of internal bd nodes into node_set_x
-void Circuit::push_bd_nodes(Path_Graph &pg){
+void Circuit::push_bd_nodes(Path_Graph &pg, int&my_id){
+	vector<size_t>::iterator it;
 	size_t id;
 	// sw direction
 	size_t n_sw = internal_nodelist_sw.size();
 	for(size_t i=0;i<n_sw;i++){
-		id = bd_nodelist_sw[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_sw[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// s direction
 	size_t n_s = internal_nodelist_s.size();
 	for(size_t i=0;i<n_s;i++){
-		id = bd_nodelist_s[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_s[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// se direction
 	size_t n_se = internal_nodelist_se.size();
 	for(size_t i=0;i<n_se;i++){
-		id = bd_nodelist_se[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_se[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// w direction
 	size_t n_w = internal_nodelist_w.size();
 	for(size_t i=0;i<n_w;i++){
-		id = bd_nodelist_w[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_w[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// e direction
 	size_t n_e = internal_nodelist_e.size();
 	for(size_t i=0;i<n_e;i++){
-		id = bd_nodelist_e[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_e[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// nw direction
 	size_t n_nw = internal_nodelist_nw.size();
 	for(size_t i=0;i<n_nw;i++){
-		id = bd_nodelist_nw[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_nw[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// n direction
 	size_t n_n = internal_nodelist_n.size();
 	for(size_t i=0;i<n_n;i++){
-		id = bd_nodelist_n[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_n[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 
 	// ne direction
 	size_t n_ne = internal_nodelist_ne.size();
 	for(size_t i=0;i<n_ne;i++){
-		id = bd_nodelist_ne[i]->rep->rid;
-		pg.node_set_x.push_back(id);
+		id = internal_nodelist_ne[i]->rep->rid;
+		it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
+		if(it == pg.node_set_x.end())
+			pg.node_set_x.push_back(id);
 	}
 }
 

@@ -315,7 +315,7 @@ private:
 	void find_super();
 	void update_node_set_bx();                               
         void parse_path_table();
-	void push_bd_nodes(Path_Graph &pg);
+	void push_bd_nodes(Path_Graph &pg, int &my_id);
         void build_path_graph();                
         void build_FFS_path();
         void build_FBS_path();                  
