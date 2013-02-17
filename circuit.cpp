@@ -269,6 +269,15 @@ void Circuit::print(){
 	}
 }
 
+void Circuit::print_matlab(Matrix A){
+	// uncomment this if want to output to a file
+	//freopen("output.txt","w",stdout);
+
+	// don't output ground node
+	for(size_t i=0;i<A.size();i++){
+		printf("%d %d %.5e\n", A.Ti[i]+1, A.Tj[i]+1, A.Tx[i]);
+	}
+}
 ///////////////////////////////////////////////////////////////////////////////
 // Computation Functions
 
@@ -586,6 +595,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	make_A_symmetric_tr(my_id, tran);	   
    	stamp_current_tr(my_id, time);
 
+	/*if(my_id==0){
+		clog<<A.size()<<endl;
+		for(size_t i=0;i<A.size();i++)
+			cout<<A.Ti[i]+1<<" "<<A.Tj[i]+1<<" "<<A.Tx[i]<<endl;
+		cout<<endl;
+	}*/
    	Algebra::CK_decomp(A, block_info.L, cm);
    	Lp = static_cast<int *>(block_info.L->p);
    	Lx = static_cast<double*> (block_info.L->x);
@@ -617,14 +632,17 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    delete [] temp;
    delete [] id_map;
    
-   for(size_t i=0;i<replist.size();i++)
+   for(size_t i=0;i<replist.size();i++){
 	block_info.bnewp[i] = block_info.bp[i];
+	/*if(my_id==0)
+		clog<<i<<" "<<block_info.bp[i]<<endl;*/
+   }
    
    set_eq_induc(tran);
    set_eq_capac(tran);
    // already push back cap and induc into set_x and b
-   modify_rhs_tr_0(block_info.bnewp, block_info.xp);
-
+   modify_rhs_tr_0(block_info.bnewp, block_info.xp, my_id);
+   
    // push rhs node into node_set b
    for(size_t i=0;i<n;i++){
 	   if(block_info.bnewp[i] !=0)
@@ -654,6 +672,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
+   
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
    if(my_id==0) clog<<"after solve_tr_step. "<<endl;
@@ -1089,7 +1108,7 @@ void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
 
 // add Ieq into rhs
 // Ieq = i(t) + delta_t / (2*L) *v(t)
-void Circuit::modify_rhs_l_tr_0(Net *net, double *rhs, double *x){
+void Circuit::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, int &my_id){
 	//clog<<"l net: "<<*net<<endl;
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
@@ -1143,14 +1162,11 @@ void Circuit::modify_rhs_l_tr_0(Net *net, double *rhs, double *x){
         pg.node_set_x.push_back(id_b);
 //#endif
 	Ieq  = i_t + temp;
-	//clog<<"Ieq: "<<Ieq<<endl;
 	if(nk->isS() !=Y && !nk->is_ground()){
 		 rhs[k] += Ieq; // VDD circuit
-		//clog<<*nk<<" "<<rhs[k]<<endl;
 	}
 	if(nl->isS()!=Y && !nl->is_ground()){
 		 rhs[l] += -Ieq; // VDD circuit
-		//clog<<*nl<<" "<<rhs[l]<<endl;
 	}
 }
 
@@ -2106,7 +2122,7 @@ void Circuit::current_tr(Net *net, double &time){
 
 // add Ieq into rhs
 // Ieq = i(t) + 2*C / delta_t *v(t)
-void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x){
+void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
 	double i_t = 0;
 	double temp = 0;
 	double Ieq = 0;
@@ -2234,16 +2250,16 @@ void Circuit::set_eq_capac(Tran &tran){
 }
 
 // update rhs by transient nets
-void Circuit::modify_rhs_tr_0(double * b, double *x){
+void Circuit::modify_rhs_tr_0(double * b, double *x, int &my_id){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
 		if(type ==CAPACITANCE){	
 			for(size_t i=0;i<ns.size();i++)
-				modify_rhs_c_tr_0(ns[i], b, x);
+				modify_rhs_c_tr_0(ns[i], b, x, my_id);
 		}
 		else if(type == INDUCTANCE){
 			for(size_t i=0;i<ns.size();i++){
-				modify_rhs_l_tr_0(ns[i], b, x);	
+				modify_rhs_l_tr_0(ns[i], b, x, my_id);	
 			}
 		}
 	}

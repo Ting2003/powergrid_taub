@@ -97,6 +97,7 @@ public:
 
 	// C style output
 	void print();
+	void print_matlab(Matrix A);
 	cholmod_common c, *cm;
 
 	// mpi related variables
@@ -193,13 +194,13 @@ private:
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
 	void stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class, Tran &tran);
-	void modify_rhs_tr_0(double *b, double *xp);
+	void modify_rhs_tr_0(double *b, double *xp, int &my_id);
 	void modify_rhs_tr(double *b, double *xp);
 
 	void set_eq_induc(Tran &tran);
 	void set_eq_capac(Tran &tran);
-	void modify_rhs_c_tr_0(Net *net, double *rhs, double *xp);
-	void modify_rhs_l_tr_0(Net *net, double *rhs, double *xp);
+	void modify_rhs_c_tr_0(Net *net, double *rhs, double *xp, int &my_id);
+	void modify_rhs_l_tr_0(Net *net, double *rhs, double *xp, int &my_id);
 
 	void modify_rhs_c_tr(Net *net, double *rhs, double *xp);
 	void modify_rhs_l_tr(Net *net, double *rhs, double *xp);
