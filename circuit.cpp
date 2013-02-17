@@ -515,12 +515,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	if(mpi_class.block_size>0){
 		solve_init(my_id);
 	}
-
+	
 	block_init(my_id, A, mpi_class);
 	boundary_init(my_id, num_procs);
 	internal_init(my_id, num_procs);
-	if(my_id==0) clog<<"finish internal_init. "<<endl;
 	
+	bool successful = false;
+#if 0	
 	// stores 4 boundary base into bd_base_gd
 	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
 		0, MPI_COMM_WORLD);
@@ -542,7 +543,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
-	if(my_id==0) clog<<"before iteration. "<<endl;
 	
 	time=0;
 	t1= MPI_Wtime();
@@ -558,49 +558,32 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;
-	//if(my_id==4) cout<<replist<<endl;
-	if(my_id==0){
+	/*if(my_id==0){
 		clog<<"# iter: "<<iter<<endl;
-	}
-#if 0
-	// final time, still need to exchange bd info
-	assign_bd_internal_array(my_id);
-	// 0 rank cpu will gather all the solution from bd_x
-	// to bd_x_g
-	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
-		internal_x_g, internal_size_g, 
-		internal_base_g, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
-	
-	// reorder boundary array according to nbrs
-	if(my_id==0){
-		reorder_bd_x_g(mpi_class);
-	}
-	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
-	MPI_Scatterv(bd_x_g, bd_size_g, 
-			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
-			MPI_FLOAT, 0, MPI_COMM_WORLD);
-			
-	assign_bd_array(my_id);
-#endif
-	
+	}*/
 	get_voltages_from_block_LU_sol();	
-
+#endif
+	solve_DC(num_procs, my_id, mpi_class);
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
+	if(my_id==0){
+		for(size_t i=0;i<replist.size();i++)
+		clog<<replist[i]->rid<<" "<<*replist[i]<<endl;
+	}
 	//return 0;
 #if 1
-	for(size_t i=0;i<block_info.count;i++)
+	for(size_t i=0;i<block_info.count;i++){
 		block_info.bp[i] = 0;
+		block_info.bnewp[i] = 0;
+	}
 	
 	/***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran, my_id);
-	block_info.b_new_ck = cholmod_zeros(block_info.count,1,CHOLMOD_REAL, cm);
-   	block_info.bnewp = static_cast<double *>(block_info.b_new_ck->x);
-	stamp_block_matrix_tr(my_id, A, mpi_class, tran);
-	make_A_symmetric_tr(my_id, tran);
-   
+	//block_info.b_new_ck = cholmod_zeros(block_info.count,1,CHOLMOD_REAL, cm);
+   	//block_info.bnewp = static_cast<double *>(block_info.b_new_ck->x);
+	stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
+	make_A_symmetric_tr(my_id, tran);	   
    	stamp_current_tr(my_id, time);
 
    	Algebra::CK_decomp(A, block_info.L, cm);
@@ -671,7 +654,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
-   if(my_id==0) clog<<"after find super. "<<endl;
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
    if(my_id==0) clog<<"after solve_tr_step. "<<endl;
@@ -754,8 +736,6 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		// x_old stores old solution
 		for(size_t j=0;j<block_info.count;j++){
 			block_info.x_old[j] = block_info.xp[j];
-			if(my_id==0)
-				clog<<"j, xp: "<<j<<" "<<block_info.xp[j]<<endl;
 		}
 	}
 
@@ -763,9 +743,9 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		//block_info.solve_CK(cm);
 		solve_eq_sp(block_info.xp, block_info.bnewp);
 		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		/*if(my_id==3)
+		if(my_id==0)
 		for(int i=0;i<replist.size();i++)
-			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
+			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;
 	}
 
 	diff = modify_voltage(my_id, block_info, 
@@ -773,7 +753,6 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	// clog<<"diff: "<<my_id<<" "<<diff<<endl;
 	assign_bd_internal_array(my_id);
 
-	// if(my_id==0) clog<<"after assign internal: "<<diff<<endl;
 	// 0 rank cpu will gather all the solution from bd_x
 	// to bd_x_g
 	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
@@ -781,22 +760,25 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		internal_base_g, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
 	
-	if(my_id==0) clog<<"after gathering : "<<endl;
 	// reorder boundary array according to nbrs
 	if(my_id==0){
 		reorder_bd_x_g(mpi_class);
 	}
-	// clog<<my_id<<" "<<diff<<endl;	
-	 if(my_id==0) clog<<"after reorder : "<<endl;
-	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+# if 0 // temporaly comment out reduce and bcast
+	if(my_id==0) clog<<"before reduce. "<<endl;
 
-	 if(my_id==0) clog<<"after reduce : "<<endl;
+	int errorCode = MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	if(my_id==0) clog<<"after reduce. "<<endl;
+	if(my_id==0) clog<<errorCode<<endl;
 	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
-
+#endif
 	// if(my_id==0) clog<<"after bcast: "<<endl;
 	
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
-	return diff_root;
+	// return diff_root;
+	return diff;
 }
 
 // solve blocks with mpi: multi-core
@@ -838,7 +820,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	if(block_info.count>0){
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		/*if(my_id==1)
+		/*if(my_id==0 && iter<3)
 		for(int i=0;i<replist.size();i++)
 			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
 	}
@@ -1018,7 +1000,7 @@ void Circuit::make_A_symmetric_tr(int &my_id, Tran &tran){
            
            //b[id] += p->value * G;
            block_info.bp[id] += block_info.xp[p->rid] *G;
-        }
+	}
 }
 
 // =========== stamp block version of matrix =======
@@ -1048,6 +1030,8 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		}
 		// else internal net
 		else if( nk->isS()!=Y ) {
+			//if(my_id==0)
+				//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<endl;
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
 			if( !nk->is_ground()&& 
@@ -1055,12 +1039,12 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
           			(nk->nbr[TOP]== NULL ||
 				 nk->nbr[TOP]->type != INDUCTANCE))
 
-				//if(my_id==3) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+				//if(my_id==0) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 				A.push_back(k1,k1, G);
 			if(!nl->is_ground() && 
 				nl->isS()!=Y && l1 < k1 
 				&&(nl->nbr[TOP] ==NULL ||nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
-				//if(my_id==3) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				//if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
 		}
 	}// end of for j	
@@ -1640,37 +1624,38 @@ void Circuit::assign_internal_base(int &my_id){
 void Circuit::assign_bd_internal_array(int &my_id){
 	//clog<<"sw: "<<endl;
 	assign_bd_internal_array_dir(internal_base[0], 
-		internal_nodelist_sw, internal_x);
+		internal_nodelist_sw, internal_x, my_id);
 	//clog<<"s: "<<endl;
 	assign_bd_internal_array_dir(internal_base[1], 
-		internal_nodelist_s, internal_x);
+		internal_nodelist_s, internal_x, my_id);
 	//clog<<"se: "<<endl;
 	assign_bd_internal_array_dir(internal_base[2], 
-		internal_nodelist_se, internal_x);
+		internal_nodelist_se, internal_x, my_id);
 	//clog<<"w: "<<endl;
 	assign_bd_internal_array_dir(internal_base[3], 
-		internal_nodelist_w, internal_x);
+		internal_nodelist_w, internal_x, my_id);
 	//clog<<"e: "<<endl;
 	assign_bd_internal_array_dir(internal_base[4], 
-		internal_nodelist_e, internal_x);
+		internal_nodelist_e, internal_x, my_id);
 	//clog<<"nw: "<<endl;
 	assign_bd_internal_array_dir(internal_base[5], 
-		internal_nodelist_nw, internal_x);
+		internal_nodelist_nw, internal_x, my_id);
 	//clog<<"n: "<<endl;
 	assign_bd_internal_array_dir(internal_base[6], 
-		internal_nodelist_n, internal_x);
+		internal_nodelist_n, internal_x, my_id);
 	//clog<<"ne: "<<endl;
 	assign_bd_internal_array_dir(internal_base[7], 
-		internal_nodelist_ne, internal_x);
+		internal_nodelist_ne, internal_x, my_id);
 }
 
 // assign 4 boundary internal nodes value, store
 // them in array bd_x
-void Circuit::assign_bd_internal_array_dir(int &base, NodePtrVector & list, float *internal_x){
+void Circuit::assign_bd_internal_array_dir(int &base, NodePtrVector & list, float *internal_x, int &my_id){
 	Node *nd;
 	for(size_t i=0;i<list.size();i++){
 		nd = list[i]->rep;
 		internal_x[base+i] = nd->value;
+		//if(my_id==0)
 		//clog<<base+i<<" "<<*nd<<endl;
 	}
 }
@@ -1860,7 +1845,7 @@ void Circuit::reorder_bd_x_g(MPI_CLASS &mpi_class){
 		base_p = base_glo_p+bd_base_gd[8*i+5];
 		if(by<Y_BLOCKS-1 && bx>=1){
 			bid_nbr = i + X_BLOCKS - 1;
-			//clog<<"east bid: "<<bid_nbr<<endl;
+			//clog<<"notrhwest bid: "<<bid_nbr<<endl;
 			// compute block base
 			base_glo_q = internal_base_g[bid_nbr];
 			// find east nbr block base
@@ -1892,7 +1877,7 @@ void Circuit::reorder_bd_x_g(MPI_CLASS &mpi_class){
 		base_p = base_glo_p+bd_base_gd[8*i+7];
 		if(by<Y_BLOCKS-1 && bx<X_BLOCKS-1){
 			bid_nbr = i + X_BLOCKS + 1;
-			//clog<<"east bid: "<<bid_nbr<<endl;
+			//clog<<"north east bid: "<<bid_nbr<<endl;
 			// compute block base
 			base_glo_q = internal_base_g[bid_nbr];
 			// find east nbr block base
@@ -2775,4 +2760,47 @@ void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	}
 	t2 = MPI_Wtime();
 	time = t2-t1;	
+}
+
+void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
+	// stores 4 boundary base into bd_base_gd
+	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
+		0, MPI_COMM_WORLD);
+	
+	MPI_Gather(internal_base, 8, MPI_INT, internal_base_gd,
+		8, MPI_INT, 0, MPI_COMM_WORLD);
+		
+	int iter = 0;	
+	double diff=0;
+	bool successful = false;
+
+	// before iteration, copy boundary nodes value to corresponding blocks
+	assign_bd_internal_array(my_id);
+	MPI_Gatherv(internal_x, internal_size, 
+		MPI_FLOAT, 
+		internal_x_g, internal_size_g, 
+		internal_base_g, MPI_FLOAT, 0, 
+		MPI_COMM_WORLD);
+	
+	// reorder boundary array according to nbrs
+	if(my_id==0)	reorder_bd_x_g(mpi_class);
+	
+	double time=0;
+	double t1= MPI_Wtime();
+	while( iter < MAX_ITERATION ){
+		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
+		iter++;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if( diff < EPSILON ){
+			successful = true;
+			break;
+		}
+	}
+	double t2 = MPI_Wtime();
+	time = t2-t1;
+	/*if(my_id==0){
+		clog<<"# iter: "<<iter<<endl;
+	}*/
+	get_voltages_from_block_LU_sol();
 }

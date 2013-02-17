@@ -208,6 +208,7 @@ private:
 	double solve_iteration_tr(int &my_id, int &iter,
 		int&num_procs, MPI_CLASS &mpi_class);
 
+	void solve_DC(int &num_blocks, int &my_id, MPI_CLASS &mpi_class);
 	void solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class);
 	void solve_tr(Tran &tran, int &my_id);
 	
@@ -236,7 +237,7 @@ private:
 	void assign_bd_internal_array(int &my_id);
 
 	void assign_bd_internal_array_dir(int &base, 
-		NodePtrVector &list, float *internal_x);
+		NodePtrVector &list, float *internal_x, int &my_id);
 
 	void reorder_bd_x_g(MPI_CLASS &mpi_class);
 
