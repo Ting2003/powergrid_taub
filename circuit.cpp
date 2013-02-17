@@ -543,6 +543,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
 	if(my_id==0) clog<<"before iteration. "<<endl;
+	
 	time=0;
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
@@ -561,16 +562,37 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	if(my_id==0){
 		clog<<"# iter: "<<iter<<endl;
 	}
-	get_voltages_from_block_LU_sol();
+#if 0
 	// final time, still need to exchange bd info
-	//
+	assign_bd_internal_array(my_id);
+	// 0 rank cpu will gather all the solution from bd_x
+	// to bd_x_g
+	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
+		internal_x_g, internal_size_g, 
+		internal_base_g, MPI_FLOAT, 0, 
+		MPI_COMM_WORLD);
+	
+	// reorder boundary array according to nbrs
+	if(my_id==0){
+		reorder_bd_x_g(mpi_class);
+	}
+	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
+	MPI_Scatterv(bd_x_g, bd_size_g, 
+			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
+			MPI_FLOAT, 0, MPI_COMM_WORLD);
+			
+	assign_bd_array(my_id);
+#endif
+	
+	get_voltages_from_block_LU_sol();	
+
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	//return 0;
 #if 1
-	for(size_t i=0;i<replist.size();i++)
+	for(size_t i=0;i<block_info.count;i++)
 		block_info.bp[i] = 0;
-
+	
 	/***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran, my_id);
@@ -587,6 +609,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    	Li = static_cast<int*>(block_info.L->i) ;
    	Lnz = static_cast<int *>(block_info.L->nz); 
    	A.clear();
+	
 //#if 0 
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
@@ -601,6 +624,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	replist[id]->rid = i;
 	temp[i] = block_info.bp[i];
    }
+
    for(size_t i=0;i<n;i++)
 	block_info.bp[i] = temp[id_map[i]];
    for(size_t i=0;i<n;i++)
@@ -609,10 +633,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
         block_info.xp[i] = temp[id_map[i]];
    delete [] temp;
    delete [] id_map;
-
+   
    for(size_t i=0;i<replist.size();i++)
 	block_info.bnewp[i] = block_info.bp[i];
-
+   
    set_eq_induc(tran);
    set_eq_capac(tran);
    // already push back cap and induc into set_x and b
@@ -647,8 +671,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
+   if(my_id==0) clog<<"after find super. "<<endl;
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
+   if(my_id==0) clog<<"after solve_tr_step. "<<endl;
  
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
@@ -702,43 +728,52 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	float diff_root=0;
 
 	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
-	MPI_Scatterv(bd_x_g, bd_size_g, 
-			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
-			MPI_FLOAT, 0, MPI_COMM_WORLD);
-			
-	assign_bd_array();
+	if(iter>0){
+		MPI_Scatterv(bd_x_g, bd_size_g, 
+				bd_base_g, MPI_FLOAT, bd_x, bd_size, 
+				MPI_FLOAT, 0, MPI_COMM_WORLD);
 
-	/*if(my_id==1) {
-		for(int i=0;i<replist.size();i++)
-			clog<<i<<" "<<*replist[i]<<" "<<block_info.bp[i]<<endl;
-	clog<<endl;
-	}*/
+		assign_bd_array(my_id);
+	}
+	if(iter ==0){
+		// assign 0 to all bd nodes
+		reset_bd_array(my_id);
+		// assign 0 to non voltage source nodes
+		reset_replist(my_id);	
+	}
 
 	// new rhs store in bnewp
 	block_info.update_rhs(my_id);
-	/*if(my_id==1) {
-		clog<<"replist size: "<<replist.size()<<endl;
-		for(int i=0;i<replist.size();i++)
-			clog<<"bp: "<<i<<" "<<*replist[i]<<" "<<block_info.bnewp[i]<<endl;
-	}*/
 
-	// x_old stores old solution
-	for(size_t j=0;j<block_info.count;j++)
-		block_info.x_old[j] = block_info.xp[j];	
+	if(iter==0){
+		for(size_t j=0;j<block_info.count;j++){
+			block_info.x_old[j] = 0;
+		}
+	}
+	else{
+		// x_old stores old solution
+		for(size_t j=0;j<block_info.count;j++){
+			block_info.x_old[j] = block_info.xp[j];
+			if(my_id==0)
+				clog<<"j, xp: "<<j<<" "<<block_info.xp[j]<<endl;
+		}
+	}
 
 	if(block_info.count>0){
 		//block_info.solve_CK(cm);
 		solve_eq_sp(block_info.xp, block_info.bnewp);
 		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		/*if(my_id==1)
+		/*if(my_id==3)
 		for(int i=0;i<replist.size();i++)
 			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
 	}
 
 	diff = modify_voltage(my_id, block_info, 
 			block_info.x_old);
-
+	// clog<<"diff: "<<my_id<<" "<<diff<<endl;
 	assign_bd_internal_array(my_id);
+
+	// if(my_id==0) clog<<"after assign internal: "<<diff<<endl;
 	// 0 rank cpu will gather all the solution from bd_x
 	// to bd_x_g
 	MPI_Gatherv(internal_x, internal_size, MPI_FLOAT, 
@@ -746,13 +781,19 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		internal_base_g, MPI_FLOAT, 0, 
 		MPI_COMM_WORLD);
 	
+	if(my_id==0) clog<<"after gathering : "<<endl;
 	// reorder boundary array according to nbrs
 	if(my_id==0){
 		reorder_bd_x_g(mpi_class);
 	}
-	
+	// clog<<my_id<<" "<<diff<<endl;	
+	 if(my_id==0) clog<<"after reorder : "<<endl;
 	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
+
+	 if(my_id==0) clog<<"after reduce : "<<endl;
 	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
+
+	// if(my_id==0) clog<<"after bcast: "<<endl;
 	
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
@@ -774,7 +815,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
 			MPI_FLOAT, 0, MPI_COMM_WORLD);
 			
-	assign_bd_array();
+	assign_bd_array(my_id);
 
 	/*if(my_id==1) {
 		for(int i=0;i<replist.size();i++)
@@ -897,6 +938,7 @@ void Circuit::get_voltages_from_block_LU_sol(){
 		size_t id = node->rep->rid;
 		double v = block_info.xp[id];
 		node->value = v;
+		// node->rep->value = v;
 	}
 }
 
@@ -1635,31 +1677,73 @@ void Circuit::assign_bd_internal_array_dir(int &base, NodePtrVector & list, floa
 
 // assign 4 boundary nodes value from receiving
 // array bd_x
-void Circuit::assign_bd_array(){
+void Circuit::assign_bd_array(int &my_id){
 	int base =0;
 	base = bd_base[0];
-	assign_bd_array_dir(base, bd_nodelist_sw);
+	assign_bd_array_dir(base, bd_nodelist_sw, my_id);
 	
 	base = bd_base[1];
-	assign_bd_array_dir(base, bd_nodelist_s);	
+	assign_bd_array_dir(base, bd_nodelist_s, my_id);	
 	
 	base = bd_base[2];
-	assign_bd_array_dir(base, bd_nodelist_se);	
+	assign_bd_array_dir(base, bd_nodelist_se, my_id);	
 
 	base = bd_base[3];
-	assign_bd_array_dir(base, bd_nodelist_w);
+	assign_bd_array_dir(base, bd_nodelist_w, my_id);
 
 	base = bd_base[4];
-	assign_bd_array_dir(base, bd_nodelist_e);
+	assign_bd_array_dir(base, bd_nodelist_e, my_id);
 
 	base = bd_base[5];
-	assign_bd_array_dir(base, bd_nodelist_nw);
+	assign_bd_array_dir(base, bd_nodelist_nw, my_id);
 
 	base = bd_base[6];
-	assign_bd_array_dir(base, bd_nodelist_n);
+	assign_bd_array_dir(base, bd_nodelist_n, my_id);
 
 	base = bd_base[7];
-	assign_bd_array_dir(base, bd_nodelist_ne);
+	assign_bd_array_dir(base, bd_nodelist_ne, my_id);
+}
+
+// reset 4 boundary nodes value to 0
+void Circuit::reset_bd_array(int &my_id){
+	size_t n = bd_nodelist_sw.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_sw[i]->rep->value = 0;
+	
+	n = bd_nodelist_s.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_s[i]->rep->value = 0;
+
+	n = bd_nodelist_se.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_se[i]->rep->value = 0;
+
+	n = bd_nodelist_w.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_w[i]->rep->value = 0;
+
+	n = bd_nodelist_e.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_e[i]->rep->value = 0;
+
+	n = bd_nodelist_nw.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_nw[i]->rep->value = 0;
+
+	n = bd_nodelist_n.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_n[i]->rep->value = 0;
+
+	n = bd_nodelist_ne.size();
+	for(size_t i=0;i<n;i++)
+		bd_nodelist_ne[i]->rep->value = 0;
+}
+
+void Circuit::reset_replist(int &my_id){
+	for(size_t i=0;i<replist.size();i++){
+		if(replist[i]->isS()!=Y)
+			replist[i]->value = 0;
+	}
 }
 
 // input: internal_x
@@ -1880,11 +1964,13 @@ void Circuit::internal_init(int &my_id, int &num_procs){
 }
 
 // assign dir boundary node value
-void Circuit::assign_bd_array_dir(int &base, NodePtrVector &list){
+void Circuit::assign_bd_array_dir(int &base, NodePtrVector &list, int &my_id){
 	Node *p;
 	for(size_t i=0;i<list.size();i++){
 		p = list[i]->rep;
 		p->value = bd_x[base+i];
+		// if(my_id==0)
+			// clog<<"bd_array: "<<*p<<endl;
 	}
 }
 
@@ -2676,10 +2762,12 @@ void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
+		if(my_id ==0)
+			clog<<"iter: "<<iter<<endl;
 		diff = solve_iteration_tr(my_id, iter, num_procs, mpi_class);
 		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if(my_id ==0)
+			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;

@@ -120,7 +120,7 @@ int main(int argc, char * argv[]){
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
 		ckt->solve(my_id, num_procs, mpi_class, tran);
-		if(my_id ==1){
+		if(my_id ==0){
 			cktlist[i]->print();
 			clog<<endl;
 		}

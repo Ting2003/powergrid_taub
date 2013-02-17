@@ -71,6 +71,8 @@ void Block::update_rhs(int &my_id){
 	//b_new = b;
 	for(size_t i=0;i<count;i++){
 		bnewp[i] = bp[i];
+		//if(my_id==1)
+			//clog<<"i, bp: "<<i<<" "<<bnewp[i]<<endl;
 	}
 
 	// for each net in this block

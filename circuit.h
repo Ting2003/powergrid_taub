@@ -223,8 +223,11 @@ private:
 	
 	void internal_init(int &my_id, int &num_procs);
 
-	void assign_bd_array();
-	void assign_bd_array_dir(int &base, NodePtrVector &list);
+	void assign_bd_array(int &my_id);
+	void assign_bd_array_dir(int &base, NodePtrVector &list, int &my_id);
+
+	void reset_bd_array(int &my_id);
+	void reset_replist(int &my_id);
 	
 	void assign_bd_base(int &my_id);
 	void assign_bd_dd_size(int &my_id);
