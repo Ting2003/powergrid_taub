@@ -29,13 +29,14 @@ public:
 	void CK_decomp(Matrix & A, cholmod_common *cm);
 	void solve_CK(cholmod_common *cm); // solve with cholesky decomp
 
+	void solve_CK_tr(cholmod_common *cm); // solve with cholesky decomp
 	// allocate space for the matrix and vectors accoding to count
 	void allocate_resource(cholmod_common*cm);
 	void allocate_mpi_resource(cholmod_common *cm);
 
 	void update_x();
 
-	void update_rhs(int &my_id);
+	void update_rhs(double *bnewp, double *bp, int &my_id);
 
 	void update_block_geometry(MPI_CLASS &mpi_class);
 	
@@ -44,9 +45,9 @@ public:
 	cholmod_factor * L;
 	
 	// vector b
-	cholmod_dense * b_ck, *b_new_ck;
+	cholmod_dense * b_ck, *b_new_ck, *bnew_temp;
 	// pointer to b_ck, b_new_ck, and x_ck;
-	double *bp, *bnewp, *xp, *x_old;
+	double *bp, *bnewp, *xp, *x_old, *bnewp_temp;
 	// solution
 	cholmod_dense *x_ck;
 

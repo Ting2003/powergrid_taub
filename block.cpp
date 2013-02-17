@@ -49,6 +49,12 @@ void Block::solve_CK(cholmod_common *cm){
 	//cholmod_solve_new(CHOLMOD_A, L, b_new_ck, x_ck, cm);
 }
 
+void Block::solve_CK_tr(cholmod_common *cm){
+	x_ck = cholmod_solve(CHOLMOD_A, L, bnew_temp, cm);
+	//cholmod_solve_new(CHOLMOD_A, L, b_new_ck, x_ck, cm);
+}
+
+
 void Block::allocate_resource(cholmod_common *cm){
 	if( count == 0 ) return;
 	nodes = new Node *[count];
@@ -59,11 +65,14 @@ void Block::allocate_resource(cholmod_common *cm){
 	xp = static_cast<double*>(x_ck->x);
 	b_new_ck = cholmod_zeros(count, 1, CHOLMOD_REAL, cm);
 	bnewp = static_cast<double*>(b_new_ck->x);
+	bnew_temp = cholmod_zeros(count, 1, CHOLMOD_REAL, cm);
+	bnewp_temp = static_cast<double*>(bnew_temp->x);
+
 	x_old = new double [count];
 }
 
 // update rhs of each block with its boundary netlist
-void Block::update_rhs(int &my_id){
+void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 	size_t size = boundary_netlist.size();
 	size_t k=0, l=0;
 

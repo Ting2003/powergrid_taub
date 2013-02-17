@@ -575,10 +575,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	solve_DC(num_procs, my_id, mpi_class);
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
-	if(my_id==0){
-		for(size_t i=0;i<replist.size();i++)
-		clog<<replist[i]->rid<<" "<<*replist[i]<<endl;
-	}
+	
 	//return 0;
 #if 1
 	for(size_t i=0;i<block_info.count;i++){
@@ -608,10 +605,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    	Lnz = static_cast<int *>(block_info.L->nz); 
    	A.clear();
 	
-//#if 0 
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
    size_t n = replist.size();
+#if 0
    id_map = new int [n];
    cholmod_build_id_map(CHOLMOD_A, block_info.L, cm, id_map);
 
@@ -631,11 +628,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
         block_info.xp[i] = temp[id_map[i]];
    delete [] temp;
    delete [] id_map;
-   
+#endif   
    for(size_t i=0;i<replist.size();i++){
 	block_info.bnewp[i] = block_info.bp[i];
-	/*if(my_id==0)
-		clog<<i<<" "<<block_info.bp[i]<<endl;*/
    }
    
    set_eq_induc(tran);
@@ -643,6 +638,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    // already push back cap and induc into set_x and b
    modify_rhs_tr_0(block_info.bnewp, block_info.xp, my_id);
    
+#if 0
    // push rhs node into node_set b
    for(size_t i=0;i<n;i++){
 	   if(block_info.bnewp[i] !=0)
@@ -672,10 +668,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FFS = new int [len_path_b];
    s_col_FBS = new int [len_path_x];
    find_super();
-   
+#endif
+   //for(size_t i=0;i<replist.size();i++)
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
    if(my_id==0) clog<<"after solve_tr_step. "<<endl;
+   if(my_id==3) cout<<nodelist<<endl;
  
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
@@ -740,11 +738,26 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		// assign 0 to all bd nodes
 		reset_bd_array(my_id);
 		// assign 0 to non voltage source nodes
-		reset_replist(my_id);	
+		reset_replist(my_id);
+		for(size_t i=0;i<replist.size();i++)
+			block_info.bnewp_temp[i] = 
+				block_info.bnewp[i];
 	}
 
+	/*for(size_t i=0;i<replist.size();i++){
+	//block_info.bnewp[i] = block_info.bp[i];
+	if(my_id==1)
+		clog<<"before tr bnewp: "<<i<<" "<<block_info.bnewp_temp[i]<<endl;
+	}*/
+
 	// new rhs store in bnewp
-	block_info.update_rhs(my_id);
+	block_info.update_rhs(block_info.bnewp_temp, 
+		block_info.bnewp, my_id);
+	for(size_t i=0;i<replist.size();i++){
+	//block_info.bnewp[i] = block_info.bp[i];
+	/*if(my_id==1)
+		clog<<"after tr bnewp: "<<i<<" "<<block_info.bnewp_temp[i]<<endl;*/
+	}
 
 	if(iter==0){
 		for(size_t j=0;j<block_info.count;j++){
@@ -760,15 +773,19 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 
 	if(block_info.count>0){
 		//block_info.solve_CK(cm);
-		solve_eq_sp(block_info.xp, block_info.bnewp);
+		block_info.solve_CK_tr(cm);
+		block_info.xp = static_cast<double *>(block_info.x_ck->x);
+
+		//solve_eq_sp(block_info.xp, block_info.bnewp);
 		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		if(my_id==0)
-		for(int i=0;i<replist.size();i++)
-			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;
 	}
 
 	diff = modify_voltage(my_id, block_info, 
 			block_info.x_old);
+	/*if(my_id==1)
+		for(int i=0;i<replist.size();i++)
+			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<endl;*/
+
 	// clog<<"diff: "<<my_id<<" "<<diff<<endl;
 	assign_bd_internal_array(my_id);
 
@@ -825,7 +842,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	}*/
 
 	// new rhs store in bnewp
-	block_info.update_rhs(my_id);
+	block_info.update_rhs(block_info.bnewp,block_info.bp, my_id);
 	/*if(my_id==1) {
 		clog<<"replist size: "<<replist.size()<<endl;
 		for(int i=0;i<replist.size();i++)
@@ -876,7 +893,7 @@ double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 		block.xp[i] = (1-OMEGA)*x_old[i] + OMEGA*
 			block.xp[i];
 		// update block nodes value
-		block.nodes[i]->value = block.xp[i];
+		block.nodes[i]->rep->value = block.xp[i];
 		double diff = fabs(x_old[i] - block.xp[i]);
 		if( diff > max_diff ) max_diff = diff;
 	}
@@ -2188,15 +2205,18 @@ void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
 	//clog<<"nk-nl "<<(nk->value - nl->value)<<" "<<2*net->value/tran.step_t<<" "<<temp<<endl;
 	
 	Ieq  = (i_t + temp);
+	//if(my_id==0)
 	//clog<< "Ieq is: "<<Ieq<<endl;
 	//clog<<"Geq is: "<<2*net->value / tran.step_t<<endl;
 	if(!nk->is_ground()&& nk->isS()!=Y){
 		 rhs[k] += Ieq;	// for VDD circuit
-		//clog<<*nk<<" rhs +: "<<rhs[k]<<endl;
+		 //if(my_id==1)
+		    // clog<<k<<" "<<*nk<<" rhs +: "<<rhs[k]<<endl;
 	}
 	if(!nl->is_ground()&& nl->isS()!=Y){
 		 rhs[l] += -Ieq; 
-		//clog<<*nl<<" rhs +: "<<rhs[l]<<endl;
+		 //if(my_id==1)
+		    // clog<<l<<" "<<*nl<<" rhs +: "<<rhs[l]<<endl;
 	}
 }
 
@@ -2759,12 +2779,10 @@ void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	double diff=0;
 	bool successful = false;
 	double time=0;
-	double t1, t2;	
+	double t1, t2;		
 
 	t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
-		if(my_id ==0)
-			clog<<"iter: "<<iter<<endl;
 		diff = solve_iteration_tr(my_id, iter, num_procs, mpi_class);
 		iter++;
 		if(my_id ==0)
