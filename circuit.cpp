@@ -673,13 +673,15 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
    if(my_id==0) clog<<"after solve_tr_step. "<<endl;
-   if(my_id==3) cout<<nodelist<<endl;
+   if(my_id==0) cout<<nodelist<<endl;
  
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
       
-   MPI_Barrier(MPI_COMM_WORLD);
+   //MPI_Barrier(MPI_COMM_WORLD);
+
+   if(my_id==0) clog<<"start 2nd time step."<<endl;
    while(time < tran.tot_t){// && iter < 0){
 	// bnewp[i] = bp[i];
       for(size_t i=0;i<n;i++)
@@ -694,14 +696,18 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //solve_eq_sp(block_info.xp, block_info.bnewp);
       // solution stored in block_info.xp
       solve_tr_step(num_procs, my_id, mpi_class);
+      if(my_id==0)
+	      clog<<"step: "<<time<<endl;
 
       //save_tr_nodes(tran, xp);
       save_ckt_nodes(tran, block_info.xp);
       time += tran.step_t;
       // sync in the end of each time step
-      MPI_Barrier(MPI_COMM_WORLD);
+      //MPI_Barrier(MPI_COMM_WORLD);
       //iter ++;
    }
+   if(my_id==0)
+	   cout<<nodelist<<endl;
    save_ckt_nodes_to_tr(tran);
    release_ckt_nodes(tran);
       
@@ -2785,8 +2791,8 @@ void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration_tr(my_id, iter, num_procs, mpi_class);
 		iter++;
-		if(my_id ==0)
-			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
