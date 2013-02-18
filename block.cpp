@@ -31,6 +31,10 @@ Block::Block(size_t _count):
 Block::~Block(){
     delete [] nodes;
     delete [] x_old;
+    delete [] xp;
+    delete [] bnewp;
+    delete [] bp;
+    delete [] bnewp_temp;
 }
 
 void Block::free_block_cholmod(cholmod_common *cm){
