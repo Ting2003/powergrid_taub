@@ -114,7 +114,12 @@ Circuit::~Circuit(){
 		for(it=ns.begin();it!=ns.end();++it)
 			delete *it;
 	}
-	
+
+	// free Li, Lx and so on
+	delete [] Lx;
+	delete [] Lp;
+	delete [] Lnz;
+	delete [] Li;
 	// mpi related variables
 	delete [] bd_x_g;
 	delete [] internal_x_g;
@@ -551,8 +556,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	/***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran, my_id);
-	//block_info.b_new_ck = cholmod_zeros(block_info.count,1,CHOLMOD_REAL, cm);
-   	//block_info.bnewp = static_cast<double *>(block_info.b_new_ck->x);
 	stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
 	make_A_symmetric_tr(my_id, tran);	   
    	stamp_current_tr(my_id, time);
