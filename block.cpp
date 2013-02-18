@@ -38,6 +38,7 @@ void Block::free_block_cholmod(cholmod_common *cm){
     cholmod_free_dense(&b_ck, cm);
     cholmod_free_dense(&b_new_ck, cm);
     cholmod_free_dense(&x_ck, cm);
+    cholmod_free_dense(&bnew_temp, cm);
 }
 
 void Block::CK_decomp(Matrix & A, cholmod_common *cm){

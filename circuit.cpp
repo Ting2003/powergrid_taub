@@ -86,7 +86,9 @@ Circuit::Circuit(string _name):name(_name),
 
 // Trick: do not release memory to increase runtime
 Circuit::~Circuit(){
+	// delete node
 	for(size_t i=0;i<nodelist.size();i++) delete nodelist[i];
+	// delete bd nodes
 	bd_nodelist_sw.clear();
 	bd_nodelist_s.clear();
 	bd_nodelist_se.clear();
@@ -105,6 +107,7 @@ Circuit::~Circuit(){
 	internal_nodelist_n.clear();
 	internal_nodelist_ne.clear();
 	
+	// delete nets
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetList & ns = net_set[type];
 		NetList::iterator it;
@@ -534,6 +537,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	solve_DC(num_procs, my_id, mpi_class);
 	if(my_id==0)
 		clog<<"after solve DC. "<<endl;
+	//return true;
 	// then sync
 	//MPI_Barrier(MPI_COMM_WORLD);
 	
