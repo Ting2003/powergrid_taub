@@ -210,7 +210,7 @@ private:
 		int&num_procs, MPI_CLASS &mpi_class);
 
 	void solve_DC(int &num_blocks, int &my_id, MPI_CLASS &mpi_class);
-	void solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class);
+	bool solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class);
 	void solve_tr(Tran &tran, int &my_id);
 	
 	// ******** end of transient ****

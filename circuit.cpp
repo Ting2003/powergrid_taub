@@ -572,8 +572,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	get_voltages_from_block_LU_sol();	
 #endif
 	solve_DC(num_procs, my_id, mpi_class);
+	if(my_id==0)
+		clog<<"after solve DC. "<<endl;
 	// then sync
-	MPI_Barrier(MPI_COMM_WORLD);
+	//MPI_Barrier(MPI_COMM_WORLD);
 	
 	//return 0;
 #if 1
@@ -669,7 +671,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
-      
+   if(my_id==0) clog<<"after 1st time step. "<<endl; 
    //MPI_Barrier(MPI_COMM_WORLD);
 
    while(time <= tran.tot_t){// && iter < 0){
@@ -681,13 +683,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       // get the new bnewp
       modify_rhs_tr(block_info.bnewp, block_info.xp); 
 
+      if(my_id==0)
+	      clog<<"step: "<<time<<endl;
       // need to add bcast function for processors
       // need to be modified into block version
       //solve_eq_sp(block_info.xp, block_info.bnewp);
       // solution stored in block_info.xp
       solve_tr_step(num_procs, my_id, mpi_class);
-      if(my_id==0)
-	      clog<<"step: "<<time<<endl;
 
       //save_tr_nodes(tran, xp);
       save_ckt_nodes(tran, block_info.xp);
@@ -2772,7 +2774,7 @@ void Circuit::push_bd_nodes(Path_Graph &pg, int&my_id){
 }
 
 // solve transient version
-void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
+bool Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	int iter = 0;	
 	double diff=0;
 	bool successful = false;
@@ -2791,7 +2793,8 @@ void Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 		}
 	}
 	t2 = MPI_Wtime();
-	time = t2-t1;	
+	time = t2-t1;
+	return successful;
 }
 
 void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
