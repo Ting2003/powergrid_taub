@@ -29,6 +29,8 @@ Block::Block(size_t _count):
 	ux(-1.0), uy(-1.0){}
 
 Block::~Block(){
+    for(size_t i=0;i<boundary_netlist.size();i++)
+    	delete boundary_netlist[i];
     boundary_netlist.clear();
     delete [] nodes;
     delete [] x_old;

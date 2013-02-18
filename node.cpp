@@ -16,6 +16,13 @@ Node::Node():name(""),pt(Point(-1,-1,-1)), rid(0),
 	internal_bd = 0;
 }
 
+Node::~Node (){
+	delete [] rep;
+	delete [] end;
+	delete [] eqvr;
+	delete [] nbr;
+}
+
 Node::Node(string n, Point _pt, int x, double v): 
 	name(n), pt(_pt), rid(0), 
 	value(v), flag(x), rep(NULL) {

@@ -18,6 +18,7 @@ class Node{
 public:
 	// member functions
 	Node();
+	~Node();
 	Node(string name, Point _pt, int flag=-1, double v=0.0);
 	Node(const Node & nd);
 	Node & operator = (const Node & nd);

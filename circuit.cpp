@@ -92,6 +92,9 @@ Circuit::~Circuit(){
 	for(size_t i=0;i<replist.size();i++) delete replist[i];
 	// delete node
 	for(size_t i=0;i<mergelist.size();i++) delete mergelist[i];
+	nodelist.clear();
+	replist.clear();
+	mergelist.clear();
 	// delete bd nodes
 	bd_nodelist_sw.clear();
 	bd_nodelist_s.clear();
