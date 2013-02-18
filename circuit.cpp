@@ -88,6 +88,10 @@ Circuit::Circuit(string _name):name(_name),
 Circuit::~Circuit(){
 	// delete node
 	for(size_t i=0;i<nodelist.size();i++) delete nodelist[i];
+	// delete node
+	for(size_t i=0;i<replist.size();i++) delete replist[i];
+	// delete node
+	for(size_t i=0;i<mergelist.size();i++) delete mergelist[i];
 	// delete bd nodes
 	bd_nodelist_sw.clear();
 	bd_nodelist_s.clear();
@@ -2083,7 +2087,7 @@ void Circuit::current_tr(Net *net, double &time){
 	double slope = 0;
 	double Tr = net->tr[3]; // Tr
 	double PW = Tr + net->tr[5]; // PW
-	double Tf = PW + net->tr[4]; // Tr
+	double Tf = PW + net->tr[4]; // Tf
 	double t_temp = time - net->tr[2]; // TD
 	double t = fmod(t_temp, net->tr[6]); // Period
 	if(time <= net->tr[2])// TD
