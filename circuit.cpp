@@ -518,6 +518,7 @@ void Circuit::find_block_size(MPI_CLASS &mpi_class){
 void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){
 	// each block is solved by IT
 	solve_IT(my_id, num_procs, mpi_class, tran);
+	clog<<my_id<<" finish solve: "<<endl;
 }
 
 // solve Circuit
@@ -657,8 +658,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       // get the new bnewp
       modify_rhs_tr(block_info.bnewp, block_info.xp); 
 
-      if(my_id==0)
-	      clog<<"step: "<<time<<endl;
+      //if(my_id==0)
+	      //clog<<"step: "<<time<<endl;
       // need to add bcast function for processors
       // need to be modified into block version
       //solve_eq_sp(block_info.xp, block_info.bnewp);
@@ -673,18 +674,19 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //iter ++;
    }
 
-   if(my_id==0) clog<<"before save ckt nodes to tr. "<<endl;
    save_ckt_nodes_to_tr(tran);
-   if(my_id==0) clog<<"after save ckt nodes to tr. "<<endl;
    release_ckt_nodes(tran);
-   if(my_id==0) clog<<"release ckt nodes. "<<endl; 
    /*delete [] s_col_FFS;
    delete [] s_col_FBS;*/
 #endif
 	/////////// release resources
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
+	if(my_id==0) clog<<"free block info. "<<endl;
 	cholmod_finish(cm);
+	if(my_id==0) clog<<"cholmod finish. "<<endl;
+
+        // MPI_Barrier(MPI_COMM_WORLD);
 	return successful;
 }
 
@@ -773,16 +775,13 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	if(my_id==0){
 		reorder_bd_x_g(mpi_class);
 	}
-# if 0 // temporaly comment out reduce and bcast
-	if(my_id==0) clog<<"before reduce. "<<endl;
+//# if 0 // temporaly comment out reduce and bcast
 
 	int errorCode = MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
 
-	MPI_Barrier(MPI_COMM_WORLD);
-	if(my_id==0) clog<<"after reduce. "<<endl;
-	if(my_id==0) clog<<errorCode<<endl;
+	//MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
-#endif
+//#endif
 	// if(my_id==0) clog<<"after bcast: "<<endl;
 	
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
