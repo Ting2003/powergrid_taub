@@ -149,27 +149,37 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 
 	// create a Net
 	Net * net = new Net(net_type, value, nd_ptr[0], nd_ptr[1]);
-	// assign pulse paramter for pulse input
-	chs = strtok_r(line, sep, &saveptr);
-	for(int i=0;i<3;i++)
-		chs = strtok_r(NULL, sep, &saveptr);
-	if(chs != NULL)
-		chs = strtok_r(NULL, sep, &saveptr);
-	if(chs != NULL){
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->V1 = atof(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->V2 = atof(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->TD = atof(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->Tr = atof(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->Tf = atof(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->PW = atof(chs);
-		chs = strtok_r(NULL, sep, &saveptr);
-		net->Period = atof(chs);
+	if(net_type == CURRENT){
+		net->tr = new double [7];
+		// assign pulse paramter for pulse input
+		chs = strtok_r(line, sep, &saveptr);
+		for(int i=0;i<3;i++)
+			chs = strtok_r(NULL, sep, &saveptr);
+		if(chs != NULL)
+			chs = strtok_r(NULL, sep, &saveptr);
+		if(chs != NULL){
+			chs = strtok_r(NULL, sep, &saveptr);
+			// V1
+			net->tr[0] = atof(chs);
+			chs = strtok_r(NULL, sep, &saveptr);
+			// V2
+			net->tr[1] = atof(chs);
+			chs = strtok_r(NULL, sep, &saveptr);
+			// TD
+			net->tr[2] = atof(chs);
+			chs = strtok_r(NULL, sep, &saveptr);
+			// Tr
+			net->tr[3] = atof(chs);
+			chs = strtok_r(NULL, sep, &saveptr);
+			// Tf
+			net->tr[4] = atof(chs);
+			chs = strtok_r(NULL, sep, &saveptr);
+			// PW
+			net->tr[5] = atof(chs);
+			chs = strtok_r(NULL, sep, &saveptr);
+			// Period
+			net->tr[6] = atof(chs);
+		}
 	}
 	// trick: when the value of a resistor via is below a threshold,
 	// treat it as a 0-voltage via

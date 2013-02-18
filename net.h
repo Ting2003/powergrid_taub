@@ -22,7 +22,9 @@ public:
 	// if flag_bd =0, then internal net
 	int flag_bd;
 	// store the pulse parameter for current net
-	double V1, V2, TD, Tr, Tf, PW, Period;
+	double *tr; // only for current net
+	// stores V1,V2,TD,Tr,Tf, PW, Period;
+	//double V1, V2, TD, Tr, Tf, PW, Period;
 
 };
 

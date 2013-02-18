@@ -594,10 +594,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    	stamp_current_tr(my_id, time);
 	
    	Algebra::CK_decomp(A, block_info.L, cm);
-   	Lp = static_cast<int *>(block_info.L->p);
+   	/*Lp = static_cast<int *>(block_info.L->p);
    	Lx = static_cast<double*> (block_info.L->x);
    	Li = static_cast<int*>(block_info.L->i) ;
-   	Lnz = static_cast<int *>(block_info.L->nz); 
+   	Lnz = static_cast<int *>(block_info.L->nz); */
    	A.clear();
 	
    /*********** the following 2 parts can be implemented with pthreads ***/
@@ -2114,26 +2114,26 @@ void Circuit::stamp_current_tr_net(Net * net, double &time, int &my_id){
 // decide transient step current values
 void Circuit::current_tr(Net *net, double &time){
 	double slope = 0;
-	double Tr = net->Tr;
-	double PW = Tr + net->PW;
-	double Tf = PW + net->Tf;
-	double t_temp = time - net->TD;
-	double t = fmod(t_temp, net->Period);
-	if(time <= net->TD)
-		net->value = net->V1;
+	double Tr = net->tr[3]; // Tr
+	double PW = Tr + net->tr[5]; // PW
+	double Tf = PW + net->tr[4]; // Tr
+	double t_temp = time - net->tr[2]; // TD
+	double t = fmod(t_temp, net->tr[6]); // Period
+	if(time <= net->tr[2])// TD
+		net->value = net->tr[0];// V1
 	else if(t > 0 && t<= Tr){
-		slope = (net->V2 - net->V1) / 
-			(net->Tr);
-		net->value = net->V1 + t*slope;
+		slope = (net->tr[1] - net->tr[0]) / 
+			(net->tr[3]);
+		net->value = net->tr[0] + t*slope;
 	}
 	else if(t > Tr && t<= PW)
-		net->value = net->V2;
+		net->value = net->tr[1];
 	else if(t>PW && t<=Tf){
-		slope = (net->V1-net->V2)/(net->Tf);
-		net->value = net->V2 + slope*(t-PW);
+		slope = (net->tr[0]-net->tr[1])/(net->tr[4]);
+		net->value = net->tr[1] + slope*(t-PW);
 	}
 	else
-		net->value = net->V1;
+		net->value = net->tr[1];
 	//return current;
 }
 
