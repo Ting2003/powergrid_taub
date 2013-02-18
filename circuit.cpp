@@ -573,6 +573,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	get_voltages_from_block_LU_sol();	
 #endif
 	solve_DC(num_procs, my_id, mpi_class);
+	if(my_id==0)
+		cout<<"dc: "<<nodelist<<endl;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
@@ -591,13 +593,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
 	make_A_symmetric_tr(my_id, tran);	   
    	stamp_current_tr(my_id, time);
-
-	/*if(my_id==0){
-		clog<<A.size()<<endl;
-		for(size_t i=0;i<A.size();i++)
-			cout<<A.Ti[i]+1<<" "<<A.Tj[i]+1<<" "<<A.Tx[i]<<endl;
-		cout<<endl;
-	}*/
+	
    	Algebra::CK_decomp(A, block_info.L, cm);
    	Lp = static_cast<int *>(block_info.L->p);
    	Lx = static_cast<double*> (block_info.L->x);
@@ -1107,7 +1103,7 @@ void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
 
 		// skip resistor layer net
 		if(nk->isS()!=X && nl->isS()!=X) continue;
-		if(nk->isS()==Y) continue;
+		if(nk->isS()!=X) continue;
 
 		size_t k1 = nk->rid;
 		size_t l1 = nl->rid;
@@ -1115,17 +1111,18 @@ void Circuit::stamp_block_resistor_tr(int &my_id, Net * net, Matrix &A){
           		(nk->nbr[TOP]!= NULL &&
 			 nk->nbr[TOP]->type == INDUCTANCE))
 			A.push_back(k1,k1, G);
-		/*if(!nl->is_ground() 
+		// also need to push back connection
+		if(!nl->is_ground() 
 		    &&(nl->nbr[TOP] ==NULL ||
 		    nl->nbr[TOP]->type != INDUCTANCE))
 			if(l1 < k1){
-				if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				//if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
 			}
 			else if(l1>k1){
-				if(my_id==0) clog<<"push ("<<l1<<","<<k1<<","<<-G<<")"<<endl;
+				//if(my_id==0) clog<<"push ("<<l1<<","<<k1<<","<<-G<<")"<<endl;
 				A.push_back(l1, k1, -G);
-			}*/
+			}
 	}// end of for j	
 }
 
@@ -1149,7 +1146,7 @@ void Circuit::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, int &my_id){
 	//temp = tran.step_t / (2*net->value) * 
 		//(nl->value - nk->value);
 	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
-	temp = net->value *(x[l] - x[k]);	
+	temp = net->value *(x[l] - x[k]);
 	//if(nk->value != x[k] || nl->value != x[l])
 	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
 	     //x[k]<<" "<<x[l]<<endl;
