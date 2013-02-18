@@ -785,8 +785,8 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	// if(my_id==0) clog<<"after bcast: "<<endl;
 	
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
-	// return diff_root;
-	return diff;
+	return diff_root;
+	//return diff;
 }
 
 // solve blocks with mpi: multi-core
