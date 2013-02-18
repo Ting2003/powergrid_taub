@@ -507,7 +507,6 @@ void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran)
 
 // solve Circuit
 bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){
-	if(my_id==0) clog<<"enter solve_IT. "<<endl;
 	double time=0;
 	double t1, t2;
 	
@@ -573,8 +572,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	get_voltages_from_block_LU_sol();	
 #endif
 	solve_DC(num_procs, my_id, mpi_class);
-	if(my_id==0)
-		cout<<"dc: "<<nodelist<<endl;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
@@ -668,8 +665,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //for(size_t i=0;i<replist.size();i++)
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
-   if(my_id==0) clog<<"after solve_tr_step. "<<endl;
-   if(my_id==0) cout<<nodelist<<endl;
  
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
@@ -677,8 +672,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       
    //MPI_Barrier(MPI_COMM_WORLD);
 
-   if(my_id==0) clog<<"start 2nd time step."<<endl;
-   while(time < tran.tot_t){// && iter < 0){
+   while(time <= tran.tot_t){// && iter < 0){
 	// bnewp[i] = bp[i];
       for(size_t i=0;i<n;i++)
 	block_info.bnewp[i] = block_info.bp[i];
@@ -702,13 +696,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //MPI_Barrier(MPI_COMM_WORLD);
       //iter ++;
    }
-   if(my_id==0)
-	   cout<<nodelist<<endl;
+
+   if(my_id==0) clog<<"before save ckt nodes to tr. "<<endl;
    save_ckt_nodes_to_tr(tran);
+   if(my_id==0) clog<<"after save ckt nodes to tr. "<<endl;
    release_ckt_nodes(tran);
-      
-   delete [] s_col_FFS;
-   delete [] s_col_FBS;
+   if(my_id==0) clog<<"release ckt nodes. "<<endl; 
+   /*delete [] s_col_FFS;
+   delete [] s_col_FBS;*/
 #endif
 	/////////// release resources
 	if(block_info.count > 0)

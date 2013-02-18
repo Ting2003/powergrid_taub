@@ -120,28 +120,37 @@ int main(int argc, char * argv[]){
 		Circuit * ckt = cktlist[i];
 		//if(ckt->get_name()=="VDD"){
 		ckt->solve(my_id, num_procs, mpi_class, tran);
-		if(my_id ==0){
+		/*if(my_id ==0){
 			cktlist[i]->print();
 			clog<<endl;
-		}
+		}*/
 		// after that, this circuit can be released
 		//}
 
 		free(ckt);
+
+		// need to print out nodes for all cores
+		if(my_id==0)
+	 		tran.print_tr_nodes();
+		//MPI_Barrier(MPI_COMM_WORLD);
 	}
 
-	// need to print out nodes for all cores
-	// tran.print_tr_nodes();
 	
 	mpi_t12 = MPI_Wtime();
 	
 	// output a single ground node
-	if(my_id==1){
+	if(my_id==0){
 		printf("G  %.5e\n", 0.0);
 		clog<<"solve using: "<<1.0*(mpi_t12-mpi_t11)<<endl;
-		//close_logfile();
+		close_logfile();
+		//clog<<"after close file/ "<<endl;
 	}
+
+	// use too much memory, need to check
+	MPI_Barrier(MPI_COMM_WORLD);
+	if(my_id==0) clog<<"after mpi barrier. "<<endl;
 	MPI_Finalize();
+	clog<<"after finalize. "<<endl;
 	//close_logfile();
 	//cout<<"close logfile. "<<endl;
 	return 0;
