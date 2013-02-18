@@ -12,6 +12,7 @@ class Net{
 public:
 	//Net(NET_TYPE type, string name, double value, Node * a, Node * b);
 	Net(NET_TYPE type, double value, Node * a, Node * b);
+	~Net();
 	friend ostream & operator << (ostream & os, const Net & net);
 
 	NET_TYPE type;	// identify the type

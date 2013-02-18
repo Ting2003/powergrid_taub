@@ -529,48 +529,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	internal_init(my_id, num_procs);
 	
 	bool successful = false;
-#if 0	
-	// stores 4 boundary base into bd_base_gd
-	MPI_Gather(bd_base, 8, MPI_INT, bd_base_gd, 8, MPI_INT,
-		0, MPI_COMM_WORLD);
-	
-	MPI_Gather(internal_base, 8, MPI_INT, internal_base_gd,
-		8, MPI_INT, 0, MPI_COMM_WORLD);
-		
-	int iter = 0;	
-	double diff=0;
-	bool successful = false;
 
-	// before iteration, copy boundary nodes value to corresponding blocks
-	assign_bd_internal_array(my_id);
-	MPI_Gatherv(internal_x, internal_size, 
-		MPI_FLOAT, 
-		internal_x_g, internal_size_g, 
-		internal_base_g, MPI_FLOAT, 0, 
-		MPI_COMM_WORLD);
-	
-	// reorder boundary array according to nbrs
-	if(my_id==0)	reorder_bd_x_g(mpi_class);
-	
-	time=0;
-	t1= MPI_Wtime();
-	while( iter < MAX_ITERATION ){
-		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
-		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
-		if( diff < EPSILON ){
-			successful = true;
-			break;
-		}
-	}
-	t2 = MPI_Wtime();
-	time = t2-t1;
-	/*if(my_id==0){
-		clog<<"# iter: "<<iter<<endl;
-	}*/
-	get_voltages_from_block_LU_sol();	
-#endif
+	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
 	if(my_id==0)
 		clog<<"after solve DC. "<<endl;

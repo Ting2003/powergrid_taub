@@ -13,6 +13,10 @@ Net::Net(NET_TYPE t, double v, Node * a, Node * b):
 	ab[1]=b;
 }
 
+Net::~Net(){
+	delete [] tr;
+}
+
 ostream & operator << (ostream & os, const Net & net){
 	os//<<net.name
 		<<"("
