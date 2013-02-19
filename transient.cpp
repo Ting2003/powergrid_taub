@@ -29,6 +29,7 @@ Tran::~Tran(){
 void Tran:: print_tr_nodes(){
 	double time = 0;
 	size_t j=0;
+	// clog<<"nodes.size(): "<<nodes.size()<<endl;
 	for(size_t i=0;i<nodes.size();i++){
 		time = 0;
 		j=0;

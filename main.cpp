@@ -126,13 +126,17 @@ int main(int argc, char * argv[]){
 		free(ckt);
 
 		// need to print out nodes for all cores
-		/*if(my_id==0)
-	 		tran.print_tr_nodes();*/
-		//clog<<"before barrier: "<<my_id<<endl;
-		MPI_Barrier(MPI_COMM_WORLD);
-	}
+		//if(my_id==0)
+	 		//tran.print_tr_nodes();
 
-	
+		// clog<<"before barrier: "<<my_id<<endl;
+		MPI_Barrier(MPI_COMM_WORLD);
+		// clog<<"after barrier: "<<my_id<<endl;
+	}
+	clog<<"after solving. "<<endl;
+	if(my_id==0)
+	 	tran.print_tr_nodes();
+
 	mpi_t12 = MPI_Wtime();
 	
 	// output a single ground node

@@ -654,7 +654,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
-
    int iter = 0;
    //for(; time <= tran.tot_t; time += tran.step_t){
    while(time <= tran.tot_t){// && iter < 2){
@@ -694,7 +693,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		block_info.free_block_cholmod(cm);
 	if(my_id==0) clog<<"free block info. "<<endl;
 	cholmod_finish(cm);
-	if(my_id==0) clog<<"cholmod finish. "<<endl;
+	//clog<<"cholmod finish. "<<my_id<<endl;
 
         // MPI_Barrier(MPI_COMM_WORLD);
 	return successful;
@@ -1046,23 +1045,26 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			}
 		}
 		// else internal net
-		else if( nk->isS()!=Y ) {
+		else if( nk->isS()!=Y && nl->isS()!=Y) {
 			//if(my_id==0)
-				//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<endl;
+				//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
-			if( !nk->is_ground()&& 
-				nk->isS()!=Y && 
+			if( !nk->is_ground()&&  
           			(nk->nbr[TOP]== NULL ||
-				 nk->nbr[TOP]->type != INDUCTANCE))
+				 nk->nbr[TOP]->type != INDUCTANCE)){
 
 				//if(my_id==0) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 				A.push_back(k1,k1, G);
-			if(!nl->is_ground() && 
-				nl->isS()!=Y && l1 < k1 
-				&&(nl->nbr[TOP] ==NULL ||nl->nbr[TOP]->type != INDUCTANCE)) // only store the lower triangular part
+			}
+			if(!nk->is_ground() && 
+				!nl->is_ground() && 
+				l1 < k1 &&
+				(nl->nbr[TOP] ==NULL ||
+				 nl->nbr[TOP]->type != INDUCTANCE)){ // only store the lower triangular part{
 				//if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
+			}
 		}
 	}// end of for j	
 }

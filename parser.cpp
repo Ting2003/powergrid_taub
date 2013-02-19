@@ -366,7 +366,7 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	// temporary comment second parse	
-	 second_parse(my_id, mpi_class, tran, num_procs);
+	second_parse(my_id, mpi_class, tran, num_procs);
 }
 
 void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_procs){
@@ -388,7 +388,7 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int n
 		0, MPI_COMM_WORLD);
 	
 	if(my_id==0){
-		net_to_block(mpi_class.geo, mpi_class, tran, num_procs);
+		net_to_block(mpi_class.geo, mpi_class, tran, num_procs, my_id);
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -436,7 +436,7 @@ void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_
 				insert_net_node(line, my_id, mpi_class);
 				break;
 			case '.': // parse tran nodes: need to write
-				 block_parse_dots(line, tran); 
+				 block_parse_dots(line, tran, my_id); 
 				 break;
 			case '*': // comment
 			case ' ':
@@ -648,7 +648,7 @@ void Parser::set_block_geometry(float *geo, MPI_CLASS &mpi_class){
 }
 
 // done by processor 0
-void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_procs){
+void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_procs, int &my_id){
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
@@ -661,7 +661,9 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 	f = fopen(this->filename, "r");
 	if(f==NULL) report_exit("Input file not exist!\n");
 
-	char line[MAX_BUF];
+	// handles the long print sentence
+	int temp_buf = 10000000;
+	char line[temp_buf];
 	string line_s;
 
 	int color = 0;
@@ -672,7 +674,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 	//clog<<"after initial ofs. "<<endl;
 
 	int count_1 = 0, count_2 = 0;
-	while( fgets(line, MAX_BUF,f)!=NULL){
+	while( fgets(line, temp_buf, f)!=NULL){
 		if(line[0]=='r' || line[0] =='R' ||
 		   line[0]=='v' || line[0] =='V' ||
 		   line[0]=='i' || line[0]=='I' ||
@@ -708,7 +710,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 					}
 					break;
 				case 'p': // print
-					write_print(tran, of, mpi_class);
+					write_print(tran, of, mpi_class, line);
 					break;
 				default:
 					break;
@@ -921,7 +923,7 @@ void Parser::insert_node_dir(int &bid_nbr, MPI_CLASS &mpi_class, NodePtrVector &
 }
 
 //every core parses in data simultaneously
-void Parser::block_parse_dots(char *line, Tran &tran){
+void Parser::block_parse_dots(char *line, Tran &tran, int &my_id){
 	char *chs;
 	char *saveptr;
 	char sname[MAX_BUF];
@@ -948,6 +950,8 @@ void Parser::block_parse_dots(char *line, Tran &tran){
 			while(chs != NULL){
 				chs = strtok_r(NULL, sep, &saveptr);
 				if(chs == NULL) break;
+				if(my_id==0)
+					clog<<chs<<endl;
 				item.name = chs;
 				tran.nodes.push_back(item);
 				// disribute nodes into cores
@@ -958,13 +962,16 @@ void Parser::block_parse_dots(char *line, Tran &tran){
 	}
 }
 
-void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class){
+void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class, char *line){
 // then write tran nodes into files
 	char *chs;
 	char *saveptr;
-	const char *sep = "_";
+	const char *sep = "_ v()";
 	string ndname;
 	ndname = ".print tran ";
+
+	chs = strtok_r(line, sep, &saveptr);
+	clog<<"chs: "<<chs<<endl;
 
 	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
 	// first print .tran to each file
