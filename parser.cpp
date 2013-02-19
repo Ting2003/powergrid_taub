@@ -329,7 +329,7 @@ int Parser::create_circuits(vector<CKT_LAYER > &ckt_name_info){
 // Note: the file will be parsed twice
 // the first time is to find the layer information
 // and the second time is to create nodes
-void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran){	
+void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran, int num_procs){	
 	int MPI_Vector;
 	int count =2;
 	int lengths[2] = {10, 1};
@@ -360,15 +360,15 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran
 	// first time parse:
 	create_circuits(ckt_name_info);
 
-	build_block_geo(my_id, mpi_class, tran);
+	build_block_geo(my_id, mpi_class, tran, num_procs);
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	// temporary comment second parse	
-	 second_parse(my_id, mpi_class, tran);
+	 second_parse(my_id, mpi_class, tran, num_procs);
 }
 
-void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
+void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_procs){
 	// block info in cpu 0
 	mpi_class.geo = new float[mpi_class.X_BLOCKS *mpi_class.Y_BLOCKS *4];
 	// block info in other cpus
@@ -387,7 +387,7 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 		0, MPI_COMM_WORLD);
 	
 	if(my_id==0){
-		net_to_block(mpi_class.geo, mpi_class, tran);
+		net_to_block(mpi_class.geo, mpi_class, tran, num_procs);
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -401,18 +401,18 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 	mpi_class.set_geo_origin(mpi_class);
 }
 
-void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
+void Parser::second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_procs){
 	char  buff[100];
 	FILE *f = NULL;
 
 	int color = 0;
 	int block_size = mpi_class.block_size;
-	if(block_size==0) return;
-	for(int i=0;i<block_size;i++){
+	//if(block_size==0) return;
+	//for(int i=0;i<block_size;i++){
 		sprintf(buff, "./INPUT_FILE/netlist_%d%d.txt", color, my_id);
 		f = fopen(buff, "r");
 		if(f==NULL) report_exit("Input file not exist!\n");
-	}
+	//}
 	
 	char line[MAX_BUF];
 	char type;
@@ -647,7 +647,7 @@ void Parser::set_block_geometry(float *geo, MPI_CLASS &mpi_class){
 }
 
 // done by processor 0
-void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
+void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_procs){
 	static char sname[MAX_BUF];
 	static char sa[MAX_BUF];
 	static char sb[MAX_BUF];
@@ -667,7 +667,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 	vector<FILE *> of;
 	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
 	clog<<"num_blocks. "<<num_blocks<<endl;
-	InitialOF(of, num_blocks, color);
+	InitialOF(of, num_procs, color);//num_blocks, color);
 	//clog<<"after initial ofs. "<<endl;
 
 	int count_1 = 0, count_2 = 0;
@@ -701,8 +701,8 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 			switch(line[1]){
 				case 't':
 				case 'w':
-				case 'e':
-					for(int i=0;i<num_blocks;i++){
+				case 'e':// for all procs
+					for(int i=0;i<num_procs;i++){
 						fprintf(of[i], "%s", line);
 					}
 					break;
@@ -720,7 +720,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran){
 	//clog<<"finish output. "<<endl;
 	fclose(f);
 	//clog<<"close original file. "<<endl;
-	for(int i=0;i<num_blocks;i++){
+	for(int i=0;i<num_procs;i++){
 		fclose(of[i]);
 	}
 	//clog<<"close all output file. "<<endl;

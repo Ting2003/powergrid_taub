@@ -518,7 +518,7 @@ void Circuit::find_block_size(MPI_CLASS &mpi_class){
 void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){
 	// each block is solved by IT
 	solve_IT(my_id, num_procs, mpi_class, tran);
-	clog<<my_id<<" finish solve: "<<endl;
+	//clog<<my_id<<" finish solve: "<<endl;
 }
 
 // solve Circuit
@@ -528,7 +528,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	cm = &c;
 	cholmod_start(cm);
-	cm->print = 5;	
+	cm->print = 5;
 
 	total_blocks = mpi_class.X_BLOCKS *mpi_class.Y_BLOCKS;
 
@@ -541,18 +541,24 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}
 	
 	block_init(my_id, A, mpi_class);
+
+	if(my_id==0) clog<<"before bd_init. "<<endl;
 	boundary_init(my_id, num_procs);
+
+	if(my_id==0) clog<<"before in_init. "<<endl;
 	internal_init(my_id, num_procs);
 	
 	bool successful = false;
 
+	if(my_id==0)
+		clog<<"before solve DC. "<<my_id<<endl;
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
 	if(my_id==0)
 		clog<<"after solve DC. "<<endl;
 	//return true;
 	// then sync
-	//MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(MPI_COMM_WORLD);
 	
 	//return 0;
 #if 1
@@ -646,10 +652,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //save_tr_nodes(tran, xp);
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
-   if(my_id==0) clog<<"after 1st time step. "<<endl; 
-   //MPI_Barrier(MPI_COMM_WORLD);
+   MPI_Barrier(MPI_COMM_WORLD);
 
-   while(time <= tran.tot_t){// && iter < 0){
+   clog<<"after 1st time step. "<<my_id<<" "<<time<<endl; 
+
+   int iter = 0;
+   //for(; time <= tran.tot_t; time += tran.step_t){
+   while(time <= tran.tot_t){// && iter < 2){
 	// bnewp[i] = bp[i];
       for(size_t i=0;i<n;i++)
 	block_info.bnewp[i] = block_info.bp[i];
@@ -659,11 +668,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       modify_rhs_tr(block_info.bnewp, block_info.xp); 
 
       //if(my_id==0)
-	      //clog<<"step: "<<time<<endl;
+	      //clog<<" ===== step: ===== "<<my_id<<" "<<time<<endl;
       // need to add bcast function for processors
       // need to be modified into block version
       //solve_eq_sp(block_info.xp, block_info.bnewp);
       // solution stored in block_info.xp
+      //if(replist.size()>0)
       solve_tr_step(num_procs, my_id, mpi_class);
 
       //save_tr_nodes(tran, xp);
@@ -671,7 +681,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       time += tran.step_t;
       // sync in the end of each time step
       //MPI_Barrier(MPI_COMM_WORLD);
-      //iter ++;
+      //clog<<"after time-t step barrier. "<<my_id<<" "<<time<<endl;
+      iter ++;
    }
 
    save_ckt_nodes_to_tr(tran);
@@ -1522,13 +1533,19 @@ void Circuit::merge_along_dir(Node * node, DIRECTION dir){
 
 void Circuit::boundary_init(int &my_id, int &num_procs){
 	assign_bd_base(my_id);
+
 	assign_bd_dd_size(my_id);
 
 	// allocate boundary_nodelist size
 	bd_dd_size_g = new int [8*num_procs];	
 	
+	//if(my_id==0)
+		//clog<<"before gathering bd_dd_size. "<<my_id<<endl;
 	MPI_Gather(bd_dd_size, 8, MPI_INT, bd_dd_size_g, 
 			8, MPI_INT, 0, MPI_COMM_WORLD);
+
+	if(my_id==0)
+		clog<<"after gathering bd_ddsize. "<<endl;
 	
 	bd_x = new float[bd_size];
 
@@ -1537,6 +1554,8 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	MPI_Gather(&bd_size, 1, MPI_INT, bd_size_g, 1, MPI_INT,
 			0, MPI_COMM_WORLD);
 
+	if(my_id==0)
+		clog<<"after gathering bd_size. "<<endl;
 	total_size = 0;
 	if(my_id ==0){
 		for(int i=0;i<total_blocks;i++)
@@ -1555,6 +1574,8 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	for(int i=0;i<8*num_procs;i++){
 		bd_base_gd[i] = 0;
 	}
+	if(my_id==0)
+		clog<<"after bd_base_gd. "<<endl;
 }
 
 void Circuit::assign_bd_base(int &my_id){

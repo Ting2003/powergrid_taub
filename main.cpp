@@ -106,7 +106,7 @@ int main(int argc, char * argv[]){
 	Parser parser(&cktlist);
 	clock_t t1,t2;
 	t1=clock();
-	parser.parse(my_id, input, mpi_class, tran);
+	parser.parse(my_id, input, mpi_class, tran, num_procs);
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	// after parsing, this mem can be released
@@ -118,21 +118,19 @@ int main(int argc, char * argv[]){
 	
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="VDD"){
-		ckt->solve(my_id, num_procs, mpi_class, tran);
-		/*if(my_id ==0){
-			cktlist[i]->print();
-			clog<<endl;
-		}*/
-		// after that, this circuit can be released
+		//if(my_id==0){
+			clog<<"<======== solving: "<<ckt->get_name()<<" =========>"<<my_id<<endl;
 		//}
-
+		ckt->solve(my_id, num_procs, mpi_class, 
+				tran);	
 		free(ckt);
 
 		// need to print out nodes for all cores
-		if(my_id==0)
-	 		tran.print_tr_nodes();
-		//MPI_Barrier(MPI_COMM_WORLD);
+		/*if(my_id==0)
+	 		tran.print_tr_nodes();*/
+		//clog<<"before barrier: "<<my_id<<endl;
+		MPI_Barrier(MPI_COMM_WORLD);
+		//clog<<"after barrier. "<<my_id<<endl;
 	}
 
 	

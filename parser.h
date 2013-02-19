@@ -32,7 +32,7 @@ public:
 	~Parser();
 
 	// parser a input file and construct the circuit
-	void parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran);
+	void parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran, int num_procs);
 
 	int get_num_layers() const;
 
@@ -63,13 +63,13 @@ public:
 		NodePtrVector &bd_list, NodePtrVector &inter_list, 
 		Node *nd_0, Node *nd_1, int &count_10, int &count_20);
 	
-	void net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran);
+	void net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_procs);
 
-	void build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
+	void build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_procs);
 
 	void set_vdd_map(map<string, string> &vdd_map);
 
-	void second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran);
+	void second_parse(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_procs);
 	void parse_dot(char *line, Tran &tran);
 	void block_parse_dots(char *line, Tran &tran);
 	void write_print(Tran &tran, vector<FILE *> &of,  MPI_CLASS &mpi_class);
