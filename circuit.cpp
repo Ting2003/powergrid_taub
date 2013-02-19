@@ -122,6 +122,7 @@ Circuit::~Circuit(){
 			delete *it;
 	}
 
+	A.clear();
 	// free Li, Lx and so on
 	delete [] Lx;
 	delete [] Lp;
@@ -554,8 +555,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		clog<<"before solve DC. "<<my_id<<endl;
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
-	if(my_id==0)
-		clog<<"after solve DC. "<<endl;
+
 	//return true;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -2116,18 +2116,18 @@ void Circuit::current_tr(Net *net, double &time){
 	if(time <= net->tr[2])// TD
 		net->value = net->tr[0];// V1
 	else if(t > 0 && t<= Tr){
-		slope = (net->tr[1] - net->tr[0]) / 
-			(net->tr[3]);
-		net->value = net->tr[0] + t*slope;
+		slope = (net->V2 - net->V1) / 
+			(net->Tr);
+		net->value = net->V1 + t*slope;
 	}
 	else if(t > Tr && t<= PW)
-		net->value = net->tr[1];
+		net->value = net->V2;
 	else if(t>PW && t<=Tf){
-		slope = (net->tr[0]-net->tr[1])/(net->tr[4]);
-		net->value = net->tr[1] + slope*(t-PW);
+		slope = (net->V1-net->V2)/(net->Tf);
+		net->value = net->V2 + slope*(t-PW);
 	}
 	else
-		net->value = net->tr[1];
+		net->value = net->V1;
 	//return current;
 }
 

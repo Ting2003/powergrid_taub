@@ -14,7 +14,7 @@ Net::Net(NET_TYPE t, double v, Node * a, Node * b):
 }
 
 Net::~Net(){
-	delete [] tr;
+	//delete [] tr;
 }
 
 ostream & operator << (ostream & os, const Net & net){
