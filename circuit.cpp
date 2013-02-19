@@ -549,13 +549,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	bool successful = false;
 
-	if(my_id==0)
-		clog<<"before solve DC. "<<my_id<<endl;
+	//if(my_id==0)
+		//clog<<"before solve DC. "<<my_id<<endl;
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
 
-	if(my_id==0)
-		clog<<"after solve DC. "<<my_id<<endl;
+	//if(my_id==0)
+		//clog<<"after solve DC. "<<my_id<<endl;
 
 	//return true;
 	// then sync
@@ -691,7 +691,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	/////////// release resources
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
-	if(my_id==0) clog<<"free block info. "<<endl;
+	//if(my_id==0) clog<<"free block info. "<<endl;
 	cholmod_finish(cm);
 	//clog<<"cholmod finish. "<<my_id<<endl;
 
@@ -1544,8 +1544,6 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	MPI_Gather(bd_dd_size, 8, MPI_INT, bd_dd_size_g, 
 			8, MPI_INT, 0, MPI_COMM_WORLD);
 
-	if(my_id==0)
-		clog<<"after gathering bd_ddsize. "<<endl;
 	
 	bd_x = new float[bd_size];
 
@@ -1554,8 +1552,6 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	MPI_Gather(&bd_size, 1, MPI_INT, bd_size_g, 1, MPI_INT,
 			0, MPI_COMM_WORLD);
 
-	if(my_id==0)
-		clog<<"after gathering bd_size. "<<endl;
 	total_size = 0;
 	if(my_id ==0){
 		for(int i=0;i<total_blocks;i++)
@@ -1574,8 +1570,6 @@ void Circuit::boundary_init(int &my_id, int &num_procs){
 	for(int i=0;i<8*num_procs;i++){
 		bd_base_gd[i] = 0;
 	}
-	if(my_id==0)
-		clog<<"after bd_base_gd. "<<endl;
 }
 
 void Circuit::assign_bd_base(int &my_id){

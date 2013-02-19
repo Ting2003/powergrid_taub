@@ -950,8 +950,6 @@ void Parser::block_parse_dots(char *line, Tran &tran, int &my_id){
 			while(chs != NULL){
 				chs = strtok_r(NULL, sep, &saveptr);
 				if(chs == NULL) break;
-				if(my_id==0)
-					clog<<chs<<endl;
 				item.name = chs;
 				tran.nodes.push_back(item);
 				// disribute nodes into cores
@@ -966,20 +964,33 @@ void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class, c
 // then write tran nodes into files
 	char *chs;
 	char *saveptr;
-	const char *sep = "_ v()";
+	char *saveptr_1;
+	const char *sep = " _";
+	const char *sep_1 = " v()V";
 	string ndname;
-	ndname = ".print tran ";
+	vector<string> name_vec;
 
-	chs = strtok_r(line, sep, &saveptr);
-	clog<<"chs: "<<chs<<endl;
+	chs = strtok_r(line, sep_1, &saveptr_1);
 
 	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
 	// first print .tran to each file
 	for(int j=0;j<num_blocks;j++)
-		fprintf(of[j], "%s", ndname.c_str());
+		fprintf(of[j], "%s ", chs);
+	chs = strtok_r(NULL, sep_1, &saveptr_1);
+	for(int j=0;j<num_blocks;j++)
+		fprintf(of[j], "%s ", chs);
+
+	chs = strtok_r(NULL, sep_1, &saveptr_1);
+	while(chs != NULL){
+		// clog<<"chs: "<<chs<<endl;
+		if(string(chs) != "\n")
+			name_vec.push_back(string(chs));
+		chs = strtok_r(NULL, sep_1, &saveptr_1);
+	}
+	// clog<<"name_vec, size(): "<<name_vec.size()<<endl;
 	// then print the nodes
-	for(size_t i=0;i<tran.nodes.size();i++){
-		string tr_nd_name = tran.nodes[i].name;
+	for(size_t i=0;i<name_vec.size();i++){
+		string tr_nd_name = name_vec[i];
 		//clog<<"name: "<<tr_nd_name<<endl;
 		char *p = &tr_nd_name[0];
 		chs = strtok_r(p, sep, &saveptr);
@@ -999,9 +1010,9 @@ void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class, c
 		for(int j=0;j<num_blocks;j++){
 			if(x >= mpi_class.geo[4*j] && x<= mpi_class.geo[4*j+2]){
 				if(y >= mpi_class.geo[4*j+1]&& y <= mpi_class.geo[4*j+3]){
-					//clog<<"name again: "<<tran.nodes[i].name<<endl;
+					//clog<<"name again: "<<name_vec[i]<<endl;
 					//clog<<"belongs to block: "<<j<<" "<<x<<" "<<mpi_class.geo[4*j]<<" "<<mpi_class.geo[4*j+2]<<" "<<y<<" "<<mpi_class.geo[4*j+1]<<" "<<mpi_class.geo[4*j+3]<<endl;
-					fprintf(of[j], "v(%s) ", tran.nodes[i].name.c_str());	
+					fprintf(of[j], "v(%s) ", name_vec[i].c_str());	
 				}
 			}
 		}
@@ -1009,4 +1020,5 @@ void Parser::write_print(Tran &tran, vector<FILE *> &of, MPI_CLASS &mpi_class, c
 	for(int j=0;j<num_blocks;j++){
 		fprintf(of[j], "\n");
 	}
+	name_vec.clear();
 }
