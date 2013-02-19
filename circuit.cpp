@@ -543,10 +543,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	block_init(my_id, A, mpi_class);
 
-	if(my_id==0) clog<<"before bd_init. "<<endl;
 	boundary_init(my_id, num_procs);
 
-	if(my_id==0) clog<<"before in_init. "<<endl;
 	internal_init(my_id, num_procs);
 	
 	bool successful = false;
@@ -555,6 +553,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		clog<<"before solve DC. "<<my_id<<endl;
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
+
+	if(my_id==0)
+		clog<<"after solve DC. "<<my_id<<endl;
 
 	//return true;
 	// then sync
@@ -678,7 +679,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       save_ckt_nodes(tran, block_info.xp);
       time += tran.step_t;
       // sync in the end of each time step
-      //MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(MPI_COMM_WORLD);
       //clog<<"after time-t step barrier. "<<my_id<<" "<<time<<endl;
       iter ++;
    }

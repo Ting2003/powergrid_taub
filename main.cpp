@@ -116,11 +116,11 @@ int main(int argc, char * argv[]){
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
-	for(size_t i=0;i<cktlist.size();i++){
+	for(size_t i=1;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(my_id==0){
+		if(my_id==0){
 			clog<<"<======== solving: "<<ckt->get_name()<<" =========>"<<my_id<<endl;
-		//}
+		}
 		ckt->solve(my_id, num_procs, mpi_class, 
 				tran);	
 		free(ckt);
@@ -130,7 +130,6 @@ int main(int argc, char * argv[]){
 	 		tran.print_tr_nodes();*/
 		//clog<<"before barrier: "<<my_id<<endl;
 		MPI_Barrier(MPI_COMM_WORLD);
-		//clog<<"after barrier. "<<my_id<<endl;
 	}
 
 	
