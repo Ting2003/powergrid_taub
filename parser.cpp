@@ -718,7 +718,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 			}
 		}
 	}
-	
+	free(line);
 	// finally print end file symbol (not need to)
 	//clog<<"finish output. "<<endl;
 	fclose(f);

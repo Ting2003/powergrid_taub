@@ -142,11 +142,13 @@ int main(int argc, char * argv[]){
 		//clog<<"after close file/ "<<endl;
 	}
 
-	MPI_Barrier(MPI_COMM_WORLD);
-	MPI_Finalize();
-	//if(my_id==0)
-		clog<<"after finalize. "<<my_id<<endl;
 	close_logfile();
+	MPI_Barrier(MPI_COMM_WORLD);
+	// MPI_Abort(MPI_COMM_WORLD, 911);
+	int err = MPI_Finalize();
+	//clog<<"error: "<<my_id<<" "<<err<<endl;
+	//if(my_id==0)
+		//clog<<"after finalize. "<<my_id<<endl;
 	//clog<<"close logfile. "<<my_id<<endl;
 	return 0;
 }
