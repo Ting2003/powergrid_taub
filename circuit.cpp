@@ -654,8 +654,6 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
 
-   clog<<"after 1st time step. "<<my_id<<" "<<time<<endl; 
-
    int iter = 0;
    //for(; time <= tran.tot_t; time += tran.step_t){
    while(time <= tran.tot_t){// && iter < 2){
@@ -788,8 +786,7 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	}
 //# if 0 // temporaly comment out reduce and bcast
 
-	int errorCode = MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
-
+	MPI_Reduce(&diff, &diff_root, 1, MPI_FLOAT, MPI_MAX, 0, MPI_COMM_WORLD);
 	//MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Bcast(&diff_root, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);	
 //#endif
@@ -2116,18 +2113,18 @@ void Circuit::current_tr(Net *net, double &time){
 	if(time <= net->tr[2])// TD
 		net->value = net->tr[0];// V1
 	else if(t > 0 && t<= Tr){
-		slope = (net->V2 - net->V1) / 
-			(net->Tr);
-		net->value = net->V1 + t*slope;
+		slope = (net->tr[1] - net->tr[0]) / 
+			(net->tr[3]);
+		net->value = net->tr[0] + t*slope;
 	}
 	else if(t > Tr && t<= PW)
-		net->value = net->V2;
+		net->value = net->tr[1];
 	else if(t>PW && t<=Tf){
-		slope = (net->V1-net->V2)/(net->Tf);
-		net->value = net->V2 + slope*(t-PW);
+		slope = (net->tr[0]-net->tr[1])/(net->tr[4]);
+		net->value = net->tr[1] + slope*(t-PW);
 	}
 	else
-		net->value = net->V1;
+		net->value = net->tr[0];
 	//return current;
 }
 
