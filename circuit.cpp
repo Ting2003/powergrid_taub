@@ -370,11 +370,10 @@ void Circuit::solve_init(int &my_id){
 	}// end of for i
 
 	/*if(my_id==0){
-		clog<<endl;
+		cout<<endl;
 		for(int i=0;i<nodelist.size()-1;i++)
-			if(nodelist[i]->rid == 0)
-				clog <<*nodelist[i]<<endl;
-		clog<<endl;
+			cout <<*nodelist[i]<<" "<<nodelist[i]->rid<<endl;
+		//clog<<endl;
 	}*/
 	
 
@@ -409,12 +408,14 @@ void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 
 // stamp the nets by sets, block version
 // *NOTE* at the same time insert the net into boundary netlist
-void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){	
+void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetList & ns = net_set[type];
 		NetList::iterator it;
 		switch(type){
 		case RESISTOR:
+			if(my_id==0)
+				clog<<ns.size()<<endl;
 			for(it=ns.begin();it!=ns.end();++it){
 				Net * net = *it;
 				if( net == NULL ) continue;
@@ -428,6 +429,8 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 			}
 			break;
 		case VOLTAGE:
+			if(my_id==0)
+				clog<<"VDD net: "<<ns.size()<<endl;
 			for(it=ns.begin();it!=ns.end();++it){
 				if( fzero((*it)->value)  && 
 				    !(*it)->ab[0]->is_ground() &&
@@ -439,6 +442,8 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		case CAPACITANCE:
 			break;
 		case INDUCTANCE:
+			if(my_id==0)
+				clog<<"induc net: "<<ns.size()<<endl;
 			for(size_t i=0;i<ns.size();i++)
 				stamp_inductance_dc(A, ns[i], my_id);
 			break;
@@ -453,6 +458,8 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		for(int i=0;i<10;i++)
 			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
 	}*/
+	if(my_id==0)
+		clog<<"before make A symmetric. "<<endl;
 	make_A_symmetric(block_info.bp, my_id);
 	
 	A.set_row(block_info.count);
@@ -983,6 +990,7 @@ void Circuit::make_A_symmetric(double *b, int &my_id){
            if( (*it) == NULL ) continue;
            assert( fzero((*it)->value) == false );
            if(!((*it)->ab[0]->rep->isS()==X || (*it)->ab[1]->rep->isS()==X)) continue;
+
            // node p points to X node
            if((*it)->ab[0]->rep->isS()==X && ((*it)->ab[0]->rep->nbr[TOP]!=NULL && 
                 (*it)->ab[0]->rep->nbr[TOP]->type==INDUCTANCE)){
@@ -991,11 +999,15 @@ void Circuit::make_A_symmetric(double *b, int &my_id){
            else if((*it)->ab[1]->rep->isS()==X && ((*it)->ab[1]->rep->nbr[TOP]!=NULL && 
                 (*it)->ab[1]->rep->nbr[TOP]->type==INDUCTANCE)){
               p = (*it)->ab[1]->rep; q = (*it)->ab[0]->rep;
-           }           
+           }
+
            r = p->nbr[TOP]->ab[0]->rep;
            if(r->isS()!=Y) 
               r = p->nbr[TOP]->ab[1]->rep;
-
+	   /*if(my_id==0){
+		   clog<<"modify rhs net: "<<*(*it)<<endl;
+		   clog<<"p, q and r: "<<*p<<" "<<*q<<" "<<*r<<endl;
+	   }*/
            size_t id = q->rid;
            double G = 1.0 / (*it)->value;
            
@@ -1040,11 +1052,15 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	if(net->flag_bd ==1)
 		block_info.boundary_netlist.push_back(net);
 
+	//if(my_id==0 && net->flag_bd ==1)
+		//clog<<endl<<*net<<" "<<net->flag_bd<<endl;
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
 
 		// if boundary net
 		if(net->flag_bd ==1){
+			//if(my_id==0)
+				//clog<<"bd net: "<<*net<<endl;
 			if(!nl->is_ground() && 
 				nk->flag_bd ==0 && 
 				nk->isS()!=Y &&
@@ -1053,6 +1069,9 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				// stamp value into block_ids
 				size_t k1 = nk->rid;
 				A.push_back(k1,k1, G);
+				//if(my_id==0)
+					//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
+
 			}
 		}
 		// else internal net
@@ -1274,12 +1293,16 @@ void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 	// find the non-ground node
 	Node * X = net->ab[0];
+	//if(my_id==0) clog<<"net: "<<*net<<endl;
 	if( X->is_ground() ) X = net->ab[1];
 
 	if(X->rep->flag_bd ==1) return;
 	// do stamping for internal node
 	long id =X->rep->rid;
+
+	//if(my_id==0) clog<<" stamp net: "<<*net<<endl;
 	A.push_back(id, id, 1.0);
+	//if(my_id==0) clog<<"push ("<<id<<", "<<id<<", 1.0)"<<endl;
 	Net * south = X->rep->nbr[SOUTH];
 	if( south != NULL &&
 			south->type == CURRENT ){
@@ -1330,8 +1353,12 @@ void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
 	size_t k = nk->rid;
 	size_t l = nl->rid;
 	G = 1./net->value;
+	//if(my_id==0)
+		//clog<<"induc net: "<<*net<<endl;
 	if( nk->isS()!=Y && !nk->is_ground()&&nk->flag_bd==0) {
 		A.push_back(k,k, 1);
+		//if(my_id==0)
+		//clog<<"push ("<<*nk<<" "<<k<<" "<<k<<" 1)"<<endl;
 		// general stamping
 		if(!nl->is_ground())
 		// A.push_back(k,l,-1);
@@ -1343,6 +1370,8 @@ void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
 
 	if( nl->isS() !=Y && !nl->is_ground() &&nl->flag_bd==0) {
 		A.push_back(l,l, 1);
+		//if(my_id==0)
+		//clog<<"push ("<<*nl<<" "<<l<<" "<<l<<" 1)"<<endl;
 		if(!nk->is_ground())
 		// general stamping
 		// A.push_back(l,k,-1);
@@ -2830,7 +2859,8 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
-	
+
+	if(my_id==0) clog<<"before iteration. "<<endl;
 	double time=0;
 	double t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){

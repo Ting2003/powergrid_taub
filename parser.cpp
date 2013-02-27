@@ -102,8 +102,9 @@ void Parser::insert_net_node(char * line, int &my_id, MPI_CLASS &mpi_class){
 			count = cpr_nd_block(nd_ptr[i], mpi_class.block_geo, my_id);
 			if (count==1) // internal node
 				ckt->add_node(nd_ptr[i]);
-			else
+			else{
 				nd_ptr[i]->flag_bd = 1;
+			}
 
 			if( nd_ptr[i]->isS()==Y)	     // determine circuit type
 				ckt->set_type(WB);
@@ -692,15 +693,22 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 				// at least one node is inside block
 				count_1 = cpr_nd_block(nd[0], geo, i);
 				count_2 = cpr_nd_block(nd[1], geo, i);
-				
+
+				/*if(my_id==0 &&nd[0].name == "n1_2024_174" && nd[1].name == "n1_2072_174"){
+					clog<<"line: "<<line<<endl;
+					clog<<count_1<<" "<<count_2<<endl;
+				}*/
 				if(nd[0].is_ground() && count_2 ==1)
 					temp = fprintf(of[i], "%s", line);
 				else if(nd[1].is_ground() && count_1 ==1)
 					temp = fprintf(of[i], "%s", line);
 				// write all voltage sources
-				else if((count_1 + count_2 ==2)){
+				//else if(count_1 + count_2 ==2){
+				else if(!nd[0].is_ground() && !nd[1].is_ground() 
+						&& (count_1 + count_2 >=1)){
 					temp = fprintf(of[i], "%s", line);
-					//clog<<temp<<" "<<i<<" "<<line<<endl;
+					//if(my_id==0)
+					//clog<<"write: "<<temp<<" "<<i<<" "<<line<<endl;
 				}
 			}
 		}
