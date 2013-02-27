@@ -692,9 +692,13 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 				// at least one node is inside block
 				count_1 = cpr_nd_block(nd[0], geo, i);
 				count_2 = cpr_nd_block(nd[1], geo, i);
-
+				
+				if(nd[0].is_ground() && count_2 ==1)
+					temp = fprintf(of[i], "%s", line);
+				else if(nd[1].is_ground() && count_1 ==1)
+					temp = fprintf(of[i], "%s", line);
 				// write all voltage sources
-				if((count_1 + count_2 >=1)){
+				else if((count_1 + count_2 ==2)){
 					temp = fprintf(of[i], "%s", line);
 					//clog<<temp<<" "<<i<<" "<<line<<endl;
 				}

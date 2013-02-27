@@ -33,7 +33,7 @@
 #include "mpi.h"
 using namespace std;
 
-double Circuit::EPSILON = 1e-5;
+double Circuit::EPSILON = 1e-3;
 size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0;
@@ -305,7 +305,7 @@ void Circuit::print_matlab(Matrix A){
 void Circuit::solve_init(int &my_id){
 	sort_nodes();
 	//if(my_id==0)
-		//clog<<nodelist<<endl;
+		//clog<<nodelist.size()<<endl;
 	sort_bd_nodes(my_id);
 	sort_internal_nodes(my_id);
 	
@@ -549,13 +549,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	bool successful = false;
 
-	//if(my_id==0)
-		//clog<<"before solve DC. "<<my_id<<endl;
+	if(my_id==0)
+		clog<<"before solve DC. "<<my_id<<endl;
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
 
-	//if(my_id==0)
-		//clog<<"after solve DC. "<<my_id<<endl;
+	if(my_id==0)
+		clog<<"after solve DC. "<<my_id<<endl;
 
 	//return true;
 	// then sync
@@ -612,9 +612,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    
    set_eq_induc(tran);
    set_eq_capac(tran);
+
+   if(my_id==0)
+	   clog<<"before modify_rhs_tr_0. "<<endl;
    // already push back cap and induc into set_x and b
    modify_rhs_tr_0(block_info.bnewp, block_info.xp, my_id);
    
+   if(my_id==0)
+	   clog<<"after modify_rhs_tr_0. "<<endl;
 #if 0
    // push rhs node into node_set b
    for(size_t i=0;i<n;i++){
@@ -646,6 +651,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    s_col_FBS = new int [len_path_x];
    find_super();
 #endif
+
+   if(my_id==0)
+	   clog<<"before first time step. "<<endl;
    //for(size_t i=0;i<replist.size();i++)
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
@@ -654,7 +662,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    save_ckt_nodes(tran, block_info.xp);
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
+
    int iter = 0;
+   if(my_id==0)
+	   clog<<"after first time step. "<<endl;
    //for(; time <= tran.tot_t; time += tran.step_t){
    while(time <= tran.tot_t){// && iter < 2){
 	// bnewp[i] = bp[i];
@@ -2131,7 +2142,8 @@ void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
 	double i_t = 0;
 	double temp = 0;
 	double Ieq = 0;
-	//clog<<"c net: "<<*net<<endl;
+	//if(my_id==0)
+	//clog<<"c net: "<<*net<<" net->flag_bd: "<<net->flag_bd<< endl;
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
         // nk point to Z node
@@ -2139,9 +2151,12 @@ void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
 		swap<Node *>(nk, nl);
 		swap<Node*>(net->ab[0], net->ab[1]);
 	}
+	//if(my_id==0)
 	//clog<<"nk, nl: "<<*nk<<" "<<*nl<<endl;
 	size_t k = nk->rid;
 	size_t l = nl->rid;
+	//if(my_id==0)
+	//clog<<"k, l: "<<k<<" "<<l<<" "<<nk->flag_bd<<" "<<nl->flag_bd<<endl;
 
 	Net *r = nk->nbr[TOP];
 	Node *a = r->ab[0]->rep;
@@ -2177,6 +2192,8 @@ void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
            pg.node_set_x.push_back(id_b);
         }
 //#endif
+	//if(my_id==0)
+	//	clog<<"before calc temp. "<<endl;
 	if(nk->is_ground())
 	 //temp = 2*net->value/tran.step_t*(0-x[l]);
 	 temp = net->value *(-x[l]);
@@ -2206,6 +2223,8 @@ void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
 		 //if(my_id==1)
 		    // clog<<l<<" "<<*nl<<" rhs +: "<<rhs[l]<<endl;
 	}
+	//if(my_id==0)
+	//	clog<<"finish 1 net. "<<endl;
 }
 
 // add Ieq into rhs
@@ -2262,8 +2281,9 @@ void Circuit::modify_rhs_tr_0(double * b, double *x, int &my_id){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
 		if(type ==CAPACITANCE){	
-			for(size_t i=0;i<ns.size();i++)
+			for(size_t i=0;i<ns.size();i++){
 				modify_rhs_c_tr_0(ns[i], b, x, my_id);
+			}
 		}
 		else if(type == INDUCTANCE){
 			for(size_t i=0;i<ns.size();i++){
@@ -2780,6 +2800,9 @@ bool Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 			break;
 		}
 	}
+	//if(my_id ==0)
+		//clog<<"iter: "<<iter<<endl;
+
 	t2 = MPI_Wtime();
 	time = t2-t1;
 	return successful;
