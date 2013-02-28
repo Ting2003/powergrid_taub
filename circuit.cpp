@@ -1054,6 +1054,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 
 	//if(my_id==0 && net->flag_bd ==1)
 		//clog<<endl<<*net<<" "<<net->flag_bd<<endl;
+	int count = 0;
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
 
@@ -1076,27 +1077,34 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		}
 		// else internal net
 		else if( nk->isS()!=Y && nl->isS()!=Y) {
-			//if(my_id==0)
+			/*if(my_id==0){
+				cout<<"internal net: "<<*net<<endl<<endl;
+			}*/
 				//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
 			size_t k1 = nk->rid;
 			size_t l1 = nl->rid;
 			if( !nk->is_ground()&&  
           			(nk->nbr[TOP]== NULL ||
 				 nk->nbr[TOP]->type != INDUCTANCE)){
-
-				//if(my_id==0) clog<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+				if(my_id==0) cout<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
 				A.push_back(k1,k1, G);
+				count ++;
 			}
 			if(!nk->is_ground() && 
 				!nl->is_ground() && 
 				l1 < k1 &&
 				(nl->nbr[TOP] ==NULL ||
 				 nl->nbr[TOP]->type != INDUCTANCE)){ // only store the lower triangular part{
-				//if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				if(my_id==0 && nd[1]->name == "_X_n7_269_220") clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
 			}
 		}
 	}// end of for j	
+	/*if(net->flag_bd ==0 && count <2 && my_id==0){
+		clog<<nd[0]->rid<<" "<<nd[1]->rid<<endl;
+		clog<<endl<<count<<endl;
+		clog<<*net<<" stamp error. "<<endl;
+	}*/
 }
 
 // only stamp resistor node connected to inductance
