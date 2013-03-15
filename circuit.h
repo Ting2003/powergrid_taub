@@ -190,6 +190,7 @@ private:
 	// methods of stamping the matrix
 	
 	void make_A_symmetric(double *bp, int &my_id);
+	void check_matrix(Matrix &A);
 	void current_tr(Net *net, double &time);
 
 	void stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class);

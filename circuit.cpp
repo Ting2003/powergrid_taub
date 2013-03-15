@@ -464,6 +464,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	
 	A.set_row(block_info.count);
 	//if(my_id==0)
+		//check_matrix(A);
 		//cout<<"before CK_decomp. "<<endl;
 	if(block_info.count >0){
 		block_info.CK_decomp(A, cm);
@@ -1084,7 +1085,8 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		// else internal net
 		else if( nk->isS()!=Y && nl->isS()!=Y) {
 			/*if(my_id==0){
-				cout<<"internal net: "<<*net<<endl<<endl;
+				cout<<nk->flag_bd<<" "<<nl->flag_bd<<endl;
+				//cout<<"internal net: "<<*net<<endl<<endl;
 			}*/
 				//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
 			size_t k1 = nk->rid;
@@ -1092,22 +1094,29 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			if( !nk->is_ground()&&  
           			(nk->nbr[TOP]== NULL ||
 				 nk->nbr[TOP]->type != INDUCTANCE)){
-				if(my_id==0 && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z)
+				/*if(my_id==0)// && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z)
 				{	//cout<<*net<<endl;
 					//cout<<*nk<<" "<<k1<<endl;
 					cout<<"push + ("<<k1<<","<<k1<<","<<G<<")"<<endl;
-				}
+				}*/
 				A.push_back(k1,k1, G);
-				count ++;
+				// count ++;
 			}
+			/*else{
+				if(my_id==0)
+					cout<<"except net: "<<*net<<" "<<*nk<<endl;
+			}*/
 			if(!nk->is_ground() && 
 				!nl->is_ground() && 
 				l1 < k1 &&
 				(nl->nbr[TOP] ==NULL ||
 				 nl->nbr[TOP]->type != INDUCTANCE)){ // only store the lower triangular part{
-				if(my_id==0 && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z) cout<<"push -("<<k1<<","<<l1<<","<<-G<<")"<<endl;
-				if(nk->isS()!= X && nl->isS()!=X && nk->isS()!=Z && nl->isS()!=Z)
+				//if(my_id==0) cout<<"push - ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				//if(nk->isS()!= X && nl->isS()!=X && nk->isS()!=Z && nl->isS()!=Z){
+				
+				//if(my_id==0) cout<<"push -("<<*nk<<" "<<*nl<<" ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
+				//}
 			}
 		}
 	}// end of for j	
@@ -2898,4 +2907,49 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 		clog<<"# iter: "<<iter<<endl;
 	}*/
 	get_voltages_from_block_LU_sol();
+}
+
+// check if matrix is SPD or not
+void Circuit::check_matrix(Matrix &A){
+	size_t count = 0;
+	A.merge();
+	clog<<A.size()<<endl;
+	/*for(size_t i=0;i<A.size();i++){
+		cout<<A.Ti[i]+1<<" "<<A.Tj[i]+1<<" "<<A.Tx[i]<<endl;
+		if(A.Ti[i]!=A.Tj[i])
+			cout<<A.Tj[i]+1<<" "<<A.Ti[i]+1<<" "<<A.Tx[i]<<endl;
+		//if(A.Ti[i]==A.Tj[i] && A.Tx[i]<10)
+			//cout<<"diagonal:  "<<A.Ti[i]<<" "<<A.Tj[i]<<" "<<A.Tx[i]<<endl;
+	}
+	return;
+	for(size_t i=0;i<A.size();i++){
+		if(A.Ti[i]==847 || A.Tj[i]==847)
+			cout<<"all: "<<A.Ti[i]<<" "<<A.Tj[i]<<" "<<A.Tx[i]<<endl;
+	}
+	return;*/
+	for(size_t i=0;i<A.size();i++){
+		size_t row = A.Ti[i];
+		size_t col = A.Tj[i];
+		if(A.Ti[i] != A.Tj[i]){// && count<1){
+			count++;
+			if(A.Tx[i]>=0)
+			cout<<"pos: "<<A.Tx[i]<<endl;
+			double row_sum=0;
+			double col_sum=0;
+			for(size_t j=0;j<A.size();j++){
+				if(A.Ti[j]==row && A.Tj[j]==row)
+					row_sum += A.Tx[j];
+				if(A.Ti[j]==col && A.Tj[j]==col)
+					col_sum += A.Tx[j];
+
+			}
+			clog<<"row / col sum: "<<row_sum<<" "<<col_sum<<endl;
+			if(A.Tx[i]+row_sum<0){
+				cout<<"error data: "<<A.Tx[i]<<" "<<row_sum<<" "<<A.Ti[i]<<" "<<A.Tj[i]<<endl;
+			}
+			if(A.Tx[i]+col_sum<0){
+				cout<<"error data: "<<A.Tx[i]<<" "<<col_sum<<" "<<A.Ti[i]<<" "<<A.Tj[i]<<endl;
+			}
+		}
+	}
 }
