@@ -415,7 +415,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		switch(type){
 		case RESISTOR:
 			if(my_id==0)
-				clog<<ns.size()<<endl;
+				clog<<"resis net. "<<ns.size()<<endl;
 			for(it=ns.begin();it!=ns.end();++it){
 				Net * net = *it;
 				if( net == NULL ) continue;
@@ -460,12 +460,16 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	}*/
 	if(my_id==0)
 		clog<<"before make A symmetric. "<<endl;
-	make_A_symmetric(block_info.bp, my_id);
+	 make_A_symmetric(block_info.bp, my_id);
 	
 	A.set_row(block_info.count);
+	//if(my_id==0)
+		//cout<<"before CK_decomp. "<<endl;
 	if(block_info.count >0){
 		block_info.CK_decomp(A, cm);
 	}
+	if(my_id==0)
+		cout<<"after CK_decomp. "<<endl;
 }
 
 // stamp the nets by sets, block version
@@ -564,7 +568,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	if(my_id==0)
 		clog<<"after solve DC. "<<my_id<<endl;
 
-	//return true;
+	return true;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
@@ -851,6 +855,8 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	for(size_t j=0;j<block_info.count;j++)
 		block_info.x_old[j] = block_info.xp[j];	
 
+	if(my_id==0)
+		clog<<"before solve_CK. "<<endl;
 	if(block_info.count>0){
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
@@ -1086,7 +1092,11 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 			if( !nk->is_ground()&&  
           			(nk->nbr[TOP]== NULL ||
 				 nk->nbr[TOP]->type != INDUCTANCE)){
-				if(my_id==0) cout<<"push ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+				if(my_id==0 && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z)
+				{	//cout<<*net<<endl;
+					//cout<<*nk<<" "<<k1<<endl;
+					cout<<"push + ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+				}
 				A.push_back(k1,k1, G);
 				count ++;
 			}
@@ -1095,7 +1105,8 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				l1 < k1 &&
 				(nl->nbr[TOP] ==NULL ||
 				 nl->nbr[TOP]->type != INDUCTANCE)){ // only store the lower triangular part{
-				if(my_id==0 && nd[1]->name == "_X_n7_269_220") clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				if(my_id==0 && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z) cout<<"push -("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				if(nk->isS()!= X && nl->isS()!=X && nk->isS()!=Z && nl->isS()!=Z)
 				A.push_back(k1,l1,-G);
 			}
 		}
@@ -2874,8 +2885,8 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
 		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		if(my_id ==0)
+			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
