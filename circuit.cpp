@@ -304,8 +304,8 @@ void Circuit::print_matlab(Matrix A){
 // 4. get representative lists
 void Circuit::solve_init(int &my_id){
 	sort_nodes();
-	//if(my_id==0)
-		//clog<<nodelist.size()<<endl;
+	if(my_id==0)
+		clog<<"total num_nodes: "<<nodelist.size()<<endl;
 	sort_bd_nodes(my_id);
 	sort_internal_nodes(my_id);
 	
@@ -401,6 +401,8 @@ void Circuit::solve_init(int &my_id){
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	block_info.update_block_geometry(mpi_class);
+	if(my_id==0)
+		clog<<block_info.lx<<" "<<block_info.ux<<" "<<block_info.ly<<" "<<block_info.uy<<endl;
 	block_info.allocate_resource(cm);
 	copy_node_voltages_block();
 	stamp_block_matrix(my_id, A, mpi_class);
@@ -458,8 +460,6 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		for(int i=0;i<10;i++)
 			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
 	}*/
-	if(my_id==0)
-		clog<<"before make A symmetric. "<<endl;
 	 make_A_symmetric(block_info.bp, my_id);
 	
 	A.set_row(block_info.count);
@@ -468,9 +468,11 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 		//cout<<"before CK_decomp. "<<endl;
 	if(block_info.count >0){
 		block_info.CK_decomp(A, cm);
+		//if(cm->status ==1)
+			//clog<<" non SPD: "<<my_id<<" "<<cm->status<<endl;
 	}
-	if(my_id==0)
-		cout<<"after CK_decomp. "<<endl;
+	//if(my_id==0)
+		//clog<<"after CK_decomp. "<<endl;
 }
 
 // stamp the nets by sets, block version
@@ -554,6 +556,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}
 	
 	block_init(my_id, A, mpi_class);
+	//return true;
 
 	boundary_init(my_id, num_procs);
 
@@ -561,15 +564,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	
 	bool successful = false;
 
-	if(my_id==0)
-		clog<<"before solve DC. "<<my_id<<endl;
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
 
-	if(my_id==0)
-		clog<<"after solve DC. "<<my_id<<endl;
 
-	return true;
+	//return true;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
@@ -625,13 +624,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    set_eq_induc(tran);
    set_eq_capac(tran);
 
-   if(my_id==0)
-	   clog<<"before modify_rhs_tr_0. "<<endl;
+   //if(my_id==0)
+	   //clog<<"before modify_rhs_tr_0. "<<endl;
    // already push back cap and induc into set_x and b
    modify_rhs_tr_0(block_info.bnewp, block_info.xp, my_id);
    
-   if(my_id==0)
-	   clog<<"after modify_rhs_tr_0. "<<endl;
+   //if(my_id==0)
+	   //clog<<"after modify_rhs_tr_0. "<<endl;
 #if 0
    // push rhs node into node_set b
    for(size_t i=0;i<n;i++){
@@ -664,8 +663,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    find_super();
 #endif
 
-   if(my_id==0)
-	   clog<<"before first time step. "<<endl;
+   //if(my_id==0)
+	   //clog<<"before first time step. "<<endl;
    //for(size_t i=0;i<replist.size();i++)
    // solve_eq_sp(block_info.xp, block_info.bnewp);
    solve_tr_step(num_procs, my_id, mpi_class);
@@ -676,8 +675,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    MPI_Barrier(MPI_COMM_WORLD);
 
    int iter = 0;
-   if(my_id==0)
-	   clog<<"after first time step. "<<endl;
+   //if(my_id==0)
+	  // clog<<"after first time step. "<<endl;
    //for(; time <= tran.tot_t; time += tran.step_t){
    while(time <= tran.tot_t){// && iter < 2){
 	// bnewp[i] = bp[i];
@@ -856,8 +855,6 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	for(size_t j=0;j<block_info.count;j++)
 		block_info.x_old[j] = block_info.xp[j];	
 
-	if(my_id==0)
-		clog<<"before solve_CK. "<<endl;
 	if(block_info.count>0){
 		block_info.solve_CK(cm);
 		block_info.xp = static_cast<double *>(block_info.x_ck->x);
@@ -2888,14 +2885,13 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	// reorder boundary array according to nbrs
 	if(my_id==0)	reorder_bd_x_g(mpi_class);
 
-	if(my_id==0) clog<<"before iteration. "<<endl;
 	double time=0;
 	double t1= MPI_Wtime();
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
 		iter++;
-		if(my_id ==0)
-			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
@@ -2913,11 +2909,11 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 void Circuit::check_matrix(Matrix &A){
 	size_t count = 0;
 	A.merge();
-	clog<<A.size()<<endl;
-	/*for(size_t i=0;i<A.size();i++){
+	clog<<A.get_row()<<endl;
+	for(size_t i=0;i<A.size();i++){
 		cout<<A.Ti[i]+1<<" "<<A.Tj[i]+1<<" "<<A.Tx[i]<<endl;
-		if(A.Ti[i]!=A.Tj[i])
-			cout<<A.Tj[i]+1<<" "<<A.Ti[i]+1<<" "<<A.Tx[i]<<endl;
+		//if(A.Ti[i]!=A.Tj[i])
+			//cout<<A.Tj[i]+1<<" "<<A.Ti[i]+1<<" "<<A.Tx[i]<<endl;
 		//if(A.Ti[i]==A.Tj[i] && A.Tx[i]<10)
 			//cout<<"diagonal:  "<<A.Ti[i]<<" "<<A.Tj[i]<<" "<<A.Tx[i]<<endl;
 	}
@@ -2926,7 +2922,7 @@ void Circuit::check_matrix(Matrix &A){
 		if(A.Ti[i]==847 || A.Tj[i]==847)
 			cout<<"all: "<<A.Ti[i]<<" "<<A.Tj[i]<<" "<<A.Tx[i]<<endl;
 	}
-	return;*/
+	return;
 	for(size_t i=0;i<A.size();i++){
 		size_t row = A.Ti[i];
 		size_t col = A.Tj[i];
@@ -2953,3 +2949,4 @@ void Circuit::check_matrix(Matrix &A){
 		}
 	}
 }
+
