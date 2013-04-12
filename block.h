@@ -29,7 +29,7 @@ public:
 	void free_block_cholmod(cholmod_common *cm);
 	void LU_decomposition();
 	void CK_decomp(Matrix & A, cholmod_common *cm);
-	void solve_CK(cholmod_common *cm); // solve with cholesky decomp
+	void solve_CK_DC(int my_id); // solve with cholesky decomp
 
 	void solve_CK_tr(cholmod_common *cm); // solve with cholesky decomp
 	// allocate space for the matrix and vectors accoding to count
@@ -39,10 +39,21 @@ public:
 	void update_x();
 
 	bool node_in_block(Node *nd);
-	bool net_in_block(Net *net);
+	int net_in_block(Net *net);
+
+	void sort_nodes();
+	void copy_node_voltages_block();
+	double modify_voltage(int &my_id);
+	void copy_array(double *x_old, double *xp);
+	void stamp_matrix(int &my_id, MPI_CLASS &mpi_class);
+	void stamp_block_resistor(int &my_id, Net * net, Matrix &A);
+
+	void make_A_symmetric(double *bp, int &my_id);
+	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
+	void stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
+	void stamp_inductance_dc(Matrix & A, Net * net, int &my_id);
 
 	void update_rhs(double *bnewp, double *bp, int &my_id);
-	bool compare_node_ptr(const Node *a, const Node *b);	
 	// NetPtrVector boundary_netlist;
 
 	cholmod_common c, *cm;
@@ -55,6 +66,9 @@ public:
 	double *bp, *bnewp, *xp, *x_old, *bnewp_temp;
 	// solution
 	cholmod_dense *x_ck;
+
+	double *Lx;
+	int *Li, *Lp, *Lnz;
 
 	// number of *representative* nodes in this block
 	// equal to matrix size and b size
@@ -70,4 +84,5 @@ public:
 	friend class Circuit;
 };
 
+bool compare_node_ptr(const Node *a, const Node *b);	
 #endif

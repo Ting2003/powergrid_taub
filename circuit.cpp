@@ -44,6 +44,7 @@ const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
 int Circuit::NUM_BLOCKS_X = 1;
 int Circuit::NUM_BLOCKS_Y = 1;
+int Circuit::DEBUG=0;
 
 //////////////////////////////////////////////////////////////////////////
 // Constructor and utility functions goes here
@@ -97,9 +98,9 @@ Circuit::~Circuit(){
 	nodelist.clear();
 	replist.clear();
 	mergelist.clear();
-	for(size_t i=0;i<boundary_netlist.size();i++)
-    		delete boundary_netlist[i];
-    	boundary_netlist.clear();
+	for(size_t i=0;i<bd_netlist.size();i++)
+    		delete bd_netlist[i];
+    	bd_netlist.clear();
 
 	// delete bd nodes
 	bd_nodelist_sw.clear();
@@ -167,6 +168,7 @@ void Circuit::check_sys() const{
 // input: two node a, b
 // return true if a < b, false o/w
 // note that ground note are put to last
+#if DEBUG
 bool compare_node_ptr(const Node * a, const Node * b){
 	if( a->is_ground() ) return false;
 	if (b->is_ground() ) return true;
@@ -186,7 +188,7 @@ bool compare_node_ptr(const Node * a, const Node * b){
 	else
 		return (a->pt.y < b->pt.y);
 }
-
+#endif
 // sort the nodes according to their coordinate 
 // sort nodelist
 void Circuit::sort_nodes(){
@@ -405,15 +407,16 @@ void Circuit::solve_init(int &my_id){
 // 3. Compute block size
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
-	// assign nodes into blocks
+	// assign nodes into blocks and sort
 	assign_block_nodes();
 	assign_block_nets();
-	for(size_t i=0;i<block_vec.size();i++)
+	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i].allocate_resource();
-	copy_node_voltages_block();
-	stamp_block_matrix(my_id, A, mpi_class);
+		// copy_node_voltages_block();
+		block_vec[i].stamp_matrix(my_id, mpi_class);
+	}
 }
-
+#if 0
 // stamp the nets by sets, block version
 // *NOTE* at the same time insert the net into boundary netlist
 void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
@@ -480,7 +483,7 @@ void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
 	//if(my_id==0)
 		//clog<<"after CK_decomp. "<<endl;
 }
-
+#endif
 // stamp the nets by sets, block version
 // *NOTE* at the same time insert the net into boundary netlist
 void Circuit::stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class, Tran &tran){	
@@ -527,14 +530,6 @@ void Circuit::stamp_block_matrix_tr(int &my_id, Matrix &A, MPI_CLASS &mpi_class,
 			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
 	}*/	
 }
-// 1. mark rep nodes into corresponding blocks
-// 2. find block size of replist nodes
-// 3. allocate rhs size of each block
-// 4. find local block index for each node
-void Circuit::find_block_size(MPI_CLASS &mpi_class){	
-	// for each block, allocate resource
-	block_info.allocate_resource(cm);
-}
 
 void Circuit::solve(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tran){
 	// each block is solved by IT
@@ -580,8 +575,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	//return 0;
-#if 1
+	return 0;
+#if 0
 	for(size_t i=0;i<block_info.count;i++){
 		block_info.bp[i] = 0;
 		block_info.bnewp[i] = 0;
@@ -718,17 +713,17 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    /*delete [] s_col_FFS;
    delete [] s_col_FBS;*/
 #endif
+#if 0
 	/////////// release resources
 	if(block_info.count > 0)
 		block_info.free_block_cholmod(cm);
 	//if(my_id==0) clog<<"free block info. "<<endl;
 	cholmod_finish(cm);
 	//clog<<"cholmod finish. "<<my_id<<endl;
-
+#endif
         // MPI_Barrier(MPI_COMM_WORLD);
 	return successful;
 }
-
 // solve blocks with mpi: multi-core
 // One iteration during solving the circuit, for any block B:
 // 1. update the righthand-side of the matrix of B
@@ -737,6 +732,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 // 4. track the maximum error of solution
 double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		int&num_procs, MPI_CLASS &mpi_class){	
+#if DEBUG
 	float diff = .0;
 	float diff_root=0;
 
@@ -825,8 +821,8 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
 	//return diff;
+#endif
 }
-
 // solve blocks with mpi: multi-core
 // One iteration during solving the circuit, for any block B:
 // 1. update the righthand-side of the matrix of B
@@ -851,28 +847,14 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	clog<<endl;
 	}*/
 
-	// new rhs store in bnewp
-	block_info.update_rhs(block_info.bnewp,block_info.bp, my_id);
-	/*if(my_id==1) {
-		clog<<"replist size: "<<replist.size()<<endl;
-		for(int i=0;i<replist.size();i++)
-			clog<<"bp: "<<i<<" "<<*replist[i]<<" "<<block_info.bnewp[i]<<endl;
-	}*/
-
-	// x_old stores old solution
-	for(size_t j=0;j<block_info.count;j++)
-		block_info.x_old[j] = block_info.xp[j];	
-
-	if(block_info.count>0){
-		block_info.solve_CK(cm);
-		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-		/*if(my_id==0 && iter<3)
-		for(int i=0;i<replist.size();i++)
-			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
+	// new rhs store in bnewp and solve
+	for(size_t i=0; i < block_vec.size();i++){
+		block_vec[i].solve_CK_DC(my_id);
+		double local_diff = 
+			block_vec[i].modify_voltage(my_id);
+		if(local_diff > diff)
+			diff = local_diff;
 	}
-
-	diff = modify_voltage(my_id, block_info, 
-			block_info.x_old);
 
 	assign_bd_internal_array(my_id);
 	// 0 rank cpu will gather all the solution from bd_x
@@ -893,7 +875,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
 }
-
+#if 0
 double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 	double max_diff = 0.0;
 	//if(get_name()=="VDDA") OMEGA = 1.0;
@@ -910,16 +892,18 @@ double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 
 	return max_diff;
 }
-
+#endif
 // given vector x that obtained from LU, set the value to the corresponding
 // node in nodelist
 void Circuit::get_voltages_from_LU_sol(double * x){
+#if 0
 	for(size_t i=0;i<nodelist.size()-1;i++){
 		Node * node = nodelist[i];
 		size_t id = node->rep->rid;	// get rep's id in Vec
 		double v = x[id];		// get its rep's value
 		node->value = v;
 	}
+#endif
 }
 
 // compute value of mergelist nodes
@@ -960,6 +944,7 @@ void Circuit::get_vol_mergelist(){
 
 // copy solution of block into circuit
 void Circuit::get_voltages_from_block_LU_sol(){
+#if 0
 	for(size_t i=0;i<nodelist.size()-1;i++){
 		Node * node = nodelist[i];
 		//if( node->is_mergeable() ) continue;
@@ -968,8 +953,10 @@ void Circuit::get_voltages_from_block_LU_sol(){
 		node->value = v;
 		// node->rep->value = v;
 	}
+#endif
 }
 
+#if 0
 // 1. copy node voltages from the circuit to a Vec
 //    from = true then copy circuit to x
 //    else copy from x to circuit
@@ -984,7 +971,7 @@ void Circuit::copy_node_voltages_block(){
 		block_info.nodes[id] = replist[i];
 	}
 }
-
+#endif
 void Circuit:: release_ckt_nodes(Tran &tran){
    for(size_t j=0;j<ckt_nodes.size();j++){
          ckt_nodes[j].node = NULL;
@@ -1029,6 +1016,7 @@ void Circuit::make_A_symmetric(double *b, int &my_id){
 
 // make A symmetric for tran
 void Circuit::make_A_symmetric_tr(int &my_id, Tran &tran){
+#if 0
 	int type = INDUCTANCE;
 	NetList & ns = net_set[type];
 	NetList::iterator it;
@@ -1052,10 +1040,12 @@ void Circuit::make_A_symmetric_tr(int &my_id, Tran &tran){
            //b[id] += p->value * G;
            block_info.bp[id] += block_info.xp[p->rid] *G;
 	}
+#endif
 }
 
 // =========== stamp block version of matrix =======
 void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
+#if DEBUG
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
 	
 	double G;	
@@ -1130,6 +1120,7 @@ void Circuit::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 		clog<<endl<<count<<endl;
 		clog<<*net<<" stamp error. "<<endl;
 	}*/
+#endif
 }
 
 // only stamp resistor node connected to inductance
@@ -1304,6 +1295,7 @@ void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x){
 }
 
 void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
+#if DEBUG
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
 
@@ -1321,9 +1313,11 @@ void Circuit::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 		//if(my_id==1) clog<<"bk: "<<l<<" "<<block_info.bp[l]<<endl;
 		//pl[l] +=  net->value;
 	}
+#endif
 }
 
 void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
+#if DEBUG
 	// find the non-ground node
 	Node * X = net->ab[0];
 	//if(my_id==0) clog<<"net: "<<*net<<endl;
@@ -1350,10 +1344,12 @@ void Circuit::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 		block_info.bp[id] += net->value;
 		//q[id] += net->value;
 	}
+#endif
 }
 
 // stamp a voltage source
 void Circuit::stamp_block_VDD_tr(int &my_id, Net * net, Matrix &A){
+#if DEBUG
 	// find the non-ground node
 	Node * X = net->ab[0];
 	if( X->is_ground() ) X = net->ab[1];
@@ -1376,10 +1372,12 @@ void Circuit::stamp_block_VDD_tr(int &my_id, Net * net, Matrix &A){
 		block_info.bp[id] += net->value;
 		//q[id] += net->value;
 	}
+#endif
 }
 
 // all cores stamp dc inductance
 void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
+#if DEBUG
 	double G;
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
@@ -1413,6 +1411,7 @@ void Circuit::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
 		//clog<<"("<<l<<" "<<l<<" "<<1<<")"<<endl;
 		//clog<<"("<<l<<" "<<k<<" "<<-1<<")"<<endl;
 	}
+#endif
 }
 
 // stamp capacitance Geq = 2C/delta_t
@@ -2153,6 +2152,7 @@ void Circuit::stamp_current_tr_net_1(double *bp, double * b, Net * net, double &
 }
 
 void Circuit::stamp_current_tr_net(Net * net, double &time, int &my_id){
+#if DEBUG
 	current_tr(net, time);
 	//clog<<"net: "<<*net<<endl;
 	//clog<<"current: "<<current<<endl;
@@ -2170,6 +2170,7 @@ void Circuit::stamp_current_tr_net(Net * net, double &time, int &my_id){
 		block_info.bp[l] +=  net->value;// current;
 		//clog<<"time, l, b: "<<time<<" "<<l<<" "<<b[l]<<endl;
 	}
+#endif
 }
 
 // decide transient step current values
@@ -2437,7 +2438,8 @@ void Circuit::build_FBS_path(){
 }
 
 void Circuit::set_up_path_table(){
-   size_t n = block_info.L->n;
+#if DEBUG
+	size_t n = block_info.L->n;
    //int *Lp, *Li, *Lnz;
    int p, lnz, s, e;
    //Lp = static_cast<int *> (L->p);
@@ -2455,6 +2457,7 @@ void Circuit::set_up_path_table(){
       if(s<e)
          pg.nodelist[s]->next = pg.nodelist[e];
    }
+#endif
 }
 
 bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2){
@@ -2520,7 +2523,8 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
 
  // find super node columns for path_b and path_x
 void Circuit::find_super(){
-    int p, lnz;
+#if DEBUG
+	int p, lnz;
     int j, k;
     // FFS loop
     for(k=0;k<len_path_b;){
@@ -2562,10 +2566,12 @@ void Circuit::find_super(){
           k-=3;
        }
     }
+#endif
  }
  
  void Circuit::solve_eq_sp(double *X, double *bnewp){
-    int p, q, r, lnz, pend;
+#if DEBUG
+	 int p, q, r, lnz, pend;
     int j, k, n = block_info.L->n ;
     for(int i=0;i<n;i++){
        X[i] = bnewp[i];
@@ -2764,6 +2770,7 @@ void Circuit::find_super(){
           k -= 3;
        }
     }
+#endif
  }
 
 // push the 8 set of internal bd nodes into node_set_x
@@ -3005,13 +3012,14 @@ void Circuit::assign_block_nodes(){
 		for(size_t j=0;j<block_vec.size();j++){
 			// if a node belongs to 
 			// some block
-			if(node_in_block(nd)){
+			if(block_vec[j].node_in_block(nd)){
 				block_vec[j].replist.push_back(nd);
 			}
 		}
 	}
 	// sort internal nodes of blocks
 	for(size_t i=0;i<block_vec.size();i++){
+		block_vec[i].count = block_vec[i].replist.size();
 		block_vec[i].sort_nodes();
 	}
 }
@@ -3032,7 +3040,7 @@ void Circuit::assign_block_nets(){
 				continue;	
 			net_flag = 0;
 			for(int j=0;j<block_vec.size();j++){
-				net_flag = net_in_block(net);
+				net_flag = block_vec[j].net_in_block(net);
 				if(net_flag == 2)
 					net_set[type].push_back(net);
 				else if(net_flag ==1)
@@ -3045,7 +3053,7 @@ void Circuit::assign_block_nets(){
 		net = bd_netlist[i];
 		net_flag = 0;
 		for(int j=0;j<block_vec.size();j++){
-			net_flag = net_in_block(net);
+			net_flag = block_vec[j].net_in_block(net);
 			if(net_flag == 2)
 				net_set[type].push_back(net);
 			else if(net_flag ==1)

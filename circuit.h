@@ -255,8 +255,8 @@ private:
 	double *temp;	
         int *id_map;
         //cholmod_factor *L;
-	double *Lx;
-	int *Li, *Lp, *Lnz;
+	/*double *Lx;
+	int *Li, *Lp, *Lnz;*/
 
 	void make_A_symmetric_tr(int &my_id, Tran &tran);
 
@@ -373,6 +373,7 @@ private:
 	static int MODE; // 0 = IT, 1 = LU
 	static int NUM_BLOCKS_X;
 	static int NUM_BLOCKS_Y;
+	static int DEBUG;
 	int num_blocks;
 
 	CIRCUIT_TYPE circuit_type;
@@ -484,7 +485,7 @@ inline bool Circuit::has_net(string name) const{
 inline Net * Circuit::get_net(string name){return map_net[name];}
 */
 
-bool compare_node_ptr(const Node *a, const Node *b);
+// bool compare_node_ptr(const Node *a, const Node *b);
 ostream & operator << (ostream & os, const NodePtrVector & nodelist);
 ostream & operator << (ostream & os, const NetList & nets);
 //ostream & operator << (ostream & os, const vector<Block > & block_info);
