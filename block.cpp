@@ -507,3 +507,12 @@ double Block::modify_voltage(int &my_id){
 	return max_diff;
 }
 
+// build block node id map
+void Block::build_nd_IdMap(){
+	pair<Node *, size_t> id_pair;
+	for(size_t i=0;i<replist.size();i++){
+		id_pair.first = replist[i];
+		id_pair.second = i;
+		nd_IdMap.insert(id_pair);
+	}
+}

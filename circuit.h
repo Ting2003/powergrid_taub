@@ -185,6 +185,7 @@ private:
 	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class);
 
 	void block_init(int &my_id, MPI_CLASS &mpi_class);
+	void build_bd_netlist();
 	void update_geometry(MPI_CLASS & mpi_class);
 	void assign_block_nodes();
 	void assign_block_nets();

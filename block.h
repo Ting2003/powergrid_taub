@@ -8,6 +8,7 @@
 #ifndef __BLOCK_H__
 #define __BLOCK_H__
 #include <fstream>
+#include <map>
 #include "triplet.h"
 #include "global.h"
 #include "vec.h"
@@ -45,6 +46,7 @@ public:
 	void copy_node_voltages_block();
 	double modify_voltage(int &my_id);
 	void copy_array(double *x_old, double *xp);
+	void build_nd_IdMap();
 	void stamp_matrix(int &my_id, MPI_CLASS &mpi_class);
 	void stamp_block_resistor(int &my_id, Net * net, Matrix &A);
 
@@ -76,6 +78,7 @@ public:
 
 	// Node ** nodes;
 	NodePtrVector replist;
+	map<Node *, size_t> nd_IdMap;
 	Node *nd_GND;
 	NetList net_set[NUM_NET_TYPE];// should be the same as size of NET_TYPE
 	NetPtrVector bd_netlist;

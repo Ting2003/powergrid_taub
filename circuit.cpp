@@ -416,7 +416,7 @@ void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
 		block_vec[i].stamp_matrix(my_id, mpi_class);
 	}
 }
-#if 0
+#if DEBUG
 // stamp the nets by sets, block version
 // *NOTE* at the same time insert the net into boundary netlist
 void Circuit::stamp_block_matrix(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
@@ -558,6 +558,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
 	// update bd info of circuit and block vec
 	update_geometry(mpi_class);
+	// build boundary netlist of circuit
+	build_bd_netlist();
 	block_init(my_id, mpi_class);
 	//return true;
 
@@ -875,7 +877,7 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
 }
-#if 0
+#if DEBUG
 double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 	double max_diff = 0.0;
 	//if(get_name()=="VDDA") OMEGA = 1.0;
@@ -896,7 +898,7 @@ double Circuit::modify_voltage(int &my_id, Block &block, double * x_old){
 // given vector x that obtained from LU, set the value to the corresponding
 // node in nodelist
 void Circuit::get_voltages_from_LU_sol(double * x){
-#if 0
+#if DEBUG
 	for(size_t i=0;i<nodelist.size()-1;i++){
 		Node * node = nodelist[i];
 		size_t id = node->rep->rid;	// get rep's id in Vec
@@ -944,7 +946,7 @@ void Circuit::get_vol_mergelist(){
 
 // copy solution of block into circuit
 void Circuit::get_voltages_from_block_LU_sol(){
-#if 0
+#if DEBUG
 	for(size_t i=0;i<nodelist.size()-1;i++){
 		Node * node = nodelist[i];
 		//if( node->is_mergeable() ) continue;
@@ -956,7 +958,7 @@ void Circuit::get_voltages_from_block_LU_sol(){
 #endif
 }
 
-#if 0
+#if DEBUG
 // 1. copy node voltages from the circuit to a Vec
 //    from = true then copy circuit to x
 //    else copy from x to circuit
@@ -1016,7 +1018,7 @@ void Circuit::make_A_symmetric(double *b, int &my_id){
 
 // make A symmetric for tran
 void Circuit::make_A_symmetric_tr(int &my_id, Tran &tran){
-#if 0
+#if DEBUG
 	int type = INDUCTANCE;
 	NetList & ns = net_set[type];
 	NetList::iterator it;
@@ -3021,6 +3023,7 @@ void Circuit::assign_block_nodes(){
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i].count = block_vec[i].replist.size();
 		block_vec[i].sort_nodes();
+		block_vec[i].build_nd_IdMap();
 	}
 }
 
@@ -3059,5 +3062,17 @@ void Circuit::assign_block_nets(){
 			else if(net_flag ==1)
 				bd_netlist.push_back(net);
 		}
+	}
+}
+
+// build boundary netlist for circuit
+void Circuit::build_bd_netlist(){
+	int type = RESISTOR;
+	NetPtrVector & ns = net_set[type];
+	Net *net = NULL;
+	for(size_t i=0;i<ns.size();i++){
+		net = ns[i];
+		if(net->flag_bd ==1)
+			bd_netlist.push_back(net);
 	}
 }
