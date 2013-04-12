@@ -29,10 +29,21 @@ Block::Block(size_t _count):
 	ux(-1.0), uy(-1.0){}
 
 Block::~Block(){
-    for(size_t i=0;i<boundary_netlist.size();i++)
+    /* for(size_t i=0;i<boundary_netlist.size();i++)
     	delete boundary_netlist[i];
     boundary_netlist.clear();
-    delete [] nodes;
+    */
+    
+    A.clear();
+    // free Li, Lx and so on
+    delete [] Lx;
+    delete [] Lp;
+    delete [] Lnz;
+    delete [] Li;
+
+    nodelist.clear();
+    netlist.clear();
+    delete [] net_set;
     delete [] x_old;
     delete [] xp;
     delete [] bnewp;
@@ -62,8 +73,12 @@ void Block::solve_CK_tr(cholmod_common *cm){
 	//cholmod_solve_new(CHOLMOD_A, L, b_new_ck, x_ck, cm);
 }
 
+// start cm and allocate resources
+void Block::allocate_resource(){
+	cm = &c;
+	cholmod_start(cm);
+	cm->print = 5;
 
-void Block::allocate_resource(cholmod_common *cm){
 	if( count == 0 ) return;
 	nodes = new Node *[count];
 
@@ -124,12 +139,61 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 
 /////////////////////////////////////////////////////////////////
 // methods for BlockInfo
+void Block::sort_nodes(){
+	sort(replist.begin(), replist.end(), compare_node_ptr);
+}
 
-// update block 4 corners
-void Block::update_block_geometry(MPI_CLASS &mpi_class){
-	// compute the geometrical information for the blocks
-	lx = mpi_class.block_geo[0];
-	ly = mpi_class.block_geo[1];
-	ux = mpi_class.block_geo[2];
-	uy = mpi_class.block_geo[3];
+bool compare_node_ptr(const Node * a, const Node * b){
+	if( a->is_ground() ) return false;
+	if (b->is_ground() ) return true;
+
+	if( a->pt.y == b->pt.y ){
+		if( a->pt.x == b->pt.x ){
+			if( a->pt.z == b->pt.z ){
+				return (a->isS() > b->isS());
+			}
+			else{
+				return (a->pt.z > b->pt.z);// top down
+			}
+		}
+		else
+			return ( a->pt.x < b->pt.x );
+	}
+	else
+		return (a->pt.y < b->pt.y);
+}
+
+// judge whether a node is within a block
+bool Block::node_in_block(Node *nd){
+	long x = nd->pt.x;
+	long y = nd->pt.y;
+	// if a node belongs to some block
+	if(x>=lx && x <ux && 
+		y>=ly && y<uy){
+		return true;
+	}
+	return false;
+}
+
+// judge whether a net is within a block
+// 2: internal net of a block
+// 1: boundary net of a block
+// 0: outside net of a block
+int Block::net_in_block(Net *net){
+	Node *na, *nb;
+	na = net->ab[0];
+	nb = net->ab[1];
+	bool flag_a = false;
+	bool flag_b = false;
+	if(!na->is_ground()){
+		flag_a = node_in_block(na);
+	}
+	if(!nb->is_ground()){
+		flag_b = node_in_block(nb);
+	}
+	if(flag_a == true && flag_b == true)
+		return 2;
+	if(flag_a == true || flag_b == true)
+		return 1;
+	return 0;
 }

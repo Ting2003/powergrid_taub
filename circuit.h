@@ -98,7 +98,7 @@ public:
 	// C style output
 	void print();
 	void print_matlab(Matrix A);
-	cholmod_common c, *cm;
+	// cholmod_common c, *cm;
 
 	// mpi related variables
 	// member
@@ -107,7 +107,7 @@ public:
 	float *bd_x_g;
 	float *internal_x_g;	
 	// ****** other processor *******
-	Matrix A;
+	// Matrix A;
 
 	// solution array for each processor
 	float *bd_x;	
@@ -184,8 +184,10 @@ private:
 	// updates nodes value in each iteration
 	double solve_iteration(int &my_id, int &iter, int&num_procs, MPI_CLASS &mpi_class);
 
-	void block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class);
-	void update_block_geometry();
+	void block_init(int &my_id, MPI_CLASS &mpi_class);
+	void update_geometry(MPI_CLASS & mpi_class);
+	void assign_block_nodes();
+	void assign_block_nets();
 
 	// methods of stamping the matrix
 	
@@ -342,6 +344,8 @@ private:
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
 	NodePtrVector mergelist;	// nodes for merging
+
+	NetPtrVector bd_netlist;
 	
 	NetList net_set[NUM_NET_TYPE];// should be the same as size of NET_TYPE
 	// defines the net direction in layers
@@ -358,8 +362,8 @@ private:
 	string name;
 
 	// blocks
-	Block block_info;
-	size_t x_min, y_min, x_max, y_max;
+	vector<Block> block_vec;
+	float x_min, y_min, x_max, y_max;
 
 	// control variables
 	static double EPSILON;
@@ -367,6 +371,9 @@ private:
 	static double OVERLAP_RATIO;
 	static size_t MAX_BLOCK_NODES;
 	static int MODE; // 0 = IT, 1 = LU
+	static int NUM_BLOCKS_X;
+	static int NUM_BLOCKS_Y;
+	int num_blocks;
 
 	CIRCUIT_TYPE circuit_type;
 

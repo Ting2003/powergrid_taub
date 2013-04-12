@@ -21,6 +21,8 @@ using namespace std;
 
 class Block{
 	typedef vector<Net *> NetPtrVector;
+	typedef vector<Node *> NodePtrVector;
+	typedef NetPtrVector NetList;
 public:
 	Block(size_t count=0);
 	~Block();
@@ -31,17 +33,20 @@ public:
 
 	void solve_CK_tr(cholmod_common *cm); // solve with cholesky decomp
 	// allocate space for the matrix and vectors accoding to count
-	void allocate_resource(cholmod_common*cm);
+	void allocate_resource();
 	void allocate_mpi_resource(cholmod_common *cm);
 
 	void update_x();
 
+	bool node_in_block(Node *nd);
+	bool net_in_block(Net *net);
+
 	void update_rhs(double *bnewp, double *bp, int &my_id);
+	bool compare_node_ptr(const Node *a, const Node *b);	
+	// NetPtrVector boundary_netlist;
 
-	void update_block_geometry(MPI_CLASS &mpi_class);
-	
-	NetPtrVector boundary_netlist;
-
+	cholmod_common c, *cm;
+	Matrix A;
 	cholmod_factor * L;
 	
 	// vector b
@@ -55,9 +60,14 @@ public:
 	// equal to matrix size and b size
 	size_t count;
 
-	Node ** nodes;
+	// Node ** nodes;
+	NodePtrVector replist;
+	Node *nd_GND;
+	NetList net_set[NUM_NET_TYPE];// should be the same as size of NET_TYPE
+	NetPtrVector bd_netlist;
 
-	float lx, ly, ux, uy;
+	double lx, ly, ux, uy;
+	friend class Circuit;
 };
 
 #endif

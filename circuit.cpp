@@ -42,6 +42,8 @@ const int MAX_ITERATION = 1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
+int Circuit::NUM_BLOCKS_X = 1;
+int Circuit::NUM_BLOCKS_Y = 1;
 
 //////////////////////////////////////////////////////////////////////////
 // Constructor and utility functions goes here
@@ -95,6 +97,10 @@ Circuit::~Circuit(){
 	nodelist.clear();
 	replist.clear();
 	mergelist.clear();
+	for(size_t i=0;i<boundary_netlist.size();i++)
+    		delete boundary_netlist[i];
+    	boundary_netlist.clear();
+
 	// delete bd nodes
 	bd_nodelist_sw.clear();
 	bd_nodelist_s.clear();
@@ -122,12 +128,11 @@ Circuit::~Circuit(){
 			delete *it;
 	}
 
-	A.clear();
 	// free Li, Lx and so on
-	delete [] Lx;
+	/*delete [] Lx;
 	delete [] Lp;
 	delete [] Lnz;
-	delete [] Li;
+	delete [] Li;*/
 	// mpi related variables
 	delete [] bd_x_g;
 	delete [] internal_x_g;
@@ -291,7 +296,7 @@ void Circuit::print_matlab(Matrix A){
 
 	// don't output ground node
 	for(size_t i=0;i<A.size();i++){
-		printf("%d %d %.5e\n", A.Ti[i]+1, A.Tj[i]+1, A.Tx[i]);
+		printf("%ld %ld %.5e\n", A.Ti[i]+1, A.Tj[i]+1, A.Tx[i]);
 	}
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -377,8 +382,8 @@ void Circuit::solve_init(int &my_id){
 	}*/
 	
 
-	if(nr >=0)
-		block_info.count = nr;
+	// if(nr >=0)
+		// block_info.count = nr;
 
 	size_t n_merge = mergelist.size();
 	size_t n_nodes = nodelist.size();
@@ -399,11 +404,12 @@ void Circuit::solve_init(int &my_id){
 // 2. Set each node in replist into block
 // 3. Compute block size
 // 4. Insert boundary netlist into map
-void Circuit::block_init(int &my_id, Matrix &A, MPI_CLASS &mpi_class){
-	block_info.update_block_geometry(mpi_class);
-	if(my_id==0)
-		clog<<block_info.lx<<" "<<block_info.ux<<" "<<block_info.ly<<" "<<block_info.uy<<endl;
-	block_info.allocate_resource(cm);
+void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
+	// assign nodes into blocks
+	assign_block_nodes();
+	assign_block_nets();
+	for(size_t i=0;i<block_vec.size();i++)
+		block_vec[i].allocate_resource();
 	copy_node_voltages_block();
 	stamp_block_matrix(my_id, A, mpi_class);
 }
@@ -541,9 +547,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	double time=0;
 	double t1, t2;
 	
-	cm = &c;
+	/*cm = &c;
 	cholmod_start(cm);
-	cm->print = 5;
+	cm->print = 5;*/
 
 	total_blocks = mpi_class.X_BLOCKS *mpi_class.Y_BLOCKS;
 
@@ -554,8 +560,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	if(mpi_class.block_size>0){
 		solve_init(my_id);
 	}
-	
-	block_init(my_id, A, mpi_class);
+
+	// update bd info of circuit and block vec
+	update_geometry(mpi_class);
+	block_init(my_id, mpi_class);
 	//return true;
 
 	boundary_init(my_id, num_procs);
@@ -2950,3 +2958,98 @@ void Circuit::check_matrix(Matrix &A){
 	}
 }
 
+// update block 4 corners
+void Circuit::update_geometry(MPI_CLASS &mpi_class){
+	// compute the geometrical information for the blocks
+	x_min = mpi_class.block_geo[0];
+	y_min = mpi_class.block_geo[1];
+	x_max = mpi_class.block_geo[2];
+	y_max = mpi_class.block_geo[3];
+
+	num_blocks = NUM_BLOCKS_X * NUM_BLOCKS_Y;
+	block_vec.resize(num_blocks);
+
+	double delta_x = (x_max - x_min) / NUM_BLOCKS_X;
+	double delta_y = (y_max - y_min) / NUM_BLOCKS_Y;
+	double base_x = x_min;
+	double base_y = y_min;
+	double new_base_x;
+	double new_base_y;
+	// range for a block is lx <= x < ux and
+	// ly <= y < uy
+	for(size_t j=0;j<NUM_BLOCKS_Y;j++){
+		new_base_y = base_y + j*delta_y;
+		for(size_t i=0;i<NUM_BLOCKS_X;i++){
+			size_t id_block = j*NUM_BLOCKS_X + i;
+			new_base_x = base_x + i*delta_x;
+			block_vec[id_block].lx = new_base_x;
+			block_vec[id_block].ly = new_base_y;  
+			block_vec[id_block].ux = new_base_x + delta_x;
+			block_vec[id_block].uy = new_base_y + delta_y;
+
+			// if(my_id==0)
+				// clog<<block_vec[id_block].lx<<" "<<block_vec[id_block].ux<<" "<<block_vec[id_block].ly<<" "<<block_vec[id_block].uy<<endl;
+		}
+	}
+}
+
+// assign circuit nodes into blocks
+void Circuit::assign_block_nodes(){
+	Node *nd = NULL;
+	for(size_t j=0;j<block_vec.size();j++){
+		block_vec[j].nd_GND = nd;
+	}
+
+	for(size_t i=0;i<replist.size();i++){
+		nd = replist[i];
+		for(size_t j=0;j<block_vec.size();j++){
+			// if a node belongs to 
+			// some block
+			if(node_in_block(nd)){
+				block_vec[j].replist.push_back(nd);
+			}
+		}
+	}
+	// sort internal nodes of blocks
+	for(size_t i=0;i<block_vec.size();i++){
+		block_vec[i].sort_nodes();
+	}
+}
+
+// assign circuit nets into blocks
+void Circuit::assign_block_nets(){
+	int type = 0;
+	Net *net;
+	Node *na, *nb;
+	int net_flag = 0;
+	// first handle internal nets of ckt
+	for(;type <= NUM_NET_TYPE; type++){	
+		NetList & ns = net_set[type];
+		for(size_t i=0;i<ns.size();i++){
+			net = ns[i];
+			// skip boundary net
+			if(net->flag_bd == 1)
+				continue;	
+			net_flag = 0;
+			for(int j=0;j<block_vec.size();j++){
+				net_flag = net_in_block(net);
+				if(net_flag == 2)
+					net_set[type].push_back(net);
+				else if(net_flag ==1)
+					bd_netlist.push_back(net);
+			}
+		}
+	}
+	// then handle boundary nets of ckt
+	for(size_t i=0;i<bd_netlist.size();i++){
+		net = bd_netlist[i];
+		net_flag = 0;
+		for(int j=0;j<block_vec.size();j++){
+			net_flag = net_in_block(net);
+			if(net_flag == 2)
+				net_set[type].push_back(net);
+			else if(net_flag ==1)
+				bd_netlist.push_back(net);
+		}
+	}
+}
