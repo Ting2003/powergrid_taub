@@ -63,8 +63,9 @@ void Block::CK_decomp(Matrix & A, cholmod_common *cm){
 	Algebra::CK_decomp(A, L, cm);
 }
 
-void Block::solve_CK_tr(cholmod_common *cm){
+void Block::solve_CK_tr(){
 	x_ck = cholmod_solve(CHOLMOD_A, L, bnew_temp, cm);
+	xp = static_cast<double *>(x_ck->x);
 	//cholmod_solve_new(CHOLMOD_A, L, b_new_ck, x_ck, cm);
 }
 
@@ -264,7 +265,7 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 		//cout<<"before CK_decomp. "<<endl;
 	if(count >0){
 		CK_decomp(A, cm);
-		A.clear();
+		// A.clear();
 		//if(cm->status ==1)
 			//clog<<" non SPD: "<<my_id<<" "<<cm->status<<endl;
 	}
@@ -518,3 +519,615 @@ void Block::build_nd_IdMap(){
 		nd_IdMap.insert(id_pair);
 	}
 }
+
+void Block::stamp_matrix_tr(int &my_id, MPI_CLASS &mpi_class, Tran &tran){	
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetList & ns = net_set[type];
+		NetList::iterator it;
+		switch(type){
+		case RESISTOR:
+			for(it=ns.begin();it!=ns.end();++it){
+				Net * net = *it;
+				if( net == NULL ) continue;
+				assert( fzero(net->value) == false );
+				stamp_resistor_tr(my_id, *it);
+			}
+			break;
+		case CURRENT:
+			break;
+		case VOLTAGE:
+			for(it=ns.begin();it!=ns.end();++it){
+				if( fzero((*it)->value)  && 
+				    !(*it)->ab[0]->is_ground() &&
+				    !(*it)->ab[1]->is_ground() )
+					continue; // it's a 0v via
+				stamp_VDD_tr(my_id,(*it));
+			}
+			break;
+		case CAPACITANCE:
+			for(size_t i=0;i<ns.size();i++)
+				stamp_capacitance_tr(ns[i], tran, my_id);
+			break;
+		case INDUCTANCE:
+			for(size_t i=0;i<ns.size();i++)
+				stamp_inductance_tr(ns[i], tran, my_id);
+			break;
+		default:
+			report_exit("Unknwon net type\n");
+			break;
+		}
+	}
+	//if(my_id==0)
+		//clog<<A<<endl;
+	/*if(my_id==0){
+		for(int i=0;i<10;i++)
+			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
+	}*/	
+}
+
+// only stamp resistor node connected to inductance
+void Block::stamp_resistor_tr(int &my_id, Net * net){
+	// skip boundary nets
+	if(net->flag_bd ==1)
+		return;
+
+	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
+	double G;	
+	G = 1./net->value;
+
+	for(size_t j=0;j<2;j++){
+		Node *nk = nd[j], *nl = nd[1-j];
+
+		// skip resistor layer net
+		if(nk->isS()!=X && nl->isS()!=X) continue;
+		if(nk->isS()!=X) continue;
+
+		size_t k1 = nd_IdMap[nk];//nk->rid;
+		size_t l1 = nd_IdMap[nl];//nl->rid;
+		if( !nk->is_ground()&& 
+          		(nk->nbr[TOP]!= NULL &&
+			 nk->nbr[TOP]->type == INDUCTANCE))
+			A.push_back(k1,k1, G);
+		// also need to push back connection
+		if(!nl->is_ground() 
+		    &&(nl->nbr[TOP] ==NULL ||
+		    nl->nbr[TOP]->type != INDUCTANCE))
+			if(l1 < k1){
+				//if(my_id==0) clog<<"push ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				A.push_back(k1,l1,-G);
+			}
+			else if(l1>k1){
+				//if(my_id==0) clog<<"push ("<<l1<<","<<k1<<","<<-G<<")"<<endl;
+				A.push_back(l1, k1, -G);
+			}
+	}// end of for j	
+}
+
+// stamp a voltage source
+void Block::stamp_VDD_tr(int &my_id, Net * net){
+	// find the non-ground node
+	Node * X = net->ab[0];
+	if( X->is_ground() ) X = net->ab[1];
+
+	if(X->rep->flag_bd ==1) return;
+	// do stamping for internal node
+	long id = nd_IdMap[X->rep];//X->rep->rid;
+	// A.push_back(id, id, 1.0);
+	Net * south = X->rep->nbr[SOUTH];
+	if( south != NULL &&
+	    south->type == CURRENT ){
+		// this node connects to a VDD and a current
+		// the current should be stamped
+		//assert( feqn(1.0, q[id]) ); 
+		assert( feqn(1.0, bp[id]) );
+		bp[id] = net->value;
+		//q[id] = net->value;	    // modify it
+	}
+	else{
+		bp[id] += net->value;
+		//q[id] += net->value;
+	}
+}
+
+// stamp capacitance Geq = 2C/delta_t
+void Block::stamp_capacitance_tr(Net *net, Tran &tran, int &my_id){
+	//clog<<"net: "<<*net<<endl;
+	double Geq = 0;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	size_t k = nd_IdMap[nk];//nk->rid;
+	size_t l = nd_IdMap[nl];//nl->rid;
+	// Geq = 2*C / delta_t
+	Geq = (2*net->value) / tran.step_t;
+	//net->value = Geq;
+	//clog<<"C delta_t Geq: "<<net->value<<" "<<tran.step_t<<" "<<Geq<<endl;
+	// Ieq = i(t) + 2*C / delta_t * v(t)
+
+	if( nk->isS()!=Y  && !nk->is_ground() && nk->flag_bd==0) {
+		A.push_back(k,k, Geq);
+		//clog<<"("<<k<<" "<<k<<" "<<Geq<<")"<<endl;
+		if(!nl->is_ground()&& k > l){
+			A.push_back(k,l,-Geq);
+			//clog<<"("<<k<<" "<<l<<" "<<-Geq<<")"<<endl;
+		}
+	}
+
+	if( nl->isS() !=Y && !nl->is_ground() && nl->flag_bd==0) {
+		A.push_back(l,l, Geq);
+		//clog<<"("<<l<<" "<<l<<" "<<Geq<<")"<<endl;
+		if(!nk->is_ground()&& l > k){
+			A.push_back(l,k,-Geq);
+			//clog<<"("<<l<<" "<<k<<" "<<-Geq<<")"<<endl;
+		}
+	}
+}
+
+// stamp inductance Geq = delta_t/(2L)
+void Block::stamp_inductance_tr(Net * net, Tran &tran, int &my_id){
+	//clog<<"net: "<<*net<<endl;
+	double Geq = 0;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	size_t k = nd_IdMap[nk];//nk->rid;
+	size_t l = nd_IdMap[nl];//nl->rid;
+	// Geq = delta_t / (2*L)
+	Geq = tran.step_t / (2*net->value);
+	//net->value = Geq;
+
+	if( nk->isS()!=Y  && !nk->is_ground() && nk->flag_bd==0) {
+		// -1 is to clear formal inserted 1 at (k,k)
+		A.push_back(k,k, Geq-1);
+		//clog<<"("<<k<<" "<<k<<" "<<Geq-1<<")"<<endl;
+		//clog<<nl->isS()<<endl;
+		if(!nl->is_ground()&& nl->isS()!=Y && k>l){
+			A.push_back(k,l,-Geq);
+		        //clog<<"("<<k<<" "<<l<<" "<<-Geq<<")"<<endl;
+		}
+	}
+
+	if( nl->isS() !=Y && !nl->is_ground() && nl->flag_bd==0) {
+		// -1 is to clear formal inserted 1 at (l,l)
+		A.push_back(l,l, Geq-1);
+		//clog<<"("<<l<<" "<<l<<" "<<Geq-1<<")"<<endl;
+		if(!nk->is_ground() && nk->isS()!=Y && l>k){
+			A.push_back(l,k,-Geq);
+			//clog<<"("<<l<<" "<<k<<" "<<-Geq<<")"<<endl;
+		}
+	}
+}
+
+// reset b and bnew
+void Block::reset_array(double *bp){
+	for(size_t i=0;i<count;i++){
+		bp[i] = 0;
+	}
+}
+
+// make A symmetric for tran
+void Block::make_A_symmetric_tr(int &my_id, Tran &tran){
+	int type = INDUCTANCE;
+	NetList & ns = net_set[type];
+	NetList::iterator it;
+	Node *p=NULL, *q=NULL, *r =NULL;
+
+	for(it=ns.begin();it!=ns.end();it++){
+           if( (*it) == NULL ) continue;
+           assert( fzero((*it)->value) == false );
+           if(!((*it)->ab[0]->rep->isS()==Y || (*it)->ab[1]->rep->isS()==Y)) continue;
+           // node p points to X node
+           if((*it)->ab[0]->rep->isS()==Y){
+              p = (*it)->ab[0]->rep; q = (*it)->ab[1]->rep;
+           } 
+           else if((*it)->ab[1]->rep->isS()==Y){
+              p = (*it)->ab[1]->rep; q = (*it)->ab[0]->rep;
+           }           
+
+           size_t id = nd_IdMap[q];//q->rid;
+	   double G = tran.step_t / ((*it)->value*2);
+           
+           //b[id] += p->value * G;
+           bp[id] += xp[nd_IdMap[p]]*G;//p->rid] *G;
+	}
+}
+
+// stamp transient current values into rhs
+void Block::stamp_current_tr(int &my_id, double &time){
+	NetPtrVector & ns = net_set[CURRENT];
+	for(size_t i=0;i<ns.size();i++)
+		stamp_current_tr_net(ns[i], time, my_id);
+}
+
+void Block::stamp_current_tr_net(Net * net, double &time, int &my_id){
+	current_tr(net, time);
+	//clog<<"net: "<<*net<<endl;
+	//clog<<"current: "<<current<<endl;
+	Node * nk = net->ab[0]->rep;
+	Node * nl = net->ab[1]->rep;
+	if( !nk->is_ground()&& nk->isS()!=Y) { 
+		size_t k = nd_IdMap[nk];//nk->rid;
+		//clog<<"node, rid: "<<*nk<<" "<<k<<endl;
+		bp[k] += -net->value;//current;
+		//clog<<"time, k, b: "<<time<<" "<<k<<" "<<b[k]<<endl;
+	}
+	if( !nl->is_ground() && nl->isS()!=Y) {
+		size_t l = nd_IdMap[nl];//nl->rid;
+		//clog<<"node, rid: "<<*nl<<" "<<l<<endl;
+		bp[l] +=  net->value;// current;
+		//clog<<"time, l, b: "<<time<<" "<<l<<" "<<b[l]<<endl;
+	}
+}
+
+void Block::clear_A(){
+	A.clear();
+}
+
+void Block::CK_decomp(){
+	Algebra::CK_decomp(A, L, cm);
+}
+
+void Block::copy_vec(double *bnewp, double *bp){
+	for(size_t i=0;i<count;i++){
+		bnewp[i] = bp[i];
+	}
+}
+
+// update rhs by transient nets
+void Block::modify_rhs_tr_0(double * b, double *x, int &my_id){
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetPtrVector & ns = net_set[type];
+		if(type ==CAPACITANCE){	
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_c_tr_0(ns[i], b, x, my_id);
+			}
+		}
+		else if(type == INDUCTANCE){
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_l_tr_0(ns[i], b, x, my_id);	
+			}
+		}
+	}
+}
+
+// stamp transient current values into rhs
+void Block::stamp_current_tr_1(double &time){
+	NetPtrVector & ns = net_set[CURRENT];
+	for(size_t i=0;i<ns.size();i++)
+		stamp_current_tr_net_1(ns[i], time);
+}
+
+void Block::stamp_current_tr_net_1(Net * net, double &time){
+	double diff = 0;
+	double current = net->value;
+	current_tr(net, time);
+	//if(time / 1e-11 == 22)
+	//cout<<"time, co, cn: "<<time<<" "<<current<<" "<<net->value<<endl;
+	// only stamps when net got a different current
+	if(current != net->value){
+		diff = net->value - current;
+		
+		//cout<<"time, old, new, diff: "<<time <<" "<<current<<" "<<net->value<<" "<<diff<<endl;
+		//cout<<"net: "<<*net;
+		//clog<<"current: "<<current<<endl;
+		Node * nk = net->ab[0]->rep;
+		Node * nl = net->ab[1]->rep;
+		if( !nk->is_ground()&& nk->isS()!=Y) { 
+			size_t k = nd_IdMap[nk];//nk->rid;
+			//clog<<"node, rid: "<<*nk<<" "<<k<<endl;
+			//clog<<"time, k, b bef: "<<time<<" "<<k<<" "<<b[k]<<endl;
+			bnewp[k] += -diff;//current;
+			bp[k] = bnewp[k];
+			//clog<<"time, k, b: "<<time <<" "<<k<<" "<<b[k]<<endl;
+		}
+		if( !nl->is_ground() && nl->isS()!=Y) {
+			size_t l = nd_IdMap[nl];//nl->rid;
+			//clog<<"time, l, b bef: "<<time<<" "<<l<<" "<<b[l]<<endl;
+			//clog<<"node, rid: "<<*nl<<" "<<l<<endl;
+			bnewp[l] +=  diff;// current;
+			bp[l] = bnewp[l];
+			//clog<<"time, l, b: "<<time<<" "<<l<<" "<<b[l]<<endl;
+		}
+	}
+}
+
+// update rhs by transient nets
+void Block::modify_rhs_tr(double * b, double *x){
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetPtrVector & ns = net_set[type];
+		if(type ==CAPACITANCE){
+			for(size_t i=0;i<ns.size();i++)
+				modify_rhs_c_tr(ns[i], b, x);
+		}
+		else if(type == INDUCTANCE){
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_l_tr(ns[i], b, x);
+			}
+		}
+	}
+}
+
+// add Ieq into rhs
+// Ieq = i(t) + 2*C / delta_t *v(t)
+void Block::modify_rhs_c_tr(Net *net, double * rhs, double *x){
+	double temp = 0;
+	//clog<<"c net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+        
+	// nk point to Z node
+	size_t k = nd_IdMap[nk];//nk->rid;
+	size_t l = nd_IdMap[nl];//nl->rid;
+
+	Net *r = nk->nbr[TOP];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to Z node
+
+	size_t id_a = nd_IdMap[a];//a->rid;
+	size_t id_b = nd_IdMap[b];//b->rid;
+	double i_t = (x[id_b] - x[id_a]) / r->value;
+	
+	if(nk->is_ground())
+	 temp = net->value *(-x[l]);
+        else if(nl->is_ground())
+	 temp = net->value *x[k];
+        else
+	 temp = net->value *(x[k]-x[l]);
+	
+	double Ieq  = i_t + temp;
+	if(!nk->is_ground()&& nk->isS()!=Y){
+		 rhs[k] += Ieq;	// for VDD circuit
+	}
+	if(!nl->is_ground()&& nl->isS()!=Y){
+		 rhs[l] -= Ieq; 
+	}
+}
+
+// add Ieq into rhs
+// Ieq = i(t) + delta_t / (2*L) *v(t)
+void Block::modify_rhs_l_tr(Net *net, double *rhs, double *x){
+	//clog<<"l net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+	// nk point to X node
+	//if(nk->isS() !=X){ 
+		//swap<Node*>(nk, nl);
+	//}
+	size_t k = nd_IdMap[nk];//nk->rid;
+	size_t l = nd_IdMap[nl];//nl->rid;
+	double Ieq = 0;
+
+	double i_t = 0;
+	double temp = 0;
+	//temp = tran.step_t / (2*net->value) * 
+		//(nl->value - nk->value);
+	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
+	temp = net->value *(x[l] - x[k]);	
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+
+	//clog<<"delta_t/2L, nl-nk, temp: "<<tran.step_t / (2*net->value)<<" "<<(nl->value-nk->value)<<" "<<temp<<endl;
+	
+	Net *r = nk->nbr[BOTTOM];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to X node
+	//if(a->isS()!=X) {
+		//swap<Node*>(a, b);
+	//}
+	size_t id_a = nd_IdMap[a];//a->rid;
+	size_t id_b = nd_IdMap[b];//b->rid;
+	i_t = (x[id_a] - x[id_b]) / r->value;
+	//i_t = (a->value - b->value) / r->value;
+        //if(b->value != x[id_b] || a->value != x[id_a])
+	   //clog<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+
+	//clog<<"resiste r: "<<*r<<endl;
+	//clog<<*a<<" "<<*b<<endl;
+	//clog<<"a, b, r, i_t: "<<a->value<<" "<<b->value<<" "<<
+		//r->value<<" "<<i_t<<endl;
+       
+        // push inductance nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+        //clog<<*b<<" "<<id_b<<endl;
+ #if 0
+        if(iter==0){
+           pg.node_set_x.push_back(k);
+           pg.node_set_x.push_back(id_b);
+        }
+#endif
+	Ieq  = i_t + temp;
+	//clog<<"Ieq: "<<Ieq<<endl;
+	if(nk->isS() !=Y && !nk->is_ground()){
+		 rhs[k] += Ieq; // VDD circuit
+		//clog<<*nk<<" "<<rhs[k]<<endl;
+	}
+	if(nl->isS()!=Y && !nl->is_ground()){
+		 rhs[l] += -Ieq; // VDD circuit
+		//clog<<*nl<<" "<<rhs[l]<<endl;
+	}
+}
+
+// decide transient step current values
+void Block::current_tr(Net *net, double &time){
+	double slope = 0;
+	double Tr = net->tr[3]; // Tr
+	double PW = Tr + net->tr[5]; // PW
+	double Tf = PW + net->tr[4]; // Tf
+	double t_temp = time - net->tr[2]; // TD
+	double t = fmod(t_temp, net->tr[6]); // Period
+	if(time <= net->tr[2])// TD
+		net->value = net->tr[0];// V1
+	else if(t > 0 && t<= Tr){
+		slope = (net->tr[1] - net->tr[0]) / 
+			(net->tr[3]);
+		net->value = net->tr[0] + t*slope;
+	}
+	else if(t > Tr && t<= PW)
+		net->value = net->tr[1];
+	else if(t>PW && t<=Tf){
+		slope = (net->tr[0]-net->tr[1])/(net->tr[4]);
+		net->value = net->tr[1] + slope*(t-PW);
+	}
+	else
+		net->value = net->tr[0];
+	//return current;
+}
+
+
+// add Ieq into rhs
+// Ieq = i(t) + 2*C / delta_t *v(t)
+void Block::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, int &my_id){
+	double i_t = 0;
+	double temp = 0;
+	double Ieq = 0;
+	//if(my_id==0)
+	//clog<<"c net: "<<*net<<" net->flag_bd: "<<net->flag_bd<< endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+        // nk point to Z node
+        if(nk->isS() != Z){
+		swap<Node *>(nk, nl);
+		swap<Node*>(net->ab[0], net->ab[1]);
+	}
+	//if(my_id==0)
+	//clog<<"nk, nl: "<<*nk<<" "<<*nl<<endl;
+	size_t k = nd_IdMap[nk];//nk->rid;
+	size_t l = nd_IdMap[nl];//nl->rid;
+	//if(my_id==0)
+	//clog<<"k, l: "<<k<<" "<<l<<" "<<nk->flag_bd<<" "<<nl->flag_bd<<endl;
+
+	Net *r = nk->nbr[TOP];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to Z node
+	if(a->isS()!=Z) {
+		swap<Node *>(a, b);
+		swap<Node*>(r->ab[0], r->ab[1]);
+	}
+	//clog<<"a, b: "<<*a<<" "<<*b<<endl;
+
+	size_t id_a = nd_IdMap[a];//a->rid;
+	size_t id_b = nd_IdMap[b];//b->rid;
+	//i_t = (b->value - a->value) / r->value;
+	i_t = (x[id_b] - x[id_a]) / r->value;
+	//if(b->value != x[id_b] || a->value != x[id_a])
+	   //cout<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+	//clog<<"i_t: "<<i_t<<endl;
+	//temp = 2*net->value / tran.step_t * 
+		//(nk->value - nl->value);
+       
+        // push 2 nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+#if 0
+        pg.node_set_x.push_back(k);
+        if(!nl->is_ground()) {
+              //clog<<*nl<<" "<<l<<endl;
+           pg.node_set_x.push_back(l);
+        }
+        else if(!b->is_ground()){
+              //clog<<*b<<" "<<id_b<<endl;
+           pg.node_set_x.push_back(id_b);
+        }
+#endif
+	//if(my_id==0)
+	//	clog<<"before calc temp. "<<endl;
+	if(nk->is_ground())
+	 //temp = 2*net->value/tran.step_t*(0-x[l]);
+	 temp = net->value *(-x[l]);
+        else if(nl->is_ground()){
+         //temp = 2*net->value/tran.step_t *(x[k]);
+	 temp = net->value *x[k];
+        }
+        else
+         //temp = 2*net->value/tran.step_t *(x[k] - x[l]);
+	 temp = net->value *(x[k]-x[l]);
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //cout<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+	//clog<<"nk-nl "<<(nk->value - nl->value)<<" "<<2*net->value/tran.step_t<<" "<<temp<<endl;
+	
+	Ieq  = (i_t + temp);
+	//if(my_id==0)
+	//clog<< "Ieq is: "<<Ieq<<endl;
+	//clog<<"Geq is: "<<2*net->value / tran.step_t<<endl;
+	if(!nk->is_ground()&& nk->isS()!=Y){
+		 rhs[k] += Ieq;	// for VDD circuit
+		 //if(my_id==1)
+		    // clog<<k<<" "<<*nk<<" rhs +: "<<rhs[k]<<endl;
+	}
+	if(!nl->is_ground()&& nl->isS()!=Y){
+		 rhs[l] += -Ieq; 
+		 //if(my_id==1)
+		    // clog<<l<<" "<<*nl<<" rhs +: "<<rhs[l]<<endl;
+	}
+	//if(my_id==0)
+	//	clog<<"finish 1 net. "<<endl;
+}
+
+// add Ieq into rhs
+// Ieq = i(t) + delta_t / (2*L) *v(t)
+void Block::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, int &my_id){
+	//clog<<"l net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+	// nk point to X node
+	if(nk->isS() !=X){ 
+		swap<Node*>(nk, nl);
+		swap<Node*>(net->ab[0], net->ab[1]);
+	}
+	size_t k = nd_IdMap[nk];//]nk->rid;
+	size_t l = nd_IdMap[nl];//nl->rid;
+	double Ieq = 0;
+
+	double i_t = 0;
+	double temp = 0;
+	//temp = tran.step_t / (2*net->value) * 
+		//(nl->value - nk->value);
+	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
+	temp = net->value *(x[l] - x[k]);
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+
+	//clog<<"delta_t/2L, nl-nk, temp: "<<tran.step_t / (2*net->value)<<" "<<(nl->value-nk->value)<<" "<<temp<<endl;
+	
+	Net *r = nk->nbr[BOTTOM];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to X node
+	if(a->isS()!=X) {
+		swap<Node*>(a, b);
+		swap<Node*>(r->ab[0], r->ab[1]);
+	}
+	size_t id_a = nd_IdMap[a];//a->rid;
+	size_t id_b = nd_IdMap[b];//b->rid;
+	i_t = (x[id_a] - x[id_b]) / r->value;
+	//i_t = (a->value - b->value) / r->value;
+        //if(b->value != x[id_b] || a->value != x[id_a])
+	   //clog<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+
+	//clog<<"resiste r: "<<*r<<endl;
+	//clog<<*a<<" "<<*b<<endl;
+	//clog<<"a, b, r, i_t: "<<a->value<<" "<<b->value<<" "<<
+		//r->value<<" "<<i_t<<endl;
+       
+        // push inductance nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+        //clog<<*b<<" "<<id_b<<endl;
+#if 0
+        pg.node_set_x.push_back(k);
+        pg.node_set_x.push_back(id_b);
+#endif
+	Ieq  = i_t + temp;
+	if(nk->isS() !=Y && !nk->is_ground()){
+		 rhs[k] += Ieq; // VDD circuit
+	}
+	if(nl->isS()!=Y && !nl->is_ground()){
+		 rhs[l] += -Ieq; // VDD circuit
+	}
+}
+

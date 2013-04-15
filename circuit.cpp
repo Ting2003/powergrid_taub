@@ -44,7 +44,7 @@ const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
 int Circuit::NUM_BLOCKS_X = 1;
 int Circuit::NUM_BLOCKS_Y = 1;
-int Circuit::DEBUG=0;
+int Circuit::DEBUG=1;
 
 //////////////////////////////////////////////////////////////////////////
 // Constructor and utility functions goes here
@@ -577,26 +577,33 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	return 0;
-#if 0
-	for(size_t i=0;i<block_info.count;i++){
-		block_info.bp[i] = 0;
-		block_info.bnewp[i] = 0;
+	// return 0;
+//#if 0
+	for(size_t i=0;i<block_vec.size();i++){
+		block_vec[i].reset_array(block_vec[i].bp);
+		block_vec[i].reset_array(block_vec[i].bnewp);
 	}
 	
 	/***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran, my_id);
-	stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
-	make_A_symmetric_tr(my_id, tran);	   
-   	stamp_current_tr(my_id, time);
+	for(size_t i=0;i<block_vec.size();i++){
+		block_vec[i].stamp_matrix_tr(my_id, mpi_class, tran);
+	// stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
+		block_vec[i].make_A_symmetric_tr(my_id, tran);	   
+   		block_vec[i].stamp_current_tr(my_id, time);
 	
-   	Algebra::CK_decomp(A, block_info.L, cm);
+   		block_vec[i].CK_decomp();
+		// Algebra::CK_decomp(A, block_info.L, cm);
    	/*Lp = static_cast<int *>(block_info.L->p);
    	Lx = static_cast<double*> (block_info.L->x);
    	Li = static_cast<int*>(block_info.L->i) ;
    	Lnz = static_cast<int *>(block_info.L->nz); */
-   	A.clear();
+   		block_vec[i].clear_A(); //A.clear();
+		// bnewp = bp
+		block_vec[i].copy_vec(block_vec[i].bnewp,
+				block_vec[i].bp);
+	}
 	
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
@@ -622,9 +629,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    delete [] temp;
    delete [] id_map;
 #endif   
-   for(size_t i=0;i<replist.size();i++){
+   /*for(size_t i=0;i<replist.size();i++){
 	block_info.bnewp[i] = block_info.bp[i];
-   }
+   }*/
    
    set_eq_induc(tran);
    set_eq_capac(tran);
@@ -632,7 +639,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //if(my_id==0)
 	   //clog<<"before modify_rhs_tr_0. "<<endl;
    // already push back cap and induc into set_x and b
-   modify_rhs_tr_0(block_info.bnewp, block_info.xp, my_id);
+   for(size_t i=0;i<block_vec.size();i++){
+   	block_vec[i].modify_rhs_tr_0(block_vec[i].bnewp, block_vec[i].xp, my_id);
+   }
    
    //if(my_id==0)
 	   //clog<<"after modify_rhs_tr_0. "<<endl;
@@ -675,7 +684,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    solve_tr_step(num_procs, my_id, mpi_class);
  
    //save_tr_nodes(tran, xp);
-   save_ckt_nodes(tran, block_info.xp);
+   for(size_t i=0;i<block_vec.size();i++)
+	save_ckt_nodes(tran, block_vec[i].xp);
+
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
 
@@ -685,12 +696,13 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //for(; time <= tran.tot_t; time += tran.step_t){
    while(time <= tran.tot_t){// && iter < 2){
 	// bnewp[i] = bp[i];
-      for(size_t i=0;i<n;i++)
-	block_info.bnewp[i] = block_info.bp[i];
+	for(size_t i=0;i<block_vec.size();i++){
+		block_vec[i].copy_vec(block_vec[i].bnewp, block_vec[i].bp);
 
-      stamp_current_tr_1(block_info.bp, block_info.bnewp, time);
-      // get the new bnewp
-      modify_rhs_tr(block_info.bnewp, block_info.xp); 
+      		block_vec[i].stamp_current_tr_1(time);
+      		// get the new bnewp
+      		block_vec[i].modify_rhs_tr(block_vec[i].bnewp, block_vec[i].xp);
+	}
 
       //if(my_id==0)
 	      //clog<<" ===== step: ===== "<<my_id<<" "<<time<<endl;
@@ -702,7 +714,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       solve_tr_step(num_procs, my_id, mpi_class);
 
       //save_tr_nodes(tran, xp);
-      save_ckt_nodes(tran, block_info.xp);
+
+      for(size_t i=0;i<block_vec.size();i++)
+      	save_ckt_nodes(tran, block_vec[i].xp);
       time += tran.step_t;
       // sync in the end of each time step
       MPI_Barrier(MPI_COMM_WORLD);
@@ -714,7 +728,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    release_ckt_nodes(tran);
    /*delete [] s_col_FFS;
    delete [] s_col_FBS;*/
-#endif
+// #endif
 #if 0
 	/////////// release resources
 	if(block_info.count > 0)
@@ -751,9 +765,13 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		reset_bd_array(my_id);
 		// assign 0 to non voltage source nodes
 		reset_replist(my_id);
-		for(size_t i=0;i<replist.size();i++)
-			block_info.bnewp_temp[i] = 
-				block_info.bnewp[i];
+
+		for(size_t i=0;i<block_vec.size();i++){
+			// bnewp_temp = bnewp;
+			block_vec[i].copy_vec(
+				block_vec[i].bnewp_temp,
+				block_vec[i].bnewp);
+		}
 	}
 
 	/*for(size_t i=0;i<replist.size();i++){
@@ -763,37 +781,31 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	}*/
 
 	// new rhs store in bnewp
-	block_info.update_rhs(block_info.bnewp_temp, 
-		block_info.bnewp, my_id);
-	for(size_t i=0;i<replist.size();i++){
-	//block_info.bnewp[i] = block_info.bp[i];
-	/*if(my_id==1)
-		clog<<"after tr bnewp: "<<i<<" "<<block_info.bnewp_temp[i]<<endl;*/
-	}
-
-	if(iter==0){
-		for(size_t j=0;j<block_info.count;j++){
-			block_info.x_old[j] = 0;
+	for(size_t i=0;i<block_vec.size();i++){
+		block_vec[i].update_rhs(
+			block_vec[i].bnewp_temp, 
+			block_vec[i].bnewp, my_id);
+		if(iter==0){
+			// clear x_old
+			block_vec[i].reset_array(block_vec[i].x_old);	
 		}
-	}
-	else{
-		// x_old stores old solution
-		for(size_t j=0;j<block_info.count;j++){
-			block_info.x_old[j] = block_info.xp[j];
+		else{
+			// x_old stores old solution
+			block_vec[i].copy_vec(block_vec[i].x_old, block_vec[i].xp);
 		}
+
+		if(block_vec[i].count>0){
+			//block_info.solve_CK(cm);
+			block_vec[i].solve_CK_tr();
+			//solve_eq_sp(block_info.xp, block_info.bnewp);
+			//block_info.xp = static_cast<double *>(block_info.x_ck->x);
 	}
+		double local_diff = 
+			block_vec[i].modify_voltage(my_id);
+		if(local_diff > diff)
+			diff = local_diff;
 
-	if(block_info.count>0){
-		//block_info.solve_CK(cm);
-		block_info.solve_CK_tr(cm);
-		block_info.xp = static_cast<double *>(block_info.x_ck->x);
-
-		//solve_eq_sp(block_info.xp, block_info.bnewp);
-		//block_info.xp = static_cast<double *>(block_info.x_ck->x);
 	}
-
-	diff = modify_voltage(my_id, block_info, 
-			block_info.x_old);
 	/*if(my_id==1)
 		for(int i=0;i<replist.size();i++)
 			clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<endl;*/
