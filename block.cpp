@@ -34,6 +34,7 @@ Block::~Block(){
     */
     
     A.clear();
+    nd_IdMap.clear();
     // free Li, Lx and so on
     delete [] Lx;
     delete [] Lp;
@@ -110,7 +111,7 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 	
 		// if a is inside block
 		if(a->flag_bd == 0){
-			k = a->rid;
+			k = nd_IdMap[a];//a->rid;
 			if(a->isS()!=Y){
 				//if(my_id==temp){
 					//clog<<k<<" "<<G<<" "<<*b<<endl;
@@ -119,7 +120,7 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 			}
 		}
 		else if(b->flag_bd ==0){
-			l = b->rid;
+			l = nd_IdMap[b];//b->rid;
 			if(b->isS()!=Y){
 				//if(my_id==temp){
 					//clog<<l<<" "<<G<<" "<<*a<<endl;
@@ -217,12 +218,12 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 				Net * net = *it;
 				if( net == NULL ) continue;
 				assert( fzero(net->value) == false );
-				stamp_block_resistor(my_id, *it, A);
+				stamp_resistor(my_id, *it);
 			}
 			break;
 		case CURRENT:
 			for(it=ns.begin();it!=ns.end();++it){
-				stamp_block_current(my_id, (*it), mpi_class);
+				stamp_current(my_id, (*it), mpi_class);
 			}
 			break;
 		case VOLTAGE:
@@ -233,7 +234,7 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 				    !(*it)->ab[0]->is_ground() &&
 				    !(*it)->ab[1]->is_ground() )
 					continue; // it's a 0v via
-				stamp_block_VDD(my_id,(*it), A);
+				stamp_VDD(my_id,(*it));
 			}
 			break;
 		case CAPACITANCE:
@@ -242,7 +243,7 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 			if(my_id==0)
 				clog<<"induc net: "<<ns.size()<<endl;
 			for(size_t i=0;i<ns.size();i++)
-				stamp_inductance_dc(A, ns[i], my_id);
+				stamp_inductance_dc(ns[i], my_id);
 			break;
 		default:
 			report_exit("Unknwon net type\n");
@@ -263,6 +264,7 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 		//cout<<"before CK_decomp. "<<endl;
 	if(count >0){
 		CK_decomp(A, cm);
+		A.clear();
 		//if(cm->status ==1)
 			//clog<<" non SPD: "<<my_id<<" "<<cm->status<<endl;
 	}
@@ -271,7 +273,7 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 }
 
 // =========== stamp block version of matrix =======
-void Block::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
+void Block::stamp_resistor(int &my_id, Net * net){
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
 	
 	double G;	
@@ -296,7 +298,7 @@ void Block::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				(nk->nbr[TOP]==NULL || 
 				 nk->nbr[TOP]->type!=INDUCTANCE)){
 				// stamp value into block_ids
-				size_t k1 = nk->rid;
+				size_t k1 = nd_IdMap[nk]; //nk->rid;
 				A.push_back(k1,k1, G);
 				//if(my_id==0)
 					//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
@@ -310,8 +312,8 @@ void Block::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 				//cout<<"internal net: "<<*net<<endl<<endl;
 			}*/
 				//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
-			size_t k1 = nk->rid;
-			size_t l1 = nl->rid;
+			size_t k1 = nd_IdMap[nk];//nk->rid;
+			size_t l1 = nd_IdMap[nl];//nl->rid;
 			if( !nk->is_ground()&&  
           			(nk->nbr[TOP]== NULL ||
 				 nk->nbr[TOP]->type != INDUCTANCE)){
@@ -348,19 +350,19 @@ void Block::stamp_block_resistor(int &my_id, Net * net, Matrix &A){
 	}*/
 }
 
-void Block::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
+void Block::stamp_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
 
 	// only stamp for internal node
 	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
-		size_t k = nk->rid;
+		size_t k = nd_IdMap[nk];//nk->rid;
 
 		bp[k] += -net->value;
 		//pk[k] += -net->value;
 	}
 	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
-		size_t l = nl->rid;
+		size_t l = nd_IdMap[nl];//nl->rid;
 
 		bp[l] += net->value;
 		//if(my_id==1) clog<<"bk: "<<l<<" "<<block_info.bp[l]<<endl;
@@ -368,7 +370,7 @@ void Block::stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	}
 }
 
-void Block::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
+void Block::stamp_VDD(int &my_id, Net * net){
 	// find the non-ground node
 	Node * X = net->ab[0];
 	//if(my_id==0) clog<<"net: "<<*net<<endl;
@@ -376,7 +378,7 @@ void Block::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 
 	if(X->rep->flag_bd ==1) return;
 	// do stamping for internal node
-	long id =X->rep->rid;
+	long id =nd_IdMap[X->rep];//X->rep->rid;
 
 	//if(my_id==0) clog<<" stamp net: "<<*net<<endl;
 	A.push_back(id, id, 1.0);
@@ -398,12 +400,12 @@ void Block::stamp_block_VDD(int &my_id, Net * net, Matrix &A){
 }
 
 // all cores stamp dc inductance
-void Block::stamp_inductance_dc(Matrix & A, Net * net, int &my_id){
+void Block::stamp_inductance_dc(Net * net, int &my_id){
 	double G;
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
-	size_t k = nk->rid;
-	size_t l = nl->rid;
+	size_t k = nd_IdMap[nk];//nk->rid;
+	size_t l = nd_IdMap[nl];// nl->rid;
 	G = 1./net->value;
 	//if(my_id==0)
 		//clog<<"induc net: "<<*net<<endl;
@@ -462,7 +464,7 @@ void Block::make_A_symmetric(double *b, int &my_id){
 		   clog<<"modify rhs net: "<<*(*it)<<endl;
 		   clog<<"p, q and r: "<<*p<<" "<<*q<<" "<<*r<<endl;
 	   }*/
-           size_t id = q->rid;
+           size_t id = nd_IdMap[q];// q->rid;
            double G = 1.0 / (*it)->value;
            
            b[id] += r->value * G;

@@ -48,12 +48,12 @@ public:
 	void copy_array(double *x_old, double *xp);
 	void build_nd_IdMap();
 	void stamp_matrix(int &my_id, MPI_CLASS &mpi_class);
-	void stamp_block_resistor(int &my_id, Net * net, Matrix &A);
+	void stamp_resistor(int &my_id, Net * net);
 
 	void make_A_symmetric(double *bp, int &my_id);
-	void stamp_block_VDD(int &my_id, Net * net, Matrix &A);
-	void stamp_block_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
-	void stamp_inductance_dc(Matrix & A, Net * net, int &my_id);
+	void stamp_VDD(int &my_id, Net * net);
+	void stamp_current(int &my_id, Net * net, MPI_CLASS &mpi_class);
+	void stamp_inductance_dc(Net * net, int &my_id);
 
 	void update_rhs(double *bnewp, double *bp, int &my_id);
 	// NetPtrVector boundary_netlist;
