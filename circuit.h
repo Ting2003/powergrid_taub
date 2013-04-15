@@ -186,7 +186,7 @@ private:
 
 	void block_init(int &my_id, MPI_CLASS &mpi_class);
 	void build_bd_netlist();
-	void update_geometry(MPI_CLASS & mpi_class);
+	void update_geometry(int my_id, MPI_CLASS & mpi_class);
 	void assign_block_nodes();
 	void assign_block_nets();
 
@@ -363,7 +363,7 @@ private:
 	string name;
 
 	// blocks
-	vector<Block> block_vec;
+	vector<Block*> block_vec;
 	float x_min, y_min, x_max, y_max;
 
 	// control variables

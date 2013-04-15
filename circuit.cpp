@@ -98,6 +98,7 @@ Circuit::~Circuit(){
 	nodelist.clear();
 	replist.clear();
 	mergelist.clear();
+	block_vec.clear();
 	for(size_t i=0;i<bd_netlist.size();i++)
     		delete bd_netlist[i];
     	bd_netlist.clear();
@@ -411,9 +412,9 @@ void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
 	assign_block_nodes();
 	assign_block_nets();
 	for(size_t i=0;i<block_vec.size();i++){
-		block_vec[i].allocate_resource();
+		block_vec[i]->allocate_resource();
 		// copy_node_voltages_block();
-		block_vec[i].stamp_matrix(my_id, mpi_class);
+		block_vec[i]->stamp_matrix(my_id, mpi_class);
 	}
 }
 #if DEBUG
@@ -555,12 +556,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	if(mpi_class.block_size>0){
 		solve_init(my_id);
 	}
-
 	// update bd info of circuit and block vec
-	update_geometry(mpi_class);
+	update_geometry(my_id, mpi_class);
+	clog<<"update_geo. "<<endl;
 	// build boundary netlist of circuit
 	build_bd_netlist();
+	clog<<"build bd netlist. "<<endl;
 	block_init(my_id, mpi_class);
+	clog<<"block_init. "<<endl;
 	//return true;
 
 	boundary_init(my_id, num_procs);
@@ -573,36 +576,36 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	solve_DC(num_procs, my_id, mpi_class);
 
 
-	//return true;
+	// return true;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	// return 0;
+	return 0;
 //#if 0
 	for(size_t i=0;i<block_vec.size();i++){
-		block_vec[i].reset_array(block_vec[i].bp);
-		block_vec[i].reset_array(block_vec[i].bnewp);
+		block_vec[i]->reset_array(block_vec[i]->bp);
+		block_vec[i]->reset_array(block_vec[i]->bnewp);
 	}
 	
 	/***** solve tran *********/
 	// link transient nodes
 	link_ckt_nodes(tran, my_id);
 	for(size_t i=0;i<block_vec.size();i++){
-		block_vec[i].stamp_matrix_tr(my_id, mpi_class, tran);
+		block_vec[i]->stamp_matrix_tr(my_id, mpi_class, tran);
 	// stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
-		block_vec[i].make_A_symmetric_tr(my_id, tran);	   
-   		block_vec[i].stamp_current_tr(my_id, time);
+		block_vec[i]->make_A_symmetric_tr(my_id, tran);	   
+   		block_vec[i]->stamp_current_tr(my_id, time);
 	
-   		block_vec[i].CK_decomp();
+   		block_vec[i]->CK_decomp();
 		// Algebra::CK_decomp(A, block_info.L, cm);
    	/*Lp = static_cast<int *>(block_info.L->p);
    	Lx = static_cast<double*> (block_info.L->x);
    	Li = static_cast<int*>(block_info.L->i) ;
    	Lnz = static_cast<int *>(block_info.L->nz); */
-   		block_vec[i].clear_A(); //A.clear();
+   		block_vec[i]->clear_A(); //A.clear();
 		// bnewp = bp
-		block_vec[i].copy_vec(block_vec[i].bnewp,
-				block_vec[i].bp);
+		block_vec[i]->copy_vec(block_vec[i]->bnewp,
+				block_vec[i]->bp);
 	}
 	
    /*********** the following 2 parts can be implemented with pthreads ***/
@@ -640,7 +643,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	   //clog<<"before modify_rhs_tr_0. "<<endl;
    // already push back cap and induc into set_x and b
    for(size_t i=0;i<block_vec.size();i++){
-   	block_vec[i].modify_rhs_tr_0(block_vec[i].bnewp, block_vec[i].xp, my_id);
+   	block_vec[i]->modify_rhs_tr_0(block_vec[i]->bnewp, block_vec[i]->xp, my_id);
    }
    
    //if(my_id==0)
@@ -685,7 +688,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
  
    //save_tr_nodes(tran, xp);
    for(size_t i=0;i<block_vec.size();i++)
-	save_ckt_nodes(tran, block_vec[i].xp);
+	save_ckt_nodes(tran, block_vec[i]->xp);
 
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
@@ -697,11 +700,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    while(time <= tran.tot_t){// && iter < 2){
 	// bnewp[i] = bp[i];
 	for(size_t i=0;i<block_vec.size();i++){
-		block_vec[i].copy_vec(block_vec[i].bnewp, block_vec[i].bp);
+		block_vec[i]->copy_vec(block_vec[i]->bnewp, block_vec[i]->bp);
 
-      		block_vec[i].stamp_current_tr_1(time);
+      		block_vec[i]->stamp_current_tr_1(time);
       		// get the new bnewp
-      		block_vec[i].modify_rhs_tr(block_vec[i].bnewp, block_vec[i].xp);
+      		block_vec[i]->modify_rhs_tr(block_vec[i]->bnewp, block_vec[i]->xp);
 	}
 
       //if(my_id==0)
@@ -716,7 +719,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //save_tr_nodes(tran, xp);
 
       for(size_t i=0;i<block_vec.size();i++)
-      	save_ckt_nodes(tran, block_vec[i].xp);
+      	save_ckt_nodes(tran, block_vec[i]->xp);
       time += tran.step_t;
       // sync in the end of each time step
       MPI_Barrier(MPI_COMM_WORLD);
@@ -863,9 +866,9 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 	// new rhs store in bnewp and solve
 	for(size_t i=0; i < block_vec.size();i++){
-		block_vec[i].solve_CK_DC(my_id);
+		block_vec[i]->solve_CK_DC(my_id);
 		double local_diff = 
-			block_vec[i].modify_voltage(my_id);
+			block_vec[i]->modify_voltage(my_id);
 		if(local_diff > diff)
 			diff = local_diff;
 	}
@@ -2980,7 +2983,7 @@ void Circuit::check_matrix(Matrix &A){
 }
 
 // update block 4 corners
-void Circuit::update_geometry(MPI_CLASS &mpi_class){
+void Circuit::update_geometry(int my_id, MPI_CLASS &mpi_class){
 	// compute the geometrical information for the blocks
 	x_min = mpi_class.block_geo[0];
 	y_min = mpi_class.block_geo[1];
@@ -2988,7 +2991,11 @@ void Circuit::update_geometry(MPI_CLASS &mpi_class){
 	y_max = mpi_class.block_geo[3];
 
 	num_blocks = NUM_BLOCKS_X * NUM_BLOCKS_Y;
-	block_vec.resize(num_blocks);
+	block_vec.clear();
+	for(int i=0; i<num_blocks;i++){
+		Block *temp_block = new Block();
+		block_vec.push_back(temp_block);
+	}
 
 	double delta_x = (x_max - x_min) / NUM_BLOCKS_X;
 	double delta_y = (y_max - y_min) / NUM_BLOCKS_Y;
@@ -3003,10 +3010,10 @@ void Circuit::update_geometry(MPI_CLASS &mpi_class){
 		for(size_t i=0;i<NUM_BLOCKS_X;i++){
 			size_t id_block = j*NUM_BLOCKS_X + i;
 			new_base_x = base_x + i*delta_x;
-			block_vec[id_block].lx = new_base_x;
-			block_vec[id_block].ly = new_base_y;  
-			block_vec[id_block].ux = new_base_x + delta_x;
-			block_vec[id_block].uy = new_base_y + delta_y;
+			block_vec[id_block]->lx = new_base_x;
+			block_vec[id_block]->ly = new_base_y;  
+			block_vec[id_block]->ux = new_base_x + delta_x;
+			block_vec[id_block]->uy = new_base_y + delta_y;
 
 			// if(my_id==0)
 				// clog<<block_vec[id_block].lx<<" "<<block_vec[id_block].ux<<" "<<block_vec[id_block].ly<<" "<<block_vec[id_block].uy<<endl;
@@ -3018,7 +3025,7 @@ void Circuit::update_geometry(MPI_CLASS &mpi_class){
 void Circuit::assign_block_nodes(){
 	Node *nd = NULL;
 	for(size_t j=0;j<block_vec.size();j++){
-		block_vec[j].nd_GND = nd;
+		block_vec[j]->nd_GND = nd;
 	}
 
 	for(size_t i=0;i<replist.size();i++){
@@ -3026,16 +3033,16 @@ void Circuit::assign_block_nodes(){
 		for(size_t j=0;j<block_vec.size();j++){
 			// if a node belongs to 
 			// some block
-			if(block_vec[j].node_in_block(nd)){
-				block_vec[j].replist.push_back(nd);
+			if(block_vec[j]->node_in_block(nd)){
+				block_vec[j]->replist.push_back(nd);
 			}
 		}
 	}
 	// sort internal nodes of blocks
 	for(size_t i=0;i<block_vec.size();i++){
-		block_vec[i].count = block_vec[i].replist.size();
-		block_vec[i].sort_nodes();
-		block_vec[i].build_nd_IdMap();
+		block_vec[i]->count = block_vec[i]->replist.size();
+		block_vec[i]->sort_nodes();
+		block_vec[i]->build_nd_IdMap();
 	}
 }
 
@@ -3055,7 +3062,7 @@ void Circuit::assign_block_nets(){
 				continue;	
 			net_flag = 0;
 			for(int j=0;j<block_vec.size();j++){
-				net_flag = block_vec[j].net_in_block(net);
+				net_flag = block_vec[j]->net_in_block(net);
 				if(net_flag == 2)
 					net_set[type].push_back(net);
 				else if(net_flag ==1)
@@ -3068,7 +3075,7 @@ void Circuit::assign_block_nets(){
 		net = bd_netlist[i];
 		net_flag = 0;
 		for(int j=0;j<block_vec.size();j++){
-			net_flag = block_vec[j].net_in_block(net);
+			net_flag = block_vec[j]->net_in_block(net);
 			if(net_flag == 2)
 				net_set[type].push_back(net);
 			else if(net_flag ==1)
