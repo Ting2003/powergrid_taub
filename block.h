@@ -65,6 +65,7 @@ public:
 	void stamp_current_tr(int &my_id, double &time);
 	void stamp_current_tr_net(Net * net, double &time, int &my_id);
 
+	void stamp_bd_net(int my_id, Net *net);
 	void clear_A();
 	void CK_decomp();
 	void copy_vec(double *bnewp, double *bp);

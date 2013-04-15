@@ -42,7 +42,7 @@ const int MAX_ITERATION = 1000;
 const int SAMPLE_INTERVAL = 5;
 const size_t SAMPLE_NUM_NODE = 10;
 const double MERGE_RATIO = 0.3;
-int Circuit::NUM_BLOCKS_X = 1;
+int Circuit::NUM_BLOCKS_X = 2;
 int Circuit::NUM_BLOCKS_Y = 1;
 int Circuit::DEBUG=1;
 
@@ -409,10 +409,12 @@ void Circuit::solve_init(int &my_id){
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
 	// assign nodes into blocks and sort
-	assign_block_nodes();
-	assign_block_nets();
+	assign_block_nodes(my_id);
+	assign_block_nets(my_id);
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->allocate_resource();
+		// if(my_id==0)
+			// clog<<endl<<" block: "<<i<<endl;
 		// copy_node_voltages_block();
 		block_vec[i]->stamp_matrix(my_id, mpi_class);
 	}
@@ -558,12 +560,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}
 	// update bd info of circuit and block vec
 	update_geometry(my_id, mpi_class);
-	clog<<"update_geo. "<<endl;
 	// build boundary netlist of circuit
 	build_bd_netlist();
-	clog<<"build bd netlist. "<<endl;
 	block_init(my_id, mpi_class);
-	clog<<"block_init. "<<endl;
+	// clog<<"block_init. "<<endl;
 	//return true;
 
 	boundary_init(my_id, num_procs);
@@ -866,13 +866,18 @@ double Circuit::solve_iteration(int &my_id, int &iter,
 
 	// new rhs store in bnewp and solve
 	for(size_t i=0; i < block_vec.size();i++){
+		//if(my_id==0)
+			//clog<<"block: "<<i<<endl;
 		block_vec[i]->solve_CK_DC(my_id);
 		double local_diff = 
 			block_vec[i]->modify_voltage(my_id);
+		//if(my_id==0)
+			//clog<<"local_diff: "<<local_diff<<endl;
 		if(local_diff > diff)
 			diff = local_diff;
 	}
-
+	// if(my_id==0)
+		//clog<<"diff: "<<diff<<endl;
 	assign_bd_internal_array(my_id);
 	// 0 rank cpu will gather all the solution from bd_x
 	// to bd_x_g
@@ -962,14 +967,16 @@ void Circuit::get_vol_mergelist(){
 // copy solution of block into circuit
 void Circuit::get_voltages_from_block_LU_sol(){
 #if DEBUG
-	for(size_t i=0;i<nodelist.size()-1;i++){
+	for(size_t i=0;i<block_vec.size();i++)
+		copy_voltages_rep();
+	/*for(size_t i=0;i<nodelist.size()-1;i++){
 		Node * node = nodelist[i];
 		//if( node->is_mergeable() ) continue;
 		size_t id = node->rep->rid;
 		double v = block_info.xp[id];
 		node->value = v;
 		// node->rep->value = v;
-	}
+	}*/
 #endif
 }
 
@@ -2922,8 +2929,8 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
 		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		// if(my_id ==0)
+			// clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
@@ -2934,7 +2941,9 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	/*if(my_id==0){
 		clog<<"# iter: "<<iter<<endl;
 	}*/
-	get_voltages_from_block_LU_sol();
+	// get_voltages_from_block_LU_sol();
+	// if(my_id==0)
+		// clog<<nodelist<<endl;
 }
 
 // check if matrix is SPD or not
@@ -3016,13 +3025,13 @@ void Circuit::update_geometry(int my_id, MPI_CLASS &mpi_class){
 			block_vec[id_block]->uy = new_base_y + delta_y;
 
 			// if(my_id==0)
-				// clog<<block_vec[id_block].lx<<" "<<block_vec[id_block].ux<<" "<<block_vec[id_block].ly<<" "<<block_vec[id_block].uy<<endl;
+				// clog<<block_vec[id_block]->lx<<" "<<block_vec[id_block]->ux<<" "<<block_vec[id_block]->ly<<" "<<block_vec[id_block]->uy<<endl;
 		}
 	}
 }
 
 // assign circuit nodes into blocks
-void Circuit::assign_block_nodes(){
+void Circuit::assign_block_nodes(int my_id){
 	Node *nd = NULL;
 	for(size_t j=0;j<block_vec.size();j++){
 		block_vec[j]->nd_GND = nd;
@@ -3042,44 +3051,54 @@ void Circuit::assign_block_nodes(){
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->count = block_vec[i]->replist.size();
 		block_vec[i]->sort_nodes();
+		for(size_t j=0;j<block_vec[i]->replist.size();j++)
+			// clog<<my_id<<" "<<i<<" "<<j<<" "<<*block_vec[i]->replist[j]<<endl;
 		block_vec[i]->build_nd_IdMap();
 	}
 }
 
 // assign circuit nets into blocks
-void Circuit::assign_block_nets(){
-	int type = 0;
+void Circuit::assign_block_nets(int my_id){
 	Net *net;
 	Node *na, *nb;
 	int net_flag = 0;
 	// first handle internal nets of ckt
-	for(;type <= NUM_NET_TYPE; type++){	
+	for(int type= 0;type <= NUM_NET_TYPE; type++){	
 		NetList & ns = net_set[type];
 		for(size_t i=0;i<ns.size();i++){
 			net = ns[i];
 			// skip boundary net
 			if(net->flag_bd == 1)
-				continue;	
+				continue;
+			// clog<<"net: "<<*net<<endl;
 			net_flag = 0;
 			for(int j=0;j<block_vec.size();j++){
 				net_flag = block_vec[j]->net_in_block(net);
+				// if(my_id==0)
+					// cout<<"block, net, flag: "<<i<<" "<<j<<" "<<*net<<" "<<net_flag<<endl;
 				if(net_flag == 2)
-					net_set[type].push_back(net);
-				else if(net_flag ==1)
-					bd_netlist.push_back(net);
+					block_vec[j]->net_set[type].push_back(net);
+				else if(net_flag ==1){
+					block_vec[j]->bd_netlist.push_back(net);
+				}
 			}
 		}
 	}
+	// clog<<"first stage of nets. "<<endl;
+	int type  =RESISTOR;
 	// then handle boundary nets of ckt
 	for(size_t i=0;i<bd_netlist.size();i++){
 		net = bd_netlist[i];
 		net_flag = 0;
 		for(int j=0;j<block_vec.size();j++){
 			net_flag = block_vec[j]->net_in_block(net);
+
+			// if(my_id==0)
+				// cout<<"block, net, flag: "<<i<<" "<<j<<" "<<*net<<" "<<net_flag<<endl;
 			if(net_flag == 2)
-				net_set[type].push_back(net);
+				block_vec[j]->net_set[type].push_back(net);
 			else if(net_flag ==1)
-				bd_netlist.push_back(net);
+				block_vec[j]->bd_netlist.push_back(net);
 		}
 	}
 }

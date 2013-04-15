@@ -94,39 +94,49 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 	size_t size = bd_netlist.size();
 	size_t k=0, l=0;
 
-	int temp = 2;
+	int temp = 0;
+	// bnewp  = bp
+	copy_array(bnewp, bp);
 	//b_new = b;
-	for(size_t i=0;i<count;i++){
-		bnewp[i] = bp[i];
-		//if(my_id==1)
-			//clog<<"i, bp: "<<i<<" "<<bnewp[i]<<endl;
-	}
+	/*for(size_t i=0;i<count;i++){
+		// bnewp[i] = bp[i];
+		if(my_id==temp)
+			clog<<"i, bp: "<<i<<" "<<bnewp[i]<<endl;
+	}*/
 
 	// for each net in this block
 	for(size_t i=0;i<size;i++){
 		Net * net = bd_netlist[i];
+		// if(my_id==temp)
+			// clog<<"net: "<<*net<<endl;
 		double G = 1.0/net->value;
 
 		Node * a = net->ab[0]->rep;
 		Node * b = net->ab[1]->rep;
 	
 		// if a is inside block
-		if(a->flag_bd == 0){
+		//if(a->flag_bd == 0){
+		if(node_in_block(a)){
 			k = nd_IdMap[a];//a->rid;
 			if(a->isS()!=Y){
-				//if(my_id==temp){
-					//clog<<k<<" "<<G<<" "<<*b<<endl;
-				//}
+				/*if(my_id==temp){
+					clog<<"a inside block: "<<k<<" "<<*a<<" "<<G<<" "<<*b<<endl;
+				}*/
 				bnewp[k] += G * b->value;
+				//if(my_id==temp)
+					//clog<<"k, bnewp: "<<k<<" "<<bnewp[k]<<endl;
 			}
 		}
-		else if(b->flag_bd ==0){
+		else if(node_in_block(b)){
+		//if(b->flag_bd ==0){
 			l = nd_IdMap[b];//b->rid;
 			if(b->isS()!=Y){
-				//if(my_id==temp){
-					//clog<<l<<" "<<G<<" "<<*a<<endl;
-				//}
+				/*if(my_id==temp){
+					clog<<"b inside block: "<<l<<" "<<*b<<" "<<G<<" "<<*a<<endl;
+				}*/
 				bnewp[l] += G * a->value;
+				//if(my_id==temp)
+					//clog<<"l, bnewp: "<<l<<" "<<bnewp[l]<<endl;
 			}
 		}
 	} // end of for i
@@ -186,6 +196,10 @@ int Block::net_in_block(Net *net){
 	if(!nb->is_ground()){
 		flag_b = node_in_block(nb);
 	}
+	if(na->is_ground() && flag_b == true)
+		return 2;
+	if(nb->is_ground() && flag_a == true)
+		return 2;
 	if(flag_a == true && flag_b == true)
 		return 2;
 	if(flag_a == true || flag_b == true)
@@ -213,8 +227,8 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 		NetList::iterator it;
 		switch(type){
 		case RESISTOR:
-			if(my_id==0)
-				clog<<"resis net. "<<ns.size()<<endl;
+			// if(my_id==0)
+				//clog<<"resis net. "<<ns.size()<<endl;
 			for(it=ns.begin();it!=ns.end();++it){
 				Net * net = *it;
 				if( net == NULL ) continue;
@@ -228,8 +242,8 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 			}
 			break;
 		case VOLTAGE:
-			if(my_id==0)
-				clog<<"VDD net: "<<ns.size()<<endl;
+			// if(my_id==0)
+				// clog<<"VDD net: "<<ns.size()<<endl;
 			for(it=ns.begin();it!=ns.end();++it){
 				if( fzero((*it)->value)  && 
 				    !(*it)->ab[0]->is_ground() &&
@@ -241,8 +255,8 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 		case CAPACITANCE:
 			break;
 		case INDUCTANCE:
-			if(my_id==0)
-				clog<<"induc net: "<<ns.size()<<endl;
+			// if(my_id==0)
+				// clog<<"induc net: "<<ns.size()<<endl;
 			for(size_t i=0;i<ns.size();i++)
 				stamp_inductance_dc(ns[i], my_id);
 			break;
@@ -251,13 +265,17 @@ void Block::stamp_matrix(int &my_id, MPI_CLASS &mpi_class){
 			break;
 		}
 	}
+	// then stamp boundary nets
+	for(size_t i=0;i<bd_netlist.size();i++){
+		stamp_bd_net(my_id, bd_netlist[i]);
+	}
 	//if(my_id==0)
 		//clog<<A<<endl;
 	/*if(my_id==0){
 		for(int i=0;i<10;i++)
 			clog<<"b origin: "<<i<<" "<<block_info.bp[i]<<endl;
 	}*/
-	 make_A_symmetric(bp, my_id);
+	make_A_symmetric(bp, my_id);
 	
 	A.set_row(count);
 	//if(my_id==0)
@@ -288,11 +306,12 @@ void Block::stamp_resistor(int &my_id, Net * net){
 	int count = 0;
 	for(size_t j=0;j<2;j++){
 		Node *nk = nd[j], *nl = nd[1-j];
-
+		//if(my_id==0&& j==0)
+			// clog<<"net: "<<*net<<endl;
 		// if boundary net
 		if(net->flag_bd ==1){
-			//if(my_id==0)
-				//clog<<"bd net: "<<*net<<endl;
+			// if(my_id==0)
+				// clog<<"bd net: "<<*net<<endl;
 			if(!nl->is_ground() && 
 				nk->flag_bd ==0 && 
 				nk->isS()!=Y &&
@@ -301,8 +320,8 @@ void Block::stamp_resistor(int &my_id, Net * net){
 				// stamp value into block_ids
 				size_t k1 = nd_IdMap[nk]; //nk->rid;
 				A.push_back(k1,k1, G);
-				//if(my_id==0)
-					//clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
+				// if(my_id==0)
+					// clog<<"nk, nl: "<<*nk<<" "<<nk->rid<<" "<<*nl<<" "<<nl->rid<<" "<<nk->is_ground()<<" "<<nl->is_ground()<<endl;
 
 			}
 		}
@@ -318,11 +337,11 @@ void Block::stamp_resistor(int &my_id, Net * net){
 			if( !nk->is_ground()&&  
           			(nk->nbr[TOP]== NULL ||
 				 nk->nbr[TOP]->type != INDUCTANCE)){
-				/*if(my_id==0)// && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z)
-				{	//cout<<*net<<endl;
+				// if(my_id==0)// && nk->isS()!=Z && nk->isS()!=X && nl->isS()!=Z && nl->isS()!=Z)
+				// {	//cout<<*net<<endl;
 					//cout<<*nk<<" "<<k1<<endl;
-					cout<<"push + ("<<k1<<","<<k1<<","<<G<<")"<<endl;
-				}*/
+					// clog<<"push + ("<<k1<<","<<k1<<","<<G<<")"<<endl;
+				// }
 				A.push_back(k1,k1, G);
 				// count ++;
 			}
@@ -334,11 +353,8 @@ void Block::stamp_resistor(int &my_id, Net * net){
 				!nl->is_ground() && 
 				l1 < k1 &&
 				(nl->nbr[TOP] ==NULL ||
-				 nl->nbr[TOP]->type != INDUCTANCE)){ // only store the lower triangular part{
-				//if(my_id==0) cout<<"push - ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
-				//if(nk->isS()!= X && nl->isS()!=X && nk->isS()!=Z && nl->isS()!=Z){
-				
-				//if(my_id==0) cout<<"push -("<<*nk<<" "<<*nl<<" ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
+				 nl->nbr[TOP]->type != INDUCTANCE)){ // only store the lower triangular part{	
+				// if(my_id==0) cout<<"push -("<<*nk<<" "<<*nl<<" ("<<k1<<","<<l1<<","<<-G<<")"<<endl;
 				A.push_back(k1,l1,-G);
 				//}
 			}
@@ -355,18 +371,22 @@ void Block::stamp_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
 
+	// if(my_id==0)
+		// clog<<"cur net: "<<*net<<endl;
 	// only stamp for internal node
 	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
 		size_t k = nd_IdMap[nk];//nk->rid;
 
 		bp[k] += -net->value;
+
+		// if(my_id==0) clog<<"bk: "<<k<<" "<<bp[k]<<endl;
 		//pk[k] += -net->value;
 	}
 	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
 		size_t l = nd_IdMap[nl];//nl->rid;
 
 		bp[l] += net->value;
-		//if(my_id==1) clog<<"bk: "<<l<<" "<<block_info.bp[l]<<endl;
+		// if(my_id==0) clog<<"bk: "<<l<<" "<<bp[l]<<endl;
 		//pl[l] +=  net->value;
 	}
 }
@@ -381,9 +401,9 @@ void Block::stamp_VDD(int &my_id, Net * net){
 	// do stamping for internal node
 	long id =nd_IdMap[X->rep];//X->rep->rid;
 
-	//if(my_id==0) clog<<" stamp net: "<<*net<<endl;
+	// if(my_id==0) clog<<" stamp net: "<<*net<<endl;
 	A.push_back(id, id, 1.0);
-	//if(my_id==0) clog<<"push ("<<id<<", "<<id<<", 1.0)"<<endl;
+	// if(my_id==0) clog<<"push ("<<id<<", "<<id<<", 1.0)"<<endl;
 	Net * south = X->rep->nbr[SOUTH];
 	if( south != NULL &&
 			south->type == CURRENT ){
@@ -398,6 +418,8 @@ void Block::stamp_VDD(int &my_id, Net * net){
 		bp[id] += net->value;
 		//q[id] += net->value;
 	}
+
+	// if(my_id==0) clog<<"id, bp: "<<id<<", "<<bp[id]<<endl;
 }
 
 // all cores stamp dc inductance
@@ -408,12 +430,12 @@ void Block::stamp_inductance_dc(Net * net, int &my_id){
 	size_t k = nd_IdMap[nk];//nk->rid;
 	size_t l = nd_IdMap[nl];// nl->rid;
 	G = 1./net->value;
-	//if(my_id==0)
-		//clog<<"induc net: "<<*net<<endl;
+	// if(my_id==0)
+		// clog<<"induc net: "<<*net<<endl;
 	if( nk->isS()!=Y && !nk->is_ground()&&nk->flag_bd==0) {
 		A.push_back(k,k, 1);
-		//if(my_id==0)
-		//clog<<"push ("<<*nk<<" "<<k<<" "<<k<<" 1)"<<endl;
+		// if(my_id==0)
+			// clog<<"push ("<<*nk<<" "<<k<<" "<<k<<" 1)"<<endl;
 		// general stamping
 		if(!nl->is_ground())
 		// A.push_back(k,l,-1);
@@ -425,8 +447,8 @@ void Block::stamp_inductance_dc(Net * net, int &my_id){
 
 	if( nl->isS() !=Y && !nl->is_ground() &&nl->flag_bd==0) {
 		A.push_back(l,l, 1);
-		//if(my_id==0)
-		//clog<<"push ("<<*nl<<" "<<l<<" "<<l<<" 1)"<<endl;
+		// if(my_id==0)
+			// clog<<"push ("<<*nl<<" "<<l<<" "<<l<<" 1)"<<endl;
 		if(!nk->is_ground())
 		// general stamping
 		// A.push_back(l,k,-1);
@@ -469,6 +491,8 @@ void Block::make_A_symmetric(double *b, int &my_id){
            double G = 1.0 / (*it)->value;
            
            b[id] += r->value * G;
+	   // if(my_id==0)
+		   // clog<<"id, new b: "<<id<<" "<<b[id]<<endl;
         }
 }
 
@@ -481,7 +505,7 @@ void Block::copy_array(double *x_old, double *xp){
 void Block::solve_CK_DC(int my_id){
 	// new rhs store in bnewp and solve
 	update_rhs(bnewp, bp, my_id);
-	// x_old stores old solution
+	// x_old = xp
 	copy_array(x_old, xp);
 
 	if(count<=0)
@@ -489,9 +513,10 @@ void Block::solve_CK_DC(int my_id){
 	x_ck = cholmod_solve(CHOLMOD_A, L, b_new_ck, cm);
 	// solve_CK(cm);
 	xp = static_cast<double *>(x_ck->x);
-	/*if(my_id==0 && iter<3)
+	/*if(my_id==0)
 	for(int i=0;i<replist.size();i++)
-		clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<block_info.xp[i]<<endl;*/
+		clog<<"xp: "<<i<<" "<<*replist[i]<<" "<<xp[i]<<endl;
+	*/	
 }
 
 double Block::modify_voltage(int &my_id){
@@ -502,10 +527,13 @@ double Block::modify_voltage(int &my_id){
 	for(size_t i=0;i<count;i++){
 		xp[i] = (1-OMEGA)*x_old[i] + OMEGA*
 			xp[i];
+		double vol_old = replist[i]->value;
 		// update block nodes value
 		replist[i]->value = xp[i];
-		double diff = fabs(x_old[i] - xp[i]);
+		double diff = fabs(replist[i]->value - vol_old);
 		if( diff > max_diff ) max_diff = diff;
+		// if(my_id==0)
+			// clog<<"rep, diff: "<<*replist[i]<<" "<<max_diff<<endl;
 	}
 	return max_diff;
 }
@@ -1131,3 +1159,26 @@ void Block::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, int &my_id){
 	}
 }
 
+void Block::stamp_bd_net(int my_id, Net *net){
+	if(net->type != RESISTOR)
+		return;
+
+	Node *na= NULL;
+	Node *nb = NULL;
+
+	na = net->ab[0];
+	nb = net->ab[1];
+	size_t id;
+	if(node_in_block(na)){
+		id = nd_IdMap[na];
+		A.push_back(id, id, 1.0/net->value);
+		// if(my_id==0)
+			// clog<<"bd net: "<<id<<" "<<id<<" "<<1.0/net->value<<endl;
+	}
+	else if(node_in_block(nb)){
+		id = nd_IdMap[nb];
+		A.push_back(id, id, 1.0/net->value);
+		// if(my_id==0)
+			// clog<<"bd net: "<<id<<" "<<id<<" "<<1.0/net->value<<endl;
+	}
+}

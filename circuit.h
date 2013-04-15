@@ -187,8 +187,8 @@ private:
 	void block_init(int &my_id, MPI_CLASS &mpi_class);
 	void build_bd_netlist();
 	void update_geometry(int my_id, MPI_CLASS & mpi_class);
-	void assign_block_nodes();
-	void assign_block_nets();
+	void assign_block_nodes(int my_id);
+	void assign_block_nets(int my_id);
 
 	// methods of stamping the matrix
 	
