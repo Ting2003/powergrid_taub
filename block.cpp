@@ -201,7 +201,7 @@ void Block::copy_node_voltages_block(){
 	// copy node voltages from nodelist
 	for(size_t i=0;i<replist.size();i++){
 		Node *node = replist[i];
-		id = node->rid;
+		id = nd_IdMap[node];//node->rid;
 		xp[id] = replist[i]->value;
 	}
 }
