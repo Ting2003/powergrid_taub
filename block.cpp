@@ -308,7 +308,7 @@ void Block::stamp_resistor(int &my_id, Net * net){
 		Node *nk = nd[j], *nl = nd[1-j];
 		//if(my_id==0&& j==0)
 			// clog<<"net: "<<*net<<endl;
-		// if boundary net
+		// if boundary net of circuit
 		if(net->flag_bd ==1){
 			// if(my_id==0)
 				// clog<<"bd net: "<<*net<<endl;
@@ -595,9 +595,9 @@ void Block::stamp_matrix_tr(int &my_id, MPI_CLASS &mpi_class, Tran &tran){
 
 // only stamp resistor node connected to inductance
 void Block::stamp_resistor_tr(int &my_id, Net * net){
-	// skip boundary nets
-	if(net->flag_bd ==1)
-		return;
+	// no boundary nets here
+	// if(net->flag_bd ==1)
+		// return;
 
 	Node * nd[] = {net->ab[0]->rep, net->ab[1]->rep};
 	double G;	
@@ -671,7 +671,7 @@ void Block::stamp_capacitance_tr(Net *net, Tran &tran, int &my_id){
 	//clog<<"C delta_t Geq: "<<net->value<<" "<<tran.step_t<<" "<<Geq<<endl;
 	// Ieq = i(t) + 2*C / delta_t * v(t)
 
-	if( nk->isS()!=Y  && !nk->is_ground() && nk->flag_bd==0) {
+	if( nk->isS()!=Y  && !nk->is_ground() && node_in_block(nk)){//nk->flag_bd==0) {
 		A.push_back(k,k, Geq);
 		//clog<<"("<<k<<" "<<k<<" "<<Geq<<")"<<endl;
 		if(!nl->is_ground()&& k > l){
@@ -680,7 +680,7 @@ void Block::stamp_capacitance_tr(Net *net, Tran &tran, int &my_id){
 		}
 	}
 
-	if( nl->isS() !=Y && !nl->is_ground() && nl->flag_bd==0) {
+	if( nl->isS() !=Y && !nl->is_ground() && node_in_block(nl)){//nl->flag_bd==0) {
 		A.push_back(l,l, Geq);
 		//clog<<"("<<l<<" "<<l<<" "<<Geq<<")"<<endl;
 		if(!nk->is_ground()&& l > k){
@@ -702,7 +702,7 @@ void Block::stamp_inductance_tr(Net * net, Tran &tran, int &my_id){
 	Geq = tran.step_t / (2*net->value);
 	//net->value = Geq;
 
-	if( nk->isS()!=Y  && !nk->is_ground() && nk->flag_bd==0) {
+	if( nk->isS()!=Y  && !nk->is_ground() && node_in_block(nk)){//nk->flag_bd==0) {
 		// -1 is to clear formal inserted 1 at (k,k)
 		A.push_back(k,k, Geq-1);
 		//clog<<"("<<k<<" "<<k<<" "<<Geq-1<<")"<<endl;
@@ -713,7 +713,7 @@ void Block::stamp_inductance_tr(Net * net, Tran &tran, int &my_id){
 		}
 	}
 
-	if( nl->isS() !=Y && !nl->is_ground() && nl->flag_bd==0) {
+	if( nl->isS() !=Y && !nl->is_ground() && node_in_block(nl)){//nl->flag_bd==0) {
 		// -1 is to clear formal inserted 1 at (l,l)
 		A.push_back(l,l, Geq-1);
 		//clog<<"("<<l<<" "<<l<<" "<<Geq-1<<")"<<endl;

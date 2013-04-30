@@ -580,7 +580,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	return 0;
+	// return 0;
 //#if 0
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->reset_array(block_vec[i]->bp);
