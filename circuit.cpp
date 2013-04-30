@@ -574,12 +574,16 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
-
-
+	/*if(my_id==0)
+		cout<<nodelist<<endl;
+		for(size_t i=0;i<block_vec.size();i++){
+			for(size_t j=0;j<block_vec[i]->count;j++)
+				cout<<"b: "<<*block_vec[i]->replist[j]<<endl;
+		}*/
 	// return true;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
-	
+
 	// return 0;
 //#if 0
 	for(size_t i=0;i<block_vec.size();i++){
@@ -595,7 +599,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// stamp_block_matrix_tr(my_id, A, mpi_class, tran);	
 		block_vec[i]->make_A_symmetric_tr(my_id, tran);	   
    		block_vec[i]->stamp_current_tr(my_id, time);
-	
+
+		// if(my_id==0)
+			// clog<<block_vec[i]->A<<endl;
+
    		block_vec[i]->CK_decomp();
 		// Algebra::CK_decomp(A, block_info.L, cm);
    	/*Lp = static_cast<int *>(block_info.L->p);
@@ -607,7 +614,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		block_vec[i]->copy_vec(block_vec[i]->bnewp,
 				block_vec[i]->bp);
 	}
-	
+
+	if(my_id==0)
+		clog<<"after build tr matrix. "<<endl;
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
    size_t n = replist.size();
@@ -684,8 +693,17 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	   //clog<<"before first time step. "<<endl;
    //for(size_t i=0;i<replist.size();i++)
    // solve_eq_sp(block_info.xp, block_info.bnewp);
+   /*if(my_id==0)
+	   cout<<nodelist<<endl;
+   for(size_t i=0;i<block_vec.size();i++){
+	   for(size_t j=0;j<block_vec[i]->count;j++)
+		   cout<<"b: "<<*block_vec[i]->replist[j]<<endl;
+   }*/
+   
    solve_tr_step(num_procs, my_id, mpi_class);
- 
+   // if(my_id==0)
+	   // cout<<endl<<" "<<nodelist<<endl;
+
    //save_tr_nodes(tran, xp);
    for(size_t i=0;i<block_vec.size();i++)
 	save_ckt_nodes(tran, block_vec[i]->xp);
@@ -693,11 +711,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
 
+   // return 0;
    int iter = 0;
    //if(my_id==0)
 	  // clog<<"after first time step. "<<endl;
    //for(; time <= tran.tot_t; time += tran.step_t){
-   while(time <= tran.tot_t){// && iter < 2){
+   while(time <= tran.tot_t && iter < 1){
 	// bnewp[i] = bp[i];
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->copy_vec(block_vec[i]->bnewp, block_vec[i]->bp);
@@ -751,7 +770,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 // 4. track the maximum error of solution
 double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		int&num_procs, MPI_CLASS &mpi_class){	
-#if DEBUG
+// #if DEBUG
+	//if(my_id==0)
+		//clog<<"solve iteration tr. "<<endl;
 	float diff = .0;
 	float diff_root=0;
 
@@ -767,13 +788,13 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		// assign 0 to all bd nodes
 		reset_bd_array(my_id);
 		// assign 0 to non voltage source nodes
-		reset_replist(my_id);
+		// reset_replist(my_id);
 
 		for(size_t i=0;i<block_vec.size();i++){
 			// bnewp_temp = bnewp;
-			block_vec[i].copy_vec(
-				block_vec[i].bnewp_temp,
-				block_vec[i].bnewp);
+			block_vec[i]->copy_vec(
+				block_vec[i]->bnewp_temp,
+				block_vec[i]->bnewp);
 		}
 	}
 
@@ -782,29 +803,29 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	if(my_id==1)
 		clog<<"before tr bnewp: "<<i<<" "<<block_info.bnewp_temp[i]<<endl;
 	}*/
-
+	
 	// new rhs store in bnewp
 	for(size_t i=0;i<block_vec.size();i++){
-		block_vec[i].update_rhs(
-			block_vec[i].bnewp_temp, 
-			block_vec[i].bnewp, my_id);
+		block_vec[i]->update_rhs(
+			block_vec[i]->bnewp_temp, 
+			block_vec[i]->bnewp, my_id);
 		if(iter==0){
 			// clear x_old
-			block_vec[i].reset_array(block_vec[i].x_old);	
+			block_vec[i]->reset_array(block_vec[i]->x_old);	
 		}
 		else{
 			// x_old stores old solution
-			block_vec[i].copy_vec(block_vec[i].x_old, block_vec[i].xp);
+			block_vec[i]->copy_vec(block_vec[i]->x_old, block_vec[i]->xp);
 		}
 
-		if(block_vec[i].count>0){
+		if(block_vec[i]->count>0){
 			//block_info.solve_CK(cm);
-			block_vec[i].solve_CK_tr();
+			block_vec[i]->solve_CK_tr();
 			//solve_eq_sp(block_info.xp, block_info.bnewp);
 			//block_info.xp = static_cast<double *>(block_info.x_ck->x);
 	}
 		double local_diff = 
-			block_vec[i].modify_voltage(my_id);
+			block_vec[i]->modify_voltage(my_id);
 		if(local_diff > diff)
 			diff = local_diff;
 
@@ -838,7 +859,7 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	//if(my_id==0) clog<<"iter, diff: "<<iter<<" "<<diff_root<<endl;
 	return diff_root;
 	//return diff;
-#endif
+// #endif
 }
 // solve blocks with mpi: multi-core
 // One iteration during solving the circuit, for any block B:
@@ -2886,8 +2907,8 @@ bool Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration_tr(my_id, iter, num_procs, mpi_class);
 		iter++;
-		//if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		// if(my_id ==0)
+			// clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;

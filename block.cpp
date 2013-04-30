@@ -66,6 +66,8 @@ void Block::CK_decomp(Matrix & A, cholmod_common *cm){
 void Block::solve_CK_tr(){
 	x_ck = cholmod_solve(CHOLMOD_A, L, bnew_temp, cm);
 	xp = static_cast<double *>(x_ck->x);
+	// for(size_t i=0;i<count;i++)
+		// clog<<"i, xp: "<<i<<" "<<xp[i]<<endl;
 	//cholmod_solve_new(CHOLMOD_A, L, b_new_ck, x_ck, cm);
 }
 
@@ -108,35 +110,37 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 	for(size_t i=0;i<size;i++){
 		Net * net = bd_netlist[i];
 		// if(my_id==temp)
-			// clog<<"net: "<<*net<<endl;
+			// cout<<"net: "<<*net<<endl;
 		double G = 1.0/net->value;
 
 		Node * a = net->ab[0]->rep;
 		Node * b = net->ab[1]->rep;
+		// if(my_id==0)
+			// cout<<"a, b: "<<*a<<" "<<*b<<endl;
 	
 		// if a is inside block
 		//if(a->flag_bd == 0){
 		if(node_in_block(a)){
 			k = nd_IdMap[a];//a->rid;
 			if(a->isS()!=Y){
-				/*if(my_id==temp){
-					clog<<"a inside block: "<<k<<" "<<*a<<" "<<G<<" "<<*b<<endl;
-				}*/
+				// if(my_id==temp){
+					// cout<<"a inside block: "<<k<<" "<<*a<<" "<<G<<" "<<*b<<endl;
+				// }
 				bnewp[k] += G * b->value;
-				//if(my_id==temp)
-					//clog<<"k, bnewp: "<<k<<" "<<bnewp[k]<<endl;
+				// if(my_id==temp)
+					// cout<<"k, bnewp: "<<k<<" "<<bnewp[k]<<endl;
 			}
 		}
 		else if(node_in_block(b)){
 		//if(b->flag_bd ==0){
 			l = nd_IdMap[b];//b->rid;
 			if(b->isS()!=Y){
-				/*if(my_id==temp){
-					clog<<"b inside block: "<<l<<" "<<*b<<" "<<G<<" "<<*a<<endl;
-				}*/
+				// if(my_id==temp){
+					// cout<<"b inside block: "<<l<<" "<<*b<<" "<<G<<" "<<*a<<endl;
+				// }
 				bnewp[l] += G * a->value;
-				//if(my_id==temp)
-					//clog<<"l, bnewp: "<<l<<" "<<bnewp[l]<<endl;
+				// if(my_id==temp)
+					// cout<<"l, bnewp: "<<l<<" "<<bnewp[l]<<endl;
 			}
 		}
 	} // end of for i
@@ -612,6 +616,8 @@ void Block::stamp_resistor_tr(int &my_id, Net * net){
 
 		size_t k1 = nd_IdMap[nk];//nk->rid;
 		size_t l1 = nd_IdMap[nl];//nl->rid;
+
+		// if(my_id==0) clog<<"net: "<<*net<<endl;
 		if( !nk->is_ground()&& 
           		(nk->nbr[TOP]!= NULL &&
 			 nk->nbr[TOP]->type == INDUCTANCE))
@@ -767,21 +773,25 @@ void Block::stamp_current_tr(int &my_id, double &time){
 
 void Block::stamp_current_tr_net(Net * net, double &time, int &my_id){
 	current_tr(net, time);
-	//clog<<"net: "<<*net<<endl;
-	//clog<<"current: "<<current<<endl;
+	/*if(my_id==0){
+		clog<<"net: "<<*net<<endl;
+		// clog<<"current: "<<current<<endl;
+	}*/
 	Node * nk = net->ab[0]->rep;
 	Node * nl = net->ab[1]->rep;
 	if( !nk->is_ground()&& nk->isS()!=Y) { 
 		size_t k = nd_IdMap[nk];//nk->rid;
 		//clog<<"node, rid: "<<*nk<<" "<<k<<endl;
 		bp[k] += -net->value;//current;
-		//clog<<"time, k, b: "<<time<<" "<<k<<" "<<b[k]<<endl;
+		// if(my_id==0)
+			// clog<<"time, k, b: "<<time<<" "<<k<<" "<<bp[k]<<endl;
 	}
 	if( !nl->is_ground() && nl->isS()!=Y) {
 		size_t l = nd_IdMap[nl];//nl->rid;
 		//clog<<"node, rid: "<<*nl<<" "<<l<<endl;
 		bp[l] +=  net->value;// current;
-		//clog<<"time, l, b: "<<time<<" "<<l<<" "<<b[l]<<endl;
+		// if(my_id==0)
+			// clog<<"time, l, b: "<<time<<" "<<l<<" "<<bp[l]<<endl;
 	}
 }
 
