@@ -778,38 +778,15 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 // 4. track the maximum error of solution
 double Circuit::solve_iteration_tr(int &my_id, int &iter,
 		int&num_procs, MPI_CLASS &mpi_class){	
-// #if DEBUG
-	//if(my_id==0)
-		//clog<<"solve iteration tr. "<<endl;
 	float diff = .0;
 	float diff_root=0;
 
 	// 0 rank cpu will scatter all bd valuesfrom bd_x_g to bd_x
-	// if(iter>0){
 	MPI_Scatterv(bd_x_g, bd_size_g, 
 			bd_base_g, MPI_FLOAT, bd_x, bd_size, 
 			MPI_FLOAT, 0, MPI_COMM_WORLD);
 
 	assign_bd_array(my_id);
-	//if(iter ==0){
-		// assign 0 to all bd nodes
-		// reset_bd_array(my_id);
-		// assign 0 to non voltage source nodes
-		// reset_replist(my_id);
-
-		/*for(size_t i=0;i<block_vec.size();i++){
-			// bnewp_temp = bnewp;
-			block_vec[i]->copy_vec(
-				block_vec[i]->bnewp_temp,
-				block_vec[i]->bnewp);
-		}*/
-	// }
-
-	/*for(size_t i=0;i<replist.size();i++){
-	//block_info.bnewp[i] = block_info.bp[i];
-	if(my_id==1)
-		clog<<"before tr bnewp: "<<i<<" "<<block_info.bnewp_temp[i]<<endl;
-	}*/
 	
 	// new rhs store in bnewp
 	for(size_t i=0;i<block_vec.size();i++){
