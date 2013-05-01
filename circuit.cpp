@@ -720,11 +720,11 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    
    solve_tr_step(num_procs, my_id, mpi_class);
    // if(my_id==0)
-	  //  cout<<endl<<" "<<nodelist<<endl;
+	//  cout<<endl<<" "<<nodelist<<endl;
 
    //save_tr_nodes(tran, xp);
-   for(size_t i=0;i<block_vec.size();i++)
-	save_ckt_nodes(tran, block_vec[i]->xp);
+   // for(size_t i=0;i<block_vec.size();i++)
+	save_ckt_nodes(tran);//, block_vec[i]->xp);
 
    time += tran.step_t;
    MPI_Barrier(MPI_COMM_WORLD);
@@ -757,8 +757,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	  // cout<<endl<<" "<<nodelist<<endl;
       //save_tr_nodes(tran, xp);
 
-      for(size_t i=0;i<block_vec.size();i++)
-      	save_ckt_nodes(tran, block_vec[i]->xp);
+      // for(size_t i=0;i<block_vec.size();i++)
+      	save_ckt_nodes(tran);//, block_vec[i]->xp);
       time += tran.step_t;
       // sync in the end of each time step
       MPI_Barrier(MPI_COMM_WORLD);
@@ -2107,13 +2107,17 @@ void Circuit::assign_bd_array_dir(int &base, NodePtrVector &list, int &my_id){
 }
 
 // assign value back to transient nodes
-void Circuit:: save_ckt_nodes(Tran &tran, double *x){
+void Circuit:: save_ckt_nodes(Tran &tran){//, double *x){
    size_t id=0;
    for(size_t j=0;j<ckt_nodes.size();j++){
 	 //cout<<"nodes: "<<ckt_nodes[j].node->name<<endl;
-         id = ckt_nodes[j].node->rep->rid;
+         // id = ckt_nodes[j].node->rep->rid;
 	 //cout<<"value: "<<x[id]<<endl;
-         ckt_nodes[j].value.push_back(x[id]);
+         // ckt_nodes[j].value.push_back(x[id]);
+	 ckt_nodes[j].value.push_back(ckt_nodes[j].node->rep->value);
+
+	   // if(my_id==0)
+		//   cout<<"ckt_nodes, value: "<<*ckt_nodes[j]<<" "<<ckt_nodes[j].node->rep->value;
       }
 }
 
@@ -2922,6 +2926,12 @@ bool Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 			successful = true;
 			break;
 		}
+	}
+	// copy the values from replist to nodelist
+	for(size_t i=0;i<nodelist.size()-1;i++){
+		Node *nd = nodelist[i];
+		if(nd->name != nd->rep->name)
+			nd->value = nd->rep->value;
 	}
 	//if(my_id ==0)
 		//clog<<"iter: "<<iter<<endl;

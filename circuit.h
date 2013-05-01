@@ -277,7 +277,7 @@ private:
 	void link_tr_nodes(Tran &tran);
 	void link_ckt_nodes(Tran &tran, int &my_id);
 	void save_tr_nodes(Tran &tran, double *x);
-	void save_ckt_nodes(Tran &tran, double *x);
+	void save_ckt_nodes(Tran &tran);//, double *x);
 
 	void print_tr_nodes(Tran &tran);
 
