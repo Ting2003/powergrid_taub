@@ -792,14 +792,19 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 	for(size_t i=0;i<block_vec.size();i++){
 		if(my_id==0)
 			cout<<endl<<"before update rhs. "<<endl;
+		/*if(iter ==0)
+			block_vec[i]->copy_array(block_vec[i]->bnewp_temp, block_vec[i]->bnewp);
+		if(iter >0){*/
 		block_vec[i]->update_rhs(
 			block_vec[i]->bnewp_temp, 
 			block_vec[i]->bnewp, my_id);
+		//}
 		if(my_id==0)
 			for(size_t j=0;j<block_vec[i]->count;j++)
 				cout<<"j, bp: "<<j<<" "<<block_vec[i]->bnewp_temp[j]<<endl;
 			//block_info.solve_CK(cm);
-		block_vec[i]->solve_CK_tr();
+		if(block_vec[i]->count >0)
+			block_vec[i]->solve_CK_tr();
 		if(my_id==0)
 			for(size_t j=0;j<block_vec[i]->count;j++)
 				cout<<"j, xp: "<<j<<" "<<block_vec[i]->xp[j]<<endl;
