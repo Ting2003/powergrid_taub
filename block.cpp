@@ -109,8 +109,8 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 	// for each net in this block
 	for(size_t i=0;i<size;i++){
 		Net * net = bd_netlist[i];
-		// if(my_id==temp)
-			// cout<<"net: "<<*net<<endl;
+		if(my_id==temp)
+			cout<<"net: "<<*net<<endl;
 		double G = 1.0/net->value;
 
 		Node * a = net->ab[0]->rep;
@@ -123,24 +123,24 @@ void Block::update_rhs(double *bnewp, double *bp, int &my_id){
 		if(node_in_block(a)){
 			k = nd_IdMap[a];//a->rid;
 			if(a->isS()!=Y){
-				// if(my_id==temp){
-					// cout<<"a inside block: "<<k<<" "<<*a<<" "<<G<<" "<<*b<<endl;
-				// }
+				if(my_id==temp){
+					cout<<"a inside block: "<<k<<" "<<*a<<" "<<G<<" "<<*b<<endl;
+				}
 				bnewp[k] += G * b->value;
-				// if(my_id==temp)
-					// cout<<"k, bnewp: "<<k<<" "<<bnewp[k]<<endl;
+				if(my_id==temp)
+					cout<<"k, bnewp: "<<k<<" "<<bnewp[k]<<endl;
 			}
 		}
 		else if(node_in_block(b)){
 		//if(b->flag_bd ==0){
 			l = nd_IdMap[b];//b->rid;
 			if(b->isS()!=Y){
-				// if(my_id==temp){
-					// cout<<"b inside block: "<<l<<" "<<*b<<" "<<G<<" "<<*a<<endl;
-				// }
+				if(my_id==temp){
+					cout<<"b inside block: "<<l<<" "<<*b<<" "<<G<<" "<<*a<<endl;
+				}
 				bnewp[l] += G * a->value;
-				// if(my_id==temp)
-					// cout<<"l, bnewp: "<<l<<" "<<bnewp[l]<<endl;
+				if(my_id==temp)
+					cout<<"l, bnewp: "<<l<<" "<<bnewp[l]<<endl;
 			}
 		}
 	} // end of for i
@@ -1163,9 +1163,14 @@ void Block::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, int &my_id){
 	Ieq  = i_t + temp;
 	if(nk->isS() !=Y && !nk->is_ground()){
 		 rhs[k] += Ieq; // VDD circuit
+		// if(my_id==0)
+			// cout<<"k, Ieq, rhs: "<<k<<" "<<Ieq<<" "<<rhs[k]<<endl;
 	}
 	if(nl->isS()!=Y && !nl->is_ground()){
 		 rhs[l] += -Ieq; // VDD circuit
+
+		// if(my_id==0)
+			// cout<<"l, Ieq, rhs: "<<l<<" "<<Ieq<<" "<<rhs[l]<<endl;
 	}
 }
 
