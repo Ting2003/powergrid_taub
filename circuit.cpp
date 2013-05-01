@@ -408,16 +408,12 @@ void Circuit::solve_init(int &my_id){
 // 3. Compute block size
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
-
 	// assign nodes into blocks and sort
 	assign_block_nodes(my_id);
-
 	assign_block_nets(my_id);
 
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->allocate_resource();
-		// if(my_id==0)
-			// clog<<endl<<" block: "<<i<<endl;
 		// copy_node_voltages_block();
 		block_vec[i]->stamp_matrix(my_id, mpi_class);
 	}
@@ -590,11 +586,9 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		}
 	}*/
 	//get_voltages_from_block_LU_sol();
-	if(my_id==0)
-		clog<<"before solve DC. "<<endl;
 	solve_DC(num_procs, my_id, mpi_class);
-	if(my_id==0)
-		cout<<nodelist<<endl;
+	// if(my_id==0)
+		// cout<<nodelist<<endl;
 	/*if(my_id==0)
 		cout<<nodelist<<endl;
 		for(size_t i=0;i<block_vec.size();i++){
@@ -605,7 +599,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	return 0;
+	// return 0;
 //#if 0
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->reset_array(block_vec[i]->bp);
@@ -2974,6 +2968,12 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	}
 	double t2 = MPI_Wtime();
 	time = t2-t1;
+	// copy the values from replist to nodelist
+	for(size_t i=0;i<nodelist.size()-1;i++){
+		Node *nd = nodelist[i];
+		if(nd->name != nd->rep->name)
+			nd->value = nd->rep->value;
+	}
 	/*if(my_id==0){
 		clog<<"# iter: "<<iter<<endl;
 	}*/
@@ -3076,6 +3076,7 @@ void Circuit::assign_block_nodes(int my_id){
 		block_vec[j]->nd_GND = nd;
 	}
 
+	if(my_id==0) clog<<"replist.size(): "<<replist.size()<<endl;
 	for(size_t i=0;i<replist.size();i++){
 		nd = replist[i];
 		for(size_t j=0;j<block_vec.size();j++){
@@ -3101,12 +3102,12 @@ void Circuit::assign_block_nets(int my_id){
 	Node *na, *nb;
 	int net_flag = 0;
 
-	/*
+	
 	for(int j=0;j<block_vec.size();j++){
 		for(int type = 0; type < NUM_NET_TYPE;type++)
 			block_vec[j]->net_set[type].clear();
 		block_vec[j]->bd_netlist.clear();
-	}*/
+	}
 
 	int N_blocks = block_vec.size();
 	// first handle internal nets of ckt

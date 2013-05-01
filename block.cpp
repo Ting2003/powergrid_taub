@@ -186,7 +186,7 @@ bool Block::node_in_block(Node *nd){
 
 // judge whether a net is within a block
 // 2: internal net of a block
-// 1: boundary net of a block
+// 1: bundary net of a block
 // 0: outside net of a block
 int Block::net_in_block(Net *net){
 	Node *na, *nb;
@@ -194,23 +194,13 @@ int Block::net_in_block(Net *net){
 	nb = net->ab[1];
 	bool flag_a = false;
 	bool flag_b = false;
-	int flag = 0;
 	if(!na->is_ground()){
 		flag_a = node_in_block(na);
 	}
 	if(!nb->is_ground()){
 		flag_b = node_in_block(nb);
-	}
-	if(na->is_ground()) flag_a = true;
-	if(nb->is_ground()) flag_b = true;
-
-	if(flag_a == true && flag_b == true)
-		flag = 2;
-	else if(flag_a == true || flag_b == true)
-		flag = 1;
-	return flag;
-
-	/*
+	}	
+	
 	if(na->is_ground() && flag_b == true)
 		return 2;
 	if(nb->is_ground() && flag_a == true)
@@ -219,7 +209,7 @@ int Block::net_in_block(Net *net){
 		return 2;
 	if(flag_a == true || flag_b == true)
 		return 1;
-	return 0;*/
+	return 0;
 }
 
 // 1. copy node voltages from the circuit to a Vec
