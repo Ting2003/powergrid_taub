@@ -129,8 +129,8 @@ int main(int argc, char * argv[]){
 		MPI_Barrier(MPI_COMM_WORLD);
 		// clog<<"after barrier: "<<my_id<<endl;
 	}
-	if(my_id==0)
-	 	tran.print_tr_nodes();
+	// if(my_id==0)
+	 	//tran.print_tr_nodes();
 
 	mpi_t12 = MPI_Wtime();
 	
