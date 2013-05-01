@@ -408,9 +408,15 @@ void Circuit::solve_init(int &my_id){
 // 3. Compute block size
 // 4. Insert boundary netlist into map
 void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
+
 	// assign nodes into blocks and sort
 	assign_block_nodes(my_id);
+
+	if(my_id==0)
+		clog<<"after assign block nodes. "<<endl;
 	assign_block_nets(my_id);
+	if(my_id==0)
+		clog<<"after assign block nets. "<<endl;
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->allocate_resource();
 		// if(my_id==0)
@@ -560,16 +566,25 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}
 	// update bd info of circuit and block vec
 	update_geometry(my_id, mpi_class);
+
 	// build boundary netlist of circuit
 	build_bd_netlist();
+
 	block_init(my_id, mpi_class);
+
+	if(my_id==0)
+		clog<<"after block init. "<<endl;
 	// clog<<"block_init. "<<endl;
 	//return true;
 
 	boundary_init(my_id, num_procs);
 
+	if(my_id==0)
+		clog<<"after boundary init. "<<endl;
 	internal_init(my_id, num_procs);
 	
+	if(my_id==0)
+		clog<<"after solve init. "<<endl;
 	bool successful = false;
 	/*if(my_id==0){
 		for(size_t i=0;i<block_vec.size();i++){
@@ -577,8 +592,12 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 		clog<<"DC matrix: "<<block_vec[i]->A<<endl;
 		}
 	}*/
-	//get_voltages_from_block_LU_sol();	
+	//get_voltages_from_block_LU_sol();
+	if(my_id==0)
+		clog<<"before solve DC. "<<endl;
 	solve_DC(num_procs, my_id, mpi_class);
+	if(my_id==0)
+		cout<<nodelist<<endl;
 	/*if(my_id==0)
 		cout<<nodelist<<endl;
 		for(size_t i=0;i<block_vec.size();i++){
@@ -724,7 +743,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    //if(my_id==0)
 	  // clog<<"after first time step. "<<endl;
    //for(; time <= tran.tot_t; time += tran.step_t){
-   while(time <= tran.tot_t && iter < 1){
+   while(time <= tran.tot_t){// && iter < 1){
 	// bnewp[i] = bp[i];
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->copy_vec(block_vec[i]->bnewp, block_vec[i]->bp);
@@ -743,8 +762,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //if(replist.size()>0)
       solve_tr_step(num_procs, my_id, mpi_class);
 
-      if(my_id==0)
-	  cout<<endl<<" "<<nodelist<<endl;
+      // if(my_id==0)
+	  // cout<<endl<<" "<<nodelist<<endl;
       //save_tr_nodes(tran, xp);
 
       for(size_t i=0;i<block_vec.size();i++)
@@ -3053,6 +3072,9 @@ void Circuit::update_geometry(int my_id, MPI_CLASS &mpi_class){
 // assign circuit nodes into blocks
 void Circuit::assign_block_nodes(int my_id){
 	Node *nd = NULL;
+	for(size_t i=0;i<nodelist.size();i++)
+		if(nodelist[i]->is_ground())
+			nd = nodelist[i];
 	for(size_t j=0;j<block_vec.size();j++){
 		block_vec[j]->nd_GND = nd;
 	}
@@ -3067,12 +3089,11 @@ void Circuit::assign_block_nodes(int my_id){
 			}
 		}
 	}
+
 	// sort internal nodes of blocks
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->count = block_vec[i]->replist.size();
 		block_vec[i]->sort_nodes();
-		for(size_t j=0;j<block_vec[i]->replist.size();j++)
-			// clog<<my_id<<" "<<i<<" "<<j<<" "<<*block_vec[i]->replist[j]<<endl;
 		block_vec[i]->build_nd_IdMap();
 	}
 }
@@ -3082,29 +3103,40 @@ void Circuit::assign_block_nets(int my_id){
 	Net *net;
 	Node *na, *nb;
 	int net_flag = 0;
+
+	for(int j=0;j<block_vec.size();j++){
+		for(int type = 0; type < NUM_NET_TYPE;type++)
+			block_vec[j]->net_set[type].clear();
+		block_vec[j]->bd_netlist.clear();
+	}
+
 	// first handle internal nets of ckt
 	for(int type= 0;type <= NUM_NET_TYPE; type++){	
 		NetList & ns = net_set[type];
 		for(size_t i=0;i<ns.size();i++){
 			net = ns[i];
 			// skip boundary net
-			if(net->flag_bd == 1)
+			if(net->flag_bd == 1){
 				continue;
-			// clog<<"net: "<<*net<<endl;
+			}
 			net_flag = 0;
 			for(int j=0;j<block_vec.size();j++){
 				net_flag = block_vec[j]->net_in_block(net);
+				if(net_flag == 0)
+					continue;
 				// if(my_id==0)
 					// cout<<"block, net, flag: "<<i<<" "<<j<<" "<<*net<<" "<<net_flag<<endl;
 				if(net_flag == 2)
 					block_vec[j]->net_set[type].push_back(net);
+
 				else if(net_flag ==1){
 					block_vec[j]->bd_netlist.push_back(net);
 				}
 			}
 		}
 	}
-	// clog<<"first stage of nets. "<<endl;
+	if(my_id==0)
+		clog<<"first stage of nets. "<<endl;
 	int type  =RESISTOR;
 	// then handle boundary nets of ckt
 	for(size_t i=0;i<bd_netlist.size();i++){
