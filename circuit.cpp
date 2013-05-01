@@ -412,11 +412,8 @@ void Circuit::block_init(int &my_id, MPI_CLASS &mpi_class){
 	// assign nodes into blocks and sort
 	assign_block_nodes(my_id);
 
-	if(my_id==0)
-		clog<<"after assign block nodes. "<<endl;
 	assign_block_nets(my_id);
-	if(my_id==0)
-		clog<<"after assign block nets. "<<endl;
+
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->allocate_resource();
 		// if(my_id==0)
@@ -608,7 +605,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	// return 0;
+	return 0;
 //#if 0
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->reset_array(block_vec[i]->bp);
@@ -3104,28 +3101,29 @@ void Circuit::assign_block_nets(int my_id){
 	Node *na, *nb;
 	int net_flag = 0;
 
+	/*
 	for(int j=0;j<block_vec.size();j++){
 		for(int type = 0; type < NUM_NET_TYPE;type++)
 			block_vec[j]->net_set[type].clear();
 		block_vec[j]->bd_netlist.clear();
-	}
+	}*/
 
+	int N_blocks = block_vec.size();
 	// first handle internal nets of ckt
-	for(int type= 0;type <= NUM_NET_TYPE; type++){	
+	for(int type= 0;type < NUM_NET_TYPE; type++){	
 		NetList & ns = net_set[type];
 		for(size_t i=0;i<ns.size();i++){
 			net = ns[i];
 			// skip boundary net
-			if(net->flag_bd == 1){
+			if(net->flag_bd == 1)
 				continue;
-			}
+
 			net_flag = 0;
-			for(int j=0;j<block_vec.size();j++){
+			for(size_t j=0;j<N_blocks;j++){
 				net_flag = block_vec[j]->net_in_block(net);
 				if(net_flag == 0)
 					continue;
-				// if(my_id==0)
-					// cout<<"block, net, flag: "<<i<<" "<<j<<" "<<*net<<" "<<net_flag<<endl;
+					
 				if(net_flag == 2)
 					block_vec[j]->net_set[type].push_back(net);
 
@@ -3135,9 +3133,7 @@ void Circuit::assign_block_nets(int my_id){
 			}
 		}
 	}
-	if(my_id==0)
-		clog<<"first stage of nets. "<<endl;
-	int type  =RESISTOR;
+	int type = RESISTOR;
 	// then handle boundary nets of ckt
 	for(size_t i=0;i<bd_netlist.size();i++){
 		net = bd_netlist[i];
