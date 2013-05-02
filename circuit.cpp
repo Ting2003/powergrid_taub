@@ -587,7 +587,7 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 	}*/
 	//get_voltages_from_block_LU_sol();
 	solve_DC(num_procs, my_id, mpi_class);
-	// if(my_id==0)
+	// if(my_id==0 && this->name == "GND")
 		// cout<<nodelist<<endl;
 	/*if(my_id==0)
 		cout<<nodelist<<endl;
@@ -719,8 +719,8 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
    }*/
    
    solve_tr_step(num_procs, my_id, mpi_class);
-   // if(my_id==0)
-	//  cout<<endl<<" "<<nodelist<<endl;
+   // if(my_id==0 && this->name == "GND")
+	// cout<<endl<<" "<<nodelist<<endl;
 
    //save_tr_nodes(tran, xp);
    // for(size_t i=0;i<block_vec.size();i++)
@@ -731,10 +731,10 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
    // return 0;
    int iter = 0;
-   //if(my_id==0)
-	  // clog<<"after first time step. "<<endl;
+   if(my_id==0)
+	  cout<<endl<<"after first time step. "<<endl;
    //for(; time <= tran.tot_t; time += tran.step_t){
-   while(time <= tran.tot_t){// && iter < 1){
+   while(time <= tran.tot_t && iter < 1){
 	// bnewp[i] = bp[i];
 	for(size_t i=0;i<block_vec.size();i++){
 		block_vec[i]->copy_vec(block_vec[i]->bnewp, block_vec[i]->bp);
@@ -751,9 +751,16 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
       //solve_eq_sp(block_info.xp, block_info.bnewp);
       // solution stored in block_info.xp
       //if(replist.size()>0)
+      /* if(my_id==0){
+      	for(size_t i=0;i<block_vec.size();i++){
+		for(size_t j=0;j<block_vec[i]->count;j++){
+			cout<<"i, j, bnewp: "<<i<<" "<<j<<" "<<block_vec[i]->bnewp[j]<<endl;
+		}
+	}
+      }*/
       solve_tr_step(num_procs, my_id, mpi_class);
 
-      // if(my_id==0)
+      // if(my_id==0 && this->name == "GND")
 	  // cout<<endl<<" "<<nodelist<<endl;
       //save_tr_nodes(tran, xp);
 
@@ -829,14 +836,12 @@ double Circuit::solve_iteration_tr(int &my_id, int &iter,
 
 	// new rhs store in bnewp
 	for(size_t i=0;i<block_vec.size();i++){
-		// if(my_id==0)
-			// cout<<endl<<"before update rhs. "<<endl;	
 		//block_info.solve_CK(cm);
 		if(block_vec[i]->count >0){
 			block_vec[i]->solve_CK_tr();
-			/*if(my_id==0)
+			if(my_id==0)
 				for(size_t j=0;j<block_vec[i]->count;j++)
-					cout<<"j, xp: "<<j<<" "<<block_vec[i]->xp[j]<<endl;*/
+					cout<<"j, xp: "<<j<<" "<<block_vec[i]->bnewp_temp[j]<<" "<<block_vec[i]->xp[j]<<endl;
 		}
 		//solve_eq_sp(block_info.xp, block_info.bnewp);
 			//block_info.xp = static_cast<double *>(block_info.x_ck->x);
@@ -2921,7 +2926,7 @@ bool Circuit::solve_tr_step(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 		diff = solve_iteration_tr(my_id, iter, num_procs, mpi_class);
 		iter++;
 		// if(my_id ==0)
-			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+			// clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
