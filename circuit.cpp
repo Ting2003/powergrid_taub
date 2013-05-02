@@ -33,7 +33,7 @@
 #include "mpi.h"
 using namespace std;
 
-double Circuit::EPSILON = 1e-3;
+double Circuit::EPSILON = 1e-5;
 size_t Circuit::MAX_BLOCK_NODES =100000;//5500;
 double Circuit::OMEGA = 1.2;
 double Circuit::OVERLAP_RATIO = 0;
