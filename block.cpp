@@ -174,6 +174,8 @@ void Block::sort_nodes(){
 
 // judge whether a node is within a block
 bool Block::node_in_block(Node *nd){
+	if(nd->is_ground())
+		return false;
 	long x = nd->pt.x;
 	long y = nd->pt.y;
 	// if a node belongs to some block
@@ -315,6 +317,9 @@ void Block::stamp_resistor(int &my_id, Net * net){
 			// clog<<"net: "<<*net<<endl;
 		// if boundary net of circuit
 		if(net->flag_bd ==1){
+			// skip circuit bd nets
+			// already in block bd netlist
+			// continue;
 			// if(my_id==0)
 				// clog<<"bd net: "<<*net<<endl;
 			if(!nl->is_ground() && 
@@ -379,7 +384,7 @@ void Block::stamp_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 	// if(my_id==0)
 		// clog<<"cur net: "<<*net<<endl;
 	// only stamp for internal node
-	if( !nk->is_ground() && nk->isS()!=Y && nk->flag_bd ==0) {
+	if( !nk->is_ground() && nk->isS()!=Y && node_in_block(nk)){//nk->flag_bd ==0) {
 		size_t k = nd_IdMap[nk];//nk->rid;
 
 		bp[k] += -net->value;
@@ -387,7 +392,7 @@ void Block::stamp_current(int &my_id, Net * net, MPI_CLASS &mpi_class){
 		// if(my_id==0) clog<<"bk: "<<k<<" "<<bp[k]<<endl;
 		//pk[k] += -net->value;
 	}
-	if( !nl->is_ground() && nl->isS()!=Y && nl->flag_bd ==0) {
+	if( !nl->is_ground() && nl->isS()!=Y && node_in_block(nl)){//nl->flag_bd ==0) {
 		size_t l = nd_IdMap[nl];//nl->rid;
 
 		bp[l] += net->value;
@@ -402,7 +407,8 @@ void Block::stamp_VDD(int &my_id, Net * net){
 	//if(my_id==0) clog<<"net: "<<*net<<endl;
 	if( X->is_ground() ) X = net->ab[1];
 
-	if(X->rep->flag_bd ==1) return;
+	if(!node_in_block(X->rep)) return;
+	// if(X->rep->flag_bd ==1) return;
 	// do stamping for internal node
 	long id =nd_IdMap[X->rep];//X->rep->rid;
 
@@ -437,7 +443,7 @@ void Block::stamp_inductance_dc(Net * net, int &my_id){
 	G = 1./net->value;
 	// if(my_id==0)
 		// clog<<"induc net: "<<*net<<endl;
-	if( nk->isS()!=Y && !nk->is_ground()&&nk->flag_bd==0) {
+	if( nk->isS()!=Y && !nk->is_ground()&&node_in_block(nk)){//nk->flag_bd==0) {
 		A.push_back(k,k, 1);
 		// if(my_id==0)
 			// clog<<"push ("<<*nk<<" "<<k<<" "<<k<<" 1)"<<endl;
@@ -450,7 +456,7 @@ void Block::stamp_inductance_dc(Net * net, int &my_id){
 		//clog<<"("<<k<<" "<<l<<" "<<-1<<")"<<endl;
 	}
 
-	if( nl->isS() !=Y && !nl->is_ground() &&nl->flag_bd==0) {
+	if( nl->isS() !=Y && !nl->is_ground() &&node_in_block(nl)){//nl->flag_bd==0) {
 		A.push_back(l,l, 1);
 		// if(my_id==0)
 			// clog<<"push ("<<*nl<<" "<<l<<" "<<l<<" 1)"<<endl;
@@ -644,7 +650,8 @@ void Block::stamp_VDD_tr(int &my_id, Net * net){
 	Node * X = net->ab[0];
 	if( X->is_ground() ) X = net->ab[1];
 
-	if(X->rep->flag_bd ==1) return;
+	if(!node_in_block(X->rep)) return;
+		//X->rep->flag_bd ==1) return;
 	// do stamping for internal node
 	long id = nd_IdMap[X->rep];//X->rep->rid;
 	// A.push_back(id, id, 1.0);
@@ -1176,8 +1183,8 @@ void Block::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, int &my_id){
 }
 
 void Block::stamp_bd_net(int my_id, Net *net){
-	if(net->type != RESISTOR)
-		return;
+	// if(net->type != RESISTOR)
+		// return;
 
 	Node *na= NULL;
 	Node *nb = NULL;
@@ -1185,13 +1192,17 @@ void Block::stamp_bd_net(int my_id, Net *net){
 	na = net->ab[0];
 	nb = net->ab[1];
 	size_t id;
-	if(node_in_block(na)){
+	if(node_in_block(na) && !nb->is_ground() &&
+		na->isS()!=Y && (na->nbr[TOP]==NULL ||
+		na->nbr[TOP]->type != INDUCTANCE)){
 		id = nd_IdMap[na];
 		A.push_back(id, id, 1.0/net->value);
 		// if(my_id==0)
 			// clog<<"bd net: "<<id<<" "<<id<<" "<<1.0/net->value<<endl;
 	}
-	else if(node_in_block(nb)){
+	else if(node_in_block(nb) && !na->is_ground() &&
+		nb->isS()!=Y && (nb->nbr[TOP]==NULL ||
+		nb->nbr[TOP]->type != INDUCTANCE)){
 		id = nd_IdMap[nb];
 		A.push_back(id, id, 1.0/net->value);
 		// if(my_id==0)
