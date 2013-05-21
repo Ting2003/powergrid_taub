@@ -1,0 +1,2 @@
+# mpiexec example
+mpiexec -n 4 my_mpi_program arg1 arg2
