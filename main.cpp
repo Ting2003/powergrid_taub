@@ -1,6 +1,7 @@
 #include "main.h"
 #include "cholmod.h"
 #include "mpi.h"
+//#include <omp.h>
 
 const char * usage="Usage: %s [-eorbILifl] benchmark\n\
     -e EPSILON\n\
@@ -116,7 +117,7 @@ int main(int argc, char * argv[]){
 	double mpi_t11, mpi_t12;
 	mpi_t11 = MPI_Wtime();
 	
-	for(size_t i=1;i<cktlist.size();i++){
+	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
 		if(my_id==0){
 			clog<<"<======== solving: "<<ckt->get_name()<<" =========>"<<my_id<<endl;
@@ -142,7 +143,7 @@ int main(int argc, char * argv[]){
 		//clog<<"after close file/ "<<endl;
 	}
 
-	close_logfile();
+	// close_logfile();
 	MPI_Barrier(MPI_COMM_WORLD);
 	// MPI_Abort(MPI_COMM_WORLD, 911);
 	int err = MPI_Finalize();

@@ -332,14 +332,16 @@ int Parser::create_circuits(vector<CKT_LAYER > &ckt_name_info){
 // the first time is to find the layer information
 // and the second time is to create nodes
 void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran, int num_procs){	
-	int MPI_Vector;
+	MPI_Datatype MPI_Vector;
 	int count =2;
 	int lengths[2] = {10, 1};
 	MPI_Aint offsets[2] = {0, sizeof(char)*10};
 	MPI_Datatype types[3]={MPI_CHAR, MPI_INT};
 	MPI_Type_struct(count, lengths, offsets, types, 
 			&MPI_Vector);
-	MPI_Type_commit(&MPI_Vector);
+	int error = MPI_Type_commit(&MPI_Vector);
+
+	if(my_id==0) clog<<"create new type: "<<error<<endl;
 
 	this->filename = filename;
 
@@ -356,18 +358,29 @@ void Parser::parse(int &my_id, char * filename, MPI_CLASS &mpi_class, Tran &tran
 			MPI_COMM_WORLD);
 	if(my_id!=0) ckt_name_info.resize(ckt_name_info_size);
 
+	if(my_id==0) clog<<"before bcast mpi_vector"<<endl;
 	MPI_Bcast(&ckt_name_info[0], ckt_name_info_size, 
 			MPI_Vector, 0, MPI_COMM_WORLD);
 
+	if(my_id==0) clog<<"after bcast mpi_vector"<<endl;
+	/*clog<<my_id<<"==== "<<endl;
+	for(size_t i=0;i<ckt_name_info.size();i++){
+		clog<<ckt_name_info[i].name<<" "<<ckt_name_info[i].layer<<endl;
+	}*/
 	// first time parse:
 	create_circuits(ckt_name_info);
+	
+	if(my_id==0) clog<<"after create circuits"<<endl;
 
 	build_block_geo(my_id, mpi_class, tran, num_procs);
 
+	if(my_id==0) clog<<"after build block geo."<<endl;
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	// temporary comment second parse	
+	if(my_id==0) clog<<"before second parse. "<<endl;
 	second_parse(my_id, mpi_class, tran, num_procs);
+	if(my_id==0) clog<<"after second parse."<<endl;
 }
 
 void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int num_procs){
@@ -383,15 +396,19 @@ void Parser::build_block_geo(int &my_id, MPI_CLASS &mpi_class, Tran &tran, int n
 
 	MPI_Bcast(&mpi_class.len_ovr_x, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&mpi_class.len_ovr_y, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	// clog<<my_id<<" "<<mpi_class.len_ovr_x<<" "<<mpi_class.len_ovr_y<<endl;
 
 	MPI_Scatter(mpi_class.geo, 4, MPI_FLOAT, 
 		mpi_class.block_geo, 4, MPI_FLOAT, 
 		0, MPI_COMM_WORLD);
-	
+	/*clog<<my_id<<" "<<mpi_class.block_geo[0]<<" "<<mpi_class.block_geo[1]<<" "<<
+		mpi_class.block_geo[2]<<" "<<mpi_class.block_geo[3]<<endl;*/
+	if(my_id==0) clog<<"before net to block. "<<endl;	
 	if(my_id==0){
 		net_to_block(mpi_class.geo, mpi_class, tran, num_procs, my_id);
 	}
 
+	if(my_id==0) clog<<"after net to block. "<<endl;	
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	//if(my_id==3)
@@ -672,7 +689,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 	int num_blocks  = mpi_class.X_BLOCKS * mpi_class.Y_BLOCKS;
 	clog<<"num_blocks. "<<num_blocks<<endl;
 	InitialOF(of, num_procs, color);//num_blocks, color);
-	//clog<<"after initial ofs. "<<endl;
+	// clog<<"after initial ofs. "<<endl;
 
 	int count_1 = 0, count_2 = 0;
 	while( fgets(line, temp_buf, f)!=NULL){
@@ -681,7 +698,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 		   line[0]=='i' || line[0]=='I' ||
 		   line[0]=='c' || line[0] == 'C' ||
 		   line[0]=='l' || line[0] == 'L'){
-			//clog<<line<<endl;
+			// clog<<line<<endl;
 			sscanf(line, "%s %s %s %lf", 
 					sname, sa, sb, &value);
 			if( sa[0] == '0' ){ nd[0].pt.set(-1,-1,-1); }
@@ -694,7 +711,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 				count_1 = cpr_nd_block(nd[0], geo, i);
 				count_2 = cpr_nd_block(nd[1], geo, i);
 
-				/*if(my_id==0 &&nd[0].name == "n1_2024_174" && nd[1].name == "n1_2072_174"){
+				/*if(my_id==0){//&&nd[0].name == "n1_2024_174" && nd[1].name == "n1_2072_174"){
 					clog<<"line: "<<line<<endl;
 					clog<<count_1<<" "<<count_2<<endl;
 				}*/
@@ -713,6 +730,7 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 			}
 		}
 		else{
+			// clog<<"special lines. "<<line<<endl;
 			switch(line[1]){
 				case 't':
 				case 'w':
@@ -730,9 +748,8 @@ void Parser::net_to_block(float *geo, MPI_CLASS &mpi_class, Tran &tran, int num_
 			}
 		}
 	}
-	free(line);
+	// free(line);
 	// finally print end file symbol (not need to)
-	//clog<<"finish output. "<<endl;
 	fclose(f);
 	//clog<<"close original file. "<<endl;
 	for(int i=0;i<num_procs;i++){

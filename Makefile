@@ -7,12 +7,15 @@ OBJ=$(SRC:.cpp=.o)
 BIN=pg
 RELEASE=IPGS
 CPPFLAGS=
-CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native
+CFLAGS=-lg2c -lrt -Wall -Wextra -pipe -O2 -mfpmath=sse #-msse4.2 -mssse3 -mfpmath=sse -march=native
+#CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native
 #CFLAGS=-Wall -g #-Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=core2
 #LDFLAGS=-s -Wl,-O1,-hash-style=gnu
 LDFLAGS=
 
-PACKAGE= ./package_ck
+# PACKAGE= /home/aaslyan/Suite/SuiteSparse
+PACKAGE= ../../package/SuiteSparse
+#./package_ck
 
 UMFPACK=#./umfpack
 UMFPACK_LIB_DIR=#$(UMFPACK)/lib
@@ -29,14 +32,17 @@ UMFPACK_LIB=#$(UMFPACK_LIB_DIR)/libumfpack.a \
 CHOLMOD= $(PACKAGE)/CHOLMOD
 CHOLMOD_LIB_DIR=$(CHOLMOD)/Lib
 CHOLMOD_INC_DIR=$(CHOLMOD)/Include
-CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a \
+CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a\
 	    $(PACKAGE)/AMD/Lib/libamd.a\
-	    $(CHOLMOD)/libcolamd.a\
-	    $(CHOLMOD)/libccolamd.a\
-	    $(CHOLMOD)/libcamd.a \
-            $(CHOLMOD)/libmetis.a \
-	    $(CHOLMOD)/libgoto2.a 
-
+	    $(PACKAGE)/COLAMD/Lib/libcolamd.a\
+	    $(PACKAGE)/CCOLAMD/Lib/libccolamd.a\
+	    $(PACKAGE)/CAMD/Lib/libcamd.a \
+            ../../package/metis-5.1.0/libmetis/libmetis.a \
+	    ../../package/lapack-3.1.0/lapack_LINUX.a \
+	    ../../package/lapack-3.1.0/blas_LINUX.a\
+	    ../../package/SuiteSparse/SuiteSparse_config/libsuitesparseconfig.a\
+	    /usr/lib/gcc/x86_64-redhat-linux/3.4.6/libg2c.a \
+	    /usr/lib64/librt.so
 
 main: $(OBJ)
 	@echo "Making project..."

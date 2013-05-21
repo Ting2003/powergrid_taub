@@ -17,7 +17,7 @@
 
 #include <string>
 #include <vector>
-#include <tr1/unordered_map>
+//#include <tr1/unordered_map>
 #include <map>
 #include <list>
 #include <cmath>
@@ -36,14 +36,14 @@
 
 
 using namespace std;
-using namespace std::tr1;
+//using namespace std::tr1;
 
 typedef vector<double> DoubleVector;
 typedef vector<Net *> NetPtrVector;
 typedef list<Net *> NetPtrList;
 typedef vector<Node *> NodePtrVector;
 typedef NetPtrVector NetList;
-
+#if 0
 // functor of translating Node * to void *
 namespace std{ 
 	namespace tr1{
@@ -54,7 +54,7 @@ namespace std{
 		};
 	}
 }
-
+#endif
 class Circuit{
 public:
 	Circuit(string name="");
@@ -349,10 +349,10 @@ private:
 	vector<int> layers;
 	
 	// mapping from name to Node object pointer
-	unordered_map<string, Node*> map_node;
+	map<string, Node*> map_node;
 
 	// mapping from Net pointer to their index in netlist
-	unordered_map<Net*, size_t> net_id;
+	map<Net*, size_t> net_id;
 
 	// circuit name
 	string name;
@@ -445,7 +445,7 @@ inline bool Circuit::has_node(string name) const{
 
 // get a node by name
 inline Node * Circuit::get_node(string name){
-	unordered_map<string, Node*>::const_iterator it = map_node.find(name);
+	map<string, Node*>::const_iterator it = map_node.find(name);
 	if( it != map_node.end() ) return it->second;
 	else return NULL;
 }

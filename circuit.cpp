@@ -29,7 +29,7 @@
 #include "util.h"
 #include "algebra.h"
 #include "node.h"
-
+//#include <omp.h>
 #include "mpi.h"
 using namespace std;
 
@@ -566,14 +566,14 @@ bool Circuit::solve_IT(int &my_id, int&num_procs, MPI_CLASS &mpi_class, Tran &tr
 
 	//get_voltages_from_block_LU_sol();	
 	solve_DC(num_procs, my_id, mpi_class);
-	if(my_id==0)
-		cout<<nodelist<<endl;
+	//if(my_id==0)
+		//cout<<nodelist<<endl;
 
 	//return true;
 	// then sync
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	return 0;
+	//return 0;
 #if 1
 	for(size_t i=0;i<block_info.count;i++){
 		block_info.bp[i] = 0;
@@ -2891,8 +2891,8 @@ void Circuit::solve_DC(int &num_procs, int &my_id, MPI_CLASS &mpi_class){
 	while( iter < MAX_ITERATION ){
 		diff = solve_iteration(my_id, iter, num_procs, mpi_class);
 		iter++;
-		if(my_id ==0)
-			clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
+		//if(my_id ==0)
+			//clog<<"iter, diff: "<<iter<<" "<<diff<<endl;
 		if( diff < EPSILON ){
 			successful = true;
 			break;
